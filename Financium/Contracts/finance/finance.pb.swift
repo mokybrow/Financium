@@ -382,7 +382,11 @@ public nonisolated struct Finance_FinanceSettings: Sendable {
 
   public var walletPlan: Finance_WalletPlan = .unspecified
 
-  public var notificationsEnabled: Bool = false
+  public var monthlyRemindersEnabled: Bool = false
+
+  public var promoEmailEnabled: Bool = false
+
+  public var promoPushEnabled: Bool = false
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -902,7 +906,11 @@ public nonisolated struct Finance_UpdateSettingsRequest: Sendable {
 
   public var mainCurrencyCode: String = String()
 
-  public var notificationsEnabled: Bool = false
+  public var monthlyRemindersEnabled: Bool = false
+
+  public var promoEmailEnabled: Bool = false
+
+  public var promoPushEnabled: Bool = false
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1319,7 +1327,7 @@ nonisolated extension Finance_Goal: SwiftProtobuf.Message, SwiftProtobuf._Messag
 
 nonisolated extension Finance_FinanceSettings: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".FinanceSettings"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}main_currency_code\0\u{3}wallet_plan\0\u{3}notifications_enabled\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}main_currency_code\0\u{3}wallet_plan\0\u{3}monthly_reminders_enabled\0\u{3}promo_email_enabled\0\u{3}promo_push_enabled\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1329,7 +1337,9 @@ nonisolated extension Finance_FinanceSettings: SwiftProtobuf.Message, SwiftProto
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.mainCurrencyCode) }()
       case 2: try { try decoder.decodeSingularEnumField(value: &self.walletPlan) }()
-      case 3: try { try decoder.decodeSingularBoolField(value: &self.notificationsEnabled) }()
+      case 3: try { try decoder.decodeSingularBoolField(value: &self.monthlyRemindersEnabled) }()
+      case 4: try { try decoder.decodeSingularBoolField(value: &self.promoEmailEnabled) }()
+      case 5: try { try decoder.decodeSingularBoolField(value: &self.promoPushEnabled) }()
       default: break
       }
     }
@@ -1342,8 +1352,14 @@ nonisolated extension Finance_FinanceSettings: SwiftProtobuf.Message, SwiftProto
     if self.walletPlan != .unspecified {
       try visitor.visitSingularEnumField(value: self.walletPlan, fieldNumber: 2)
     }
-    if self.notificationsEnabled != false {
-      try visitor.visitSingularBoolField(value: self.notificationsEnabled, fieldNumber: 3)
+    if self.monthlyRemindersEnabled != false {
+      try visitor.visitSingularBoolField(value: self.monthlyRemindersEnabled, fieldNumber: 3)
+    }
+    if self.promoEmailEnabled != false {
+      try visitor.visitSingularBoolField(value: self.promoEmailEnabled, fieldNumber: 4)
+    }
+    if self.promoPushEnabled != false {
+      try visitor.visitSingularBoolField(value: self.promoPushEnabled, fieldNumber: 5)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -1351,7 +1367,9 @@ nonisolated extension Finance_FinanceSettings: SwiftProtobuf.Message, SwiftProto
   public static func ==(lhs: Finance_FinanceSettings, rhs: Finance_FinanceSettings) -> Bool {
     if lhs.mainCurrencyCode != rhs.mainCurrencyCode {return false}
     if lhs.walletPlan != rhs.walletPlan {return false}
-    if lhs.notificationsEnabled != rhs.notificationsEnabled {return false}
+    if lhs.monthlyRemindersEnabled != rhs.monthlyRemindersEnabled {return false}
+    if lhs.promoEmailEnabled != rhs.promoEmailEnabled {return false}
+    if lhs.promoPushEnabled != rhs.promoPushEnabled {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2286,7 +2304,7 @@ nonisolated extension Finance_GetSettingsRequest: SwiftProtobuf.Message, SwiftPr
 
 nonisolated extension Finance_UpdateSettingsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpdateSettingsRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}main_currency_code\0\u{3}notifications_enabled\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}main_currency_code\0\u{3}monthly_reminders_enabled\0\u{3}promo_email_enabled\0\u{3}promo_push_enabled\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2295,7 +2313,9 @@ nonisolated extension Finance_UpdateSettingsRequest: SwiftProtobuf.Message, Swif
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.mainCurrencyCode) }()
-      case 2: try { try decoder.decodeSingularBoolField(value: &self.notificationsEnabled) }()
+      case 2: try { try decoder.decodeSingularBoolField(value: &self.monthlyRemindersEnabled) }()
+      case 3: try { try decoder.decodeSingularBoolField(value: &self.promoEmailEnabled) }()
+      case 4: try { try decoder.decodeSingularBoolField(value: &self.promoPushEnabled) }()
       default: break
       }
     }
@@ -2305,15 +2325,23 @@ nonisolated extension Finance_UpdateSettingsRequest: SwiftProtobuf.Message, Swif
     if !self.mainCurrencyCode.isEmpty {
       try visitor.visitSingularStringField(value: self.mainCurrencyCode, fieldNumber: 1)
     }
-    if self.notificationsEnabled != false {
-      try visitor.visitSingularBoolField(value: self.notificationsEnabled, fieldNumber: 2)
+    if self.monthlyRemindersEnabled != false {
+      try visitor.visitSingularBoolField(value: self.monthlyRemindersEnabled, fieldNumber: 2)
+    }
+    if self.promoEmailEnabled != false {
+      try visitor.visitSingularBoolField(value: self.promoEmailEnabled, fieldNumber: 3)
+    }
+    if self.promoPushEnabled != false {
+      try visitor.visitSingularBoolField(value: self.promoPushEnabled, fieldNumber: 4)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Finance_UpdateSettingsRequest, rhs: Finance_UpdateSettingsRequest) -> Bool {
     if lhs.mainCurrencyCode != rhs.mainCurrencyCode {return false}
-    if lhs.notificationsEnabled != rhs.notificationsEnabled {return false}
+    if lhs.monthlyRemindersEnabled != rhs.monthlyRemindersEnabled {return false}
+    if lhs.promoEmailEnabled != rhs.promoEmailEnabled {return false}
+    if lhs.promoPushEnabled != rhs.promoPushEnabled {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

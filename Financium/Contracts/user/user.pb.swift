@@ -690,63 +690,6 @@ public nonisolated struct User_UpdateEatometerHealthProfileRequest: Sendable {
   fileprivate var _sourceUpdatedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
 }
 
-public nonisolated struct User_MoviesSettings: Sendable {
-  // SwiftProtobuf.Message conformance is added in an extension below. See the
-  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
-  // methods supported on all messages.
-
-  public var userID: String = String()
-
-  public var theme: String = String()
-
-  public var pushNotificationsEnabled: Bool = false
-
-  public var movieOnboardingCompleted: Bool = false
-
-  public var listSort: String = String()
-
-  public var unknownFields = SwiftProtobuf.UnknownStorage()
-
-  public init() {}
-}
-
-public nonisolated struct User_GetMoviesSettingsRequest: Sendable {
-  // SwiftProtobuf.Message conformance is added in an extension below. See the
-  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
-  // methods supported on all messages.
-
-  public var unknownFields = SwiftProtobuf.UnknownStorage()
-
-  public init() {}
-}
-
-public nonisolated struct User_UpdateMoviesSettingsRequest: Sendable {
-  // SwiftProtobuf.Message conformance is added in an extension below. See the
-  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
-  // methods supported on all messages.
-
-  public var theme: String = String()
-
-  public var pushNotificationsEnabled: Bool = false
-
-  public var movieOnboardingCompleted: Bool {
-    get {_movieOnboardingCompleted ?? false}
-    set {_movieOnboardingCompleted = newValue}
-  }
-  /// Returns true if `movieOnboardingCompleted` has been explicitly set.
-  public var hasMovieOnboardingCompleted: Bool {self._movieOnboardingCompleted != nil}
-  /// Clears the value of `movieOnboardingCompleted`. Subsequent reads from it will return its default value.
-  public mutating func clearMovieOnboardingCompleted() {self._movieOnboardingCompleted = nil}
-
-  public var listSort: String = String()
-
-  public var unknownFields = SwiftProtobuf.UnknownStorage()
-
-  public init() {}
-
-  fileprivate var _movieOnboardingCompleted: Bool? = nil
-}
-
 public nonisolated struct User_FriendProfile: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -1161,7 +1104,7 @@ nonisolated extension User_FriendshipDirection: SwiftProtobuf._ProtoNameProvidin
 
 nonisolated extension User_User: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".User"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}user_id\0\u{2}\u{2}role\0\u{3}linked_accounts\0\u{1}name\0\u{2}\u{2}email\0\u{4}\u{3}email_confirmed\0\u{1}settings\0\u{4}\u{3}is_supporter\0\u{3}supporter_tier\0\u{3}supporter_expires_at\0\u{b}username\0\u{b}nickname_changed_at\0\u{b}birthdate\0\u{b}password_set\0\u{b}first_name\0\u{b}last_name\0\u{b}sex\0\u{c}\u{2}\u{1}\u{c}\u{6}\u{1}\u{c}\u{8}\u{1}\u{c}\u{9}\u{1}\u{c}\u{c}\u{1}\u{c}\u{d}\u{1}\u{c}\u{11}\u{1}")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}user_id\0\u{2}\u{2}role\0\u{3}linked_accounts\0\u{1}name\0\u{2}\u{2}email\0\u{4}\u{3}email_confirmed\0\u{1}settings\0\u{4}\u{3}is_supporter\0\u{3}supporter_tier\0\u{3}supporter_expires_at\0\u{b}username\0\u{b}nickname_changed_at\0\u{b}birthdate\0\u{b}first_name\0\u{b}last_name\0\u{b}sex\0\u{c}\u{2}\u{1}\u{c}\u{6}\u{1}\u{c}\u{8}\u{1}\u{c}\u{9}\u{1}\u{c}\u{c}\u{1}\u{c}\u{d}\u{1}\u{c}\u{11}\u{1}")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2117,124 +2060,6 @@ nonisolated extension User_UpdateEatometerHealthProfileRequest: SwiftProtobuf.Me
     if lhs.activityLevel != rhs.activityLevel {return false}
     if lhs.goal != rhs.goal {return false}
     if lhs._sourceUpdatedAt != rhs._sourceUpdatedAt {return false}
-    if lhs.unknownFields != rhs.unknownFields {return false}
-    return true
-  }
-}
-
-nonisolated extension User_MoviesSettings: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  public static let protoMessageName: String = _protobuf_package + ".MoviesSettings"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}user_id\0\u{1}theme\0\u{3}push_notifications_enabled\0\u{3}movie_onboarding_completed\0\u{3}list_sort\0")
-
-  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.userID) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.theme) }()
-      case 3: try { try decoder.decodeSingularBoolField(value: &self.pushNotificationsEnabled) }()
-      case 4: try { try decoder.decodeSingularBoolField(value: &self.movieOnboardingCompleted) }()
-      case 5: try { try decoder.decodeSingularStringField(value: &self.listSort) }()
-      default: break
-      }
-    }
-  }
-
-  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if !self.userID.isEmpty {
-      try visitor.visitSingularStringField(value: self.userID, fieldNumber: 1)
-    }
-    if !self.theme.isEmpty {
-      try visitor.visitSingularStringField(value: self.theme, fieldNumber: 2)
-    }
-    if self.pushNotificationsEnabled != false {
-      try visitor.visitSingularBoolField(value: self.pushNotificationsEnabled, fieldNumber: 3)
-    }
-    if self.movieOnboardingCompleted != false {
-      try visitor.visitSingularBoolField(value: self.movieOnboardingCompleted, fieldNumber: 4)
-    }
-    if !self.listSort.isEmpty {
-      try visitor.visitSingularStringField(value: self.listSort, fieldNumber: 5)
-    }
-    try unknownFields.traverse(visitor: &visitor)
-  }
-
-  public static func ==(lhs: User_MoviesSettings, rhs: User_MoviesSettings) -> Bool {
-    if lhs.userID != rhs.userID {return false}
-    if lhs.theme != rhs.theme {return false}
-    if lhs.pushNotificationsEnabled != rhs.pushNotificationsEnabled {return false}
-    if lhs.movieOnboardingCompleted != rhs.movieOnboardingCompleted {return false}
-    if lhs.listSort != rhs.listSort {return false}
-    if lhs.unknownFields != rhs.unknownFields {return false}
-    return true
-  }
-}
-
-nonisolated extension User_GetMoviesSettingsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  public static let protoMessageName: String = _protobuf_package + ".GetMoviesSettingsRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap()
-
-  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    // Load everything into unknown fields
-    while try decoder.nextFieldNumber() != nil {}
-  }
-
-  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    try unknownFields.traverse(visitor: &visitor)
-  }
-
-  public static func ==(lhs: User_GetMoviesSettingsRequest, rhs: User_GetMoviesSettingsRequest) -> Bool {
-    if lhs.unknownFields != rhs.unknownFields {return false}
-    return true
-  }
-}
-
-nonisolated extension User_UpdateMoviesSettingsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  public static let protoMessageName: String = _protobuf_package + ".UpdateMoviesSettingsRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}theme\0\u{3}push_notifications_enabled\0\u{3}movie_onboarding_completed\0\u{3}list_sort\0")
-
-  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.theme) }()
-      case 2: try { try decoder.decodeSingularBoolField(value: &self.pushNotificationsEnabled) }()
-      case 3: try { try decoder.decodeSingularBoolField(value: &self._movieOnboardingCompleted) }()
-      case 4: try { try decoder.decodeSingularStringField(value: &self.listSort) }()
-      default: break
-      }
-    }
-  }
-
-  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    // The use of inline closures is to circumvent an issue where the compiler
-    // allocates stack space for every if/case branch local when no optimizations
-    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
-    // https://github.com/apple/swift-protobuf/issues/1182
-    if !self.theme.isEmpty {
-      try visitor.visitSingularStringField(value: self.theme, fieldNumber: 1)
-    }
-    if self.pushNotificationsEnabled != false {
-      try visitor.visitSingularBoolField(value: self.pushNotificationsEnabled, fieldNumber: 2)
-    }
-    try { if let v = self._movieOnboardingCompleted {
-      try visitor.visitSingularBoolField(value: v, fieldNumber: 3)
-    } }()
-    if !self.listSort.isEmpty {
-      try visitor.visitSingularStringField(value: self.listSort, fieldNumber: 4)
-    }
-    try unknownFields.traverse(visitor: &visitor)
-  }
-
-  public static func ==(lhs: User_UpdateMoviesSettingsRequest, rhs: User_UpdateMoviesSettingsRequest) -> Bool {
-    if lhs.theme != rhs.theme {return false}
-    if lhs.pushNotificationsEnabled != rhs.pushNotificationsEnabled {return false}
-    if lhs._movieOnboardingCompleted != rhs._movieOnboardingCompleted {return false}
-    if lhs.listSort != rhs.listSort {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

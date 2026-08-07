@@ -34,6 +34,9 @@
 
 /* Transaction editors */
 "transaction.category" = "Category";
+"transaction.name" = "Name";
+"transaction.currency" = "Currency";
+"transaction.edit" = "Edit Transaction";
 "transaction.account" = "Account";
 "transaction.from" = "From";
 "transaction.to" = "To";
@@ -50,6 +53,17 @@
 /* Activity */
 "activity.expenses.title" = "Expenses";
 "activity.incoming.title" = "Incoming";
+"activity.title" = "Activity";
+"activity.sort" = "Sort";
+"activity.sort.date_desc" = "Date ↓";
+"activity.sort.date_asc" = "Date ↑";
+"activity.sort.value_desc" = "Value ↓";
+"activity.sort.value_asc" = "Value ↑";
+"activity.filter" = "Filter";
+"activity.filter.all" = "All";
+"activity.filter.cash" = "Cash";
+"activity.filter.banks" = "Banks";
+"activity.filter.currency" = "Currency";
 "activity.empty" = "No operations yet";
 "activity.empty.subtitle" = "Added expenses and incoming will show up here";
 
@@ -112,6 +126,7 @@
 "auth.greeting" = "Money, Sorted";
 "auth.continue_with_apple" = "Continue with Apple";
 "auth.apple.invalid_response" = "Could not read the Apple ID response";
+"auth.apple.nonce_error" = "Could not securely start Apple sign-in";
 "legal.link" = "legal information";
 "legal.auth_consent" = "By continuing, you agree to the %@.";
 

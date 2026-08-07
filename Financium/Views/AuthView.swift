@@ -9,6 +9,7 @@ import SwiftUI
 struct AuthView: View {
     @EnvironmentObject private var auth: AuthSession
     @Environment(\.colorScheme) private var colorScheme
+    @State private var appleNonce = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -76,6 +77,12 @@ struct AuthView: View {
 
             SignInWithAppleButton(.continue) { request in
                 request.requestedScopes = [.fullName, .email]
+                guard let nonce = AuthSession.makeAppleNonce() else {
+                    auth.errorMessage = NSLocalizedString("auth.apple.nonce_error", comment: "Could not create Apple nonce")
+                    return
+                }
+                appleNonce = nonce
+                request.nonce = AuthSession.appleNonceHash(nonce)
             } onCompletion: { result in
                 switch result {
                 case .success(let authorization):
@@ -86,7 +93,7 @@ struct AuthView: View {
                         )
                         return
                     }
-                    Task { await auth.signIn(credential: credential) }
+                    Task { await auth.signIn(credential: credential, nonce: appleNonce) }
 
                 case .failure(let error):
                     // A cancel is not an error worth showing: the user knows

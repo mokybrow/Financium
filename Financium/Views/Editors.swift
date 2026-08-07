@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftProtobuf
 
 // The editor sheets, per the mock-ups: a drawn header with a round close button
 // and a filled blue confirm button, one card of menu rows, and a digits-only pad
@@ -70,23 +71,51 @@ struct TransactionEditorView: View {
     @EnvironmentObject private var store: FinanceStore
     @Environment(\.dismiss) private var dismiss
     let kind: TransactionEditorKind
+    let transaction: Finance_Transaction?
 
     @State private var accountID = ""
     @State private var destinationID = ""
     @State private var category = ""
+    @State private var title = ""
     @State private var amount = ""
+    @State private var occurredAt = Date()
     @State private var saving = false
+
+    init(kind: TransactionEditorKind) {
+        self.kind = kind
+        self.transaction = nil
+    }
+
+    init(transaction: Finance_Transaction) {
+        self.transaction = transaction
+        switch transaction.kind {
+        case .income: self.kind = .income
+        case .transfer: self.kind = .transfer
+        default: self.kind = .expense
+        }
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
                     FICard {
+                        if transaction != nil {
+                            FITextFieldRow("transaction.name", text: $title)
+                            FIRowSeparator()
+                        }
+
                         if kind == .transfer {
                             transferRows
                         } else {
                             standardRows
                         }
+
+                        FIRowSeparator()
+                        FIListRow(
+                            title: Text("transaction.currency"),
+                            accessory: .value(Text(verbatim: transactionCurrency))
+                        )
 
                         FIRowSeparator()
                         FIAmountRow(text: $amount)
@@ -117,6 +146,7 @@ struct TransactionEditorView: View {
     }
 
     private var titleKey: LocalizedStringKey {
+        if transaction != nil { return "transaction.edit" }
         switch kind {
         case .income: return "money.add.incoming"
         case .expense: return "money.add.expense"
@@ -190,6 +220,15 @@ struct TransactionEditorView: View {
     }
 
     private func prefill() {
+        if let transaction {
+            accountID = kind == .income ? transaction.toAccountID : transaction.fromAccountID
+            destinationID = transaction.toAccountID
+            category = transaction.category
+            title = transaction.title
+            amount = financeAmountText(transaction.amount.decimalValue)
+            if transaction.hasOccurredAt { occurredAt = transaction.occurredAt.date }
+            return
+        }
         if accountID.isEmpty {
             accountID = store.accounts.first?.id ?? ""
         }
@@ -210,22 +249,30 @@ struct TransactionEditorView: View {
         return true
     }
 
+    private var transactionCurrency: String {
+        if let code = store.accounts.first(where: { $0.id == accountID })?.balance.currencyCode, !code.isEmpty {
+            return code
+        }
+        if let transaction, !transaction.amount.currencyCode.isEmpty { return transaction.amount.currencyCode }
+        return store.settings.mainCurrencyCode.isEmpty ? "RUB" : store.settings.mainCurrencyCode
+    }
+
     private func save() {
         guard let value = financeDecimal(from: amount) else { return }
         saving = true
 
         Task {
-            let created = await store.createTransaction(
+            let created = await store.saveTransaction(
+                id: transaction?.id ?? "",
                 kind: kind,
                 accountID: accountID,
                 destinationID: destinationID,
-                // The category doubles as the title: these sheets have no name
-                // field, so the row would otherwise render blank.
-                title: categoryLabel,
+                title: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? categoryLabel : title,
                 category: categoryLabel,
                 amount: value,
+                currency: transactionCurrency,
                 note: "",
-                date: Date()
+                date: occurredAt
             )
             saving = false
             if created { dismiss() }

@@ -34,6 +34,9 @@
 
 /* Transaction editors */
 "transaction.category" = "Категория";
+"transaction.name" = "Название";
+"transaction.currency" = "Валюта";
+"transaction.edit" = "Изменить операцию";
 "transaction.account" = "Счёт";
 "transaction.from" = "Откуда";
 "transaction.to" = "Куда";
@@ -50,6 +53,17 @@
 /* Activity */
 "activity.expenses.title" = "Расходы";
 "activity.incoming.title" = "Поступления";
+"activity.title" = "Операции";
+"activity.sort" = "Сортировка";
+"activity.sort.date_desc" = "Дата ↓";
+"activity.sort.date_asc" = "Дата ↑";
+"activity.sort.value_desc" = "Сумма ↓";
+"activity.sort.value_asc" = "Сумма ↑";
+"activity.filter" = "Фильтр";
+"activity.filter.all" = "Все";
+"activity.filter.cash" = "Наличные";
+"activity.filter.banks" = "Банки";
+"activity.filter.currency" = "Валюта";
 "activity.empty" = "Операций пока нет";
 "activity.empty.subtitle" = "Добавленные расходы и поступления появятся здесь";
 
@@ -112,6 +126,7 @@
 "auth.greeting" = "Деньги под контролем";
 "auth.continue_with_apple" = "Продолжить с Apple";
 "auth.apple.invalid_response" = "Не удалось прочитать ответ Apple ID";
+"auth.apple.nonce_error" = "Не удалось безопасно начать вход через Apple";
 "legal.link" = "Юридической информацией";
 "legal.auth_consent" = "Продолжая, вы соглашаетесь с %@.";
 

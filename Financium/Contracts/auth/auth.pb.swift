@@ -41,49 +41,25 @@ public nonisolated struct Auth_SignInWithAppleRequest: Sendable {
 
   public var identityToken: String = String()
 
-  public var authorizationCode: String = String()
-
   public var name: String = String()
 
   public var appID: String = String()
 
   public var requestedScopes: [String] = []
 
+  public var nonce: String = String()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
 }
 
-public nonisolated struct Auth_ForgotPasswordResponse: Sendable {
+public nonisolated struct Auth_MutationResponse: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
   public var success: Bool = false
-
-  public var unknownFields = SwiftProtobuf.UnknownStorage()
-
-  public init() {}
-}
-
-public nonisolated struct Auth_SendEmailConfirmationRequest: Sendable {
-  // SwiftProtobuf.Message conformance is added in an extension below. See the
-  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
-  // methods supported on all messages.
-
-  public var email: String = String()
-
-  public var unknownFields = SwiftProtobuf.UnknownStorage()
-
-  public init() {}
-}
-
-public nonisolated struct Auth_ConfirmEmailRequest: Sendable {
-  // SwiftProtobuf.Message conformance is added in an extension below. See the
-  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
-  // methods supported on all messages.
-
-  public var code: String = String()
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -259,7 +235,7 @@ nonisolated extension Auth_TokenPair: SwiftProtobuf.Message, SwiftProtobuf._Mess
 
 nonisolated extension Auth_SignInWithAppleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".SignInWithAppleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}identity_token\0\u{3}authorization_code\0\u{1}name\0\u{3}app_id\0\u{3}requested_scopes\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}identity_token\0\u{2}\u{2}name\0\u{3}app_id\0\u{3}requested_scopes\0\u{1}nonce\0\u{b}authorization_code\0\u{c}\u{2}\u{1}")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -268,10 +244,10 @@ nonisolated extension Auth_SignInWithAppleRequest: SwiftProtobuf.Message, SwiftP
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.identityToken) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.authorizationCode) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.appID) }()
       case 5: try { try decoder.decodeRepeatedStringField(value: &self.requestedScopes) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.nonce) }()
       default: break
       }
     }
@@ -280,9 +256,6 @@ nonisolated extension Auth_SignInWithAppleRequest: SwiftProtobuf.Message, SwiftP
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
     if !self.identityToken.isEmpty {
       try visitor.visitSingularStringField(value: self.identityToken, fieldNumber: 1)
-    }
-    if !self.authorizationCode.isEmpty {
-      try visitor.visitSingularStringField(value: self.authorizationCode, fieldNumber: 2)
     }
     if !self.name.isEmpty {
       try visitor.visitSingularStringField(value: self.name, fieldNumber: 3)
@@ -293,22 +266,25 @@ nonisolated extension Auth_SignInWithAppleRequest: SwiftProtobuf.Message, SwiftP
     if !self.requestedScopes.isEmpty {
       try visitor.visitRepeatedStringField(value: self.requestedScopes, fieldNumber: 5)
     }
+    if !self.nonce.isEmpty {
+      try visitor.visitSingularStringField(value: self.nonce, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Auth_SignInWithAppleRequest, rhs: Auth_SignInWithAppleRequest) -> Bool {
     if lhs.identityToken != rhs.identityToken {return false}
-    if lhs.authorizationCode != rhs.authorizationCode {return false}
     if lhs.name != rhs.name {return false}
     if lhs.appID != rhs.appID {return false}
     if lhs.requestedScopes != rhs.requestedScopes {return false}
+    if lhs.nonce != rhs.nonce {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
 }
 
-nonisolated extension Auth_ForgotPasswordResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  public static let protoMessageName: String = _protobuf_package + ".ForgotPasswordResponse"
+nonisolated extension Auth_MutationResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".MutationResponse"
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}success\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -330,68 +306,8 @@ nonisolated extension Auth_ForgotPasswordResponse: SwiftProtobuf.Message, SwiftP
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  public static func ==(lhs: Auth_ForgotPasswordResponse, rhs: Auth_ForgotPasswordResponse) -> Bool {
+  public static func ==(lhs: Auth_MutationResponse, rhs: Auth_MutationResponse) -> Bool {
     if lhs.success != rhs.success {return false}
-    if lhs.unknownFields != rhs.unknownFields {return false}
-    return true
-  }
-}
-
-nonisolated extension Auth_SendEmailConfirmationRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  public static let protoMessageName: String = _protobuf_package + ".SendEmailConfirmationRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}email\0")
-
-  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.email) }()
-      default: break
-      }
-    }
-  }
-
-  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if !self.email.isEmpty {
-      try visitor.visitSingularStringField(value: self.email, fieldNumber: 1)
-    }
-    try unknownFields.traverse(visitor: &visitor)
-  }
-
-  public static func ==(lhs: Auth_SendEmailConfirmationRequest, rhs: Auth_SendEmailConfirmationRequest) -> Bool {
-    if lhs.email != rhs.email {return false}
-    if lhs.unknownFields != rhs.unknownFields {return false}
-    return true
-  }
-}
-
-nonisolated extension Auth_ConfirmEmailRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  public static let protoMessageName: String = _protobuf_package + ".ConfirmEmailRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}code\0")
-
-  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.code) }()
-      default: break
-      }
-    }
-  }
-
-  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if !self.code.isEmpty {
-      try visitor.visitSingularStringField(value: self.code, fieldNumber: 1)
-    }
-    try unknownFields.traverse(visitor: &visitor)
-  }
-
-  public static func ==(lhs: Auth_ConfirmEmailRequest, rhs: Auth_ConfirmEmailRequest) -> Bool {
-    if lhs.code != rhs.code {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -33,38 +33,12 @@ public enum Auth_AuthService: Sendable {
                 type: .unary
             )
         }
-        /// Namespace for "SendEmailConfirmation" metadata.
-        public enum SendEmailConfirmation: Sendable {
-            /// Request type for "SendEmailConfirmation".
-            public typealias Input = Auth_SendEmailConfirmationRequest
-            /// Response type for "SendEmailConfirmation".
-            public typealias Output = Auth_ForgotPasswordResponse
-            /// Descriptor for "SendEmailConfirmation".
-            public static let descriptor = GRPCCore.MethodDescriptor(
-                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "auth.AuthService"),
-                method: "SendEmailConfirmation",
-                type: .unary
-            )
-        }
-        /// Namespace for "ConfirmEmail" metadata.
-        public enum ConfirmEmail: Sendable {
-            /// Request type for "ConfirmEmail".
-            public typealias Input = Auth_ConfirmEmailRequest
-            /// Response type for "ConfirmEmail".
-            public typealias Output = Auth_ForgotPasswordResponse
-            /// Descriptor for "ConfirmEmail".
-            public static let descriptor = GRPCCore.MethodDescriptor(
-                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "auth.AuthService"),
-                method: "ConfirmEmail",
-                type: .unary
-            )
-        }
         /// Namespace for "InitiateChangeEmail" metadata.
         public enum InitiateChangeEmail: Sendable {
             /// Request type for "InitiateChangeEmail".
             public typealias Input = Auth_InitiateChangeEmailRequest
             /// Response type for "InitiateChangeEmail".
-            public typealias Output = Auth_ForgotPasswordResponse
+            public typealias Output = Auth_MutationResponse
             /// Descriptor for "InitiateChangeEmail".
             public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "auth.AuthService"),
@@ -77,7 +51,7 @@ public enum Auth_AuthService: Sendable {
             /// Request type for "ConfirmChangeEmail".
             public typealias Input = Auth_ConfirmChangeEmailRequest
             /// Response type for "ConfirmChangeEmail".
-            public typealias Output = Auth_ForgotPasswordResponse
+            public typealias Output = Auth_MutationResponse
             /// Descriptor for "ConfirmChangeEmail".
             public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "auth.AuthService"),
@@ -153,8 +127,6 @@ public enum Auth_AuthService: Sendable {
         /// Descriptors for all methods in the "auth.AuthService" service.
         public static let descriptors: [GRPCCore.MethodDescriptor] = [
             SignInWithApple.descriptor,
-            SendEmailConfirmation.descriptor,
-            ConfirmEmail.descriptor,
             InitiateChangeEmail.descriptor,
             ConfirmChangeEmail.descriptor,
             Refresh.descriptor,
@@ -201,34 +173,6 @@ extension Auth_AuthService {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Auth_TokenPair>
 
-        /// Handle the "SendEmailConfirmation" method.
-        ///
-        /// - Parameters:
-        ///   - request: A streaming request of `Auth_SendEmailConfirmationRequest` messages.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A streaming response of `Auth_ForgotPasswordResponse` messages.
-        func sendEmailConfirmation(
-            request: GRPCCore.StreamingServerRequest<Auth_SendEmailConfirmationRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<Auth_ForgotPasswordResponse>
-
-        /// Handle the "ConfirmEmail" method.
-        ///
-        /// - Parameters:
-        ///   - request: A streaming request of `Auth_ConfirmEmailRequest` messages.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A streaming response of `Auth_ForgotPasswordResponse` messages.
-        func confirmEmail(
-            request: GRPCCore.StreamingServerRequest<Auth_ConfirmEmailRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<Auth_ForgotPasswordResponse>
-
         /// Handle the "InitiateChangeEmail" method.
         ///
         /// - Parameters:
@@ -237,11 +181,11 @@ extension Auth_AuthService {
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A streaming response of `Auth_ForgotPasswordResponse` messages.
+        /// - Returns: A streaming response of `Auth_MutationResponse` messages.
         func initiateChangeEmail(
             request: GRPCCore.StreamingServerRequest<Auth_InitiateChangeEmailRequest>,
             context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<Auth_ForgotPasswordResponse>
+        ) async throws -> GRPCCore.StreamingServerResponse<Auth_MutationResponse>
 
         /// Handle the "ConfirmChangeEmail" method.
         ///
@@ -251,11 +195,11 @@ extension Auth_AuthService {
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A streaming response of `Auth_ForgotPasswordResponse` messages.
+        /// - Returns: A streaming response of `Auth_MutationResponse` messages.
         func confirmChangeEmail(
             request: GRPCCore.StreamingServerRequest<Auth_ConfirmChangeEmailRequest>,
             context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<Auth_ForgotPasswordResponse>
+        ) async throws -> GRPCCore.StreamingServerResponse<Auth_MutationResponse>
 
         /// Handle the "Refresh" method.
         ///
@@ -350,34 +294,6 @@ extension Auth_AuthService {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Auth_TokenPair>
 
-        /// Handle the "SendEmailConfirmation" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `Auth_SendEmailConfirmationRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A response containing a single `Auth_ForgotPasswordResponse` message.
-        func sendEmailConfirmation(
-            request: GRPCCore.ServerRequest<Auth_SendEmailConfirmationRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<Auth_ForgotPasswordResponse>
-
-        /// Handle the "ConfirmEmail" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `Auth_ConfirmEmailRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A response containing a single `Auth_ForgotPasswordResponse` message.
-        func confirmEmail(
-            request: GRPCCore.ServerRequest<Auth_ConfirmEmailRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<Auth_ForgotPasswordResponse>
-
         /// Handle the "InitiateChangeEmail" method.
         ///
         /// - Parameters:
@@ -386,11 +302,11 @@ extension Auth_AuthService {
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A response containing a single `Auth_ForgotPasswordResponse` message.
+        /// - Returns: A response containing a single `Auth_MutationResponse` message.
         func initiateChangeEmail(
             request: GRPCCore.ServerRequest<Auth_InitiateChangeEmailRequest>,
             context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<Auth_ForgotPasswordResponse>
+        ) async throws -> GRPCCore.ServerResponse<Auth_MutationResponse>
 
         /// Handle the "ConfirmChangeEmail" method.
         ///
@@ -400,11 +316,11 @@ extension Auth_AuthService {
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A response containing a single `Auth_ForgotPasswordResponse` message.
+        /// - Returns: A response containing a single `Auth_MutationResponse` message.
         func confirmChangeEmail(
             request: GRPCCore.ServerRequest<Auth_ConfirmChangeEmailRequest>,
             context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<Auth_ForgotPasswordResponse>
+        ) async throws -> GRPCCore.ServerResponse<Auth_MutationResponse>
 
         /// Handle the "Refresh" method.
         ///
@@ -497,34 +413,6 @@ extension Auth_AuthService {
             context: GRPCCore.ServerContext
         ) async throws -> Auth_TokenPair
 
-        /// Handle the "SendEmailConfirmation" method.
-        ///
-        /// - Parameters:
-        ///   - request: A `Auth_SendEmailConfirmationRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A `Auth_ForgotPasswordResponse` to respond with.
-        func sendEmailConfirmation(
-            request: Auth_SendEmailConfirmationRequest,
-            context: GRPCCore.ServerContext
-        ) async throws -> Auth_ForgotPasswordResponse
-
-        /// Handle the "ConfirmEmail" method.
-        ///
-        /// - Parameters:
-        ///   - request: A `Auth_ConfirmEmailRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A `Auth_ForgotPasswordResponse` to respond with.
-        func confirmEmail(
-            request: Auth_ConfirmEmailRequest,
-            context: GRPCCore.ServerContext
-        ) async throws -> Auth_ForgotPasswordResponse
-
         /// Handle the "InitiateChangeEmail" method.
         ///
         /// - Parameters:
@@ -533,11 +421,11 @@ extension Auth_AuthService {
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A `Auth_ForgotPasswordResponse` to respond with.
+        /// - Returns: A `Auth_MutationResponse` to respond with.
         func initiateChangeEmail(
             request: Auth_InitiateChangeEmailRequest,
             context: GRPCCore.ServerContext
-        ) async throws -> Auth_ForgotPasswordResponse
+        ) async throws -> Auth_MutationResponse
 
         /// Handle the "ConfirmChangeEmail" method.
         ///
@@ -547,11 +435,11 @@ extension Auth_AuthService {
         /// - Throws: Any error which occurred during the processing of the request. Thrown errors
         ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
         ///     to an internal error.
-        /// - Returns: A `Auth_ForgotPasswordResponse` to respond with.
+        /// - Returns: A `Auth_MutationResponse` to respond with.
         func confirmChangeEmail(
             request: Auth_ConfirmChangeEmailRequest,
             context: GRPCCore.ServerContext
-        ) async throws -> Auth_ForgotPasswordResponse
+        ) async throws -> Auth_MutationResponse
 
         /// Handle the "Refresh" method.
         ///
@@ -641,31 +529,9 @@ extension Auth_AuthService.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
-            forMethod: Auth_AuthService.Method.SendEmailConfirmation.descriptor,
-            deserializer: GRPCProtobuf.ProtobufDeserializer<Auth_SendEmailConfirmationRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<Auth_ForgotPasswordResponse>(),
-            handler: { request, context in
-                try await self.sendEmailConfirmation(
-                    request: request,
-                    context: context
-                )
-            }
-        )
-        router.registerHandler(
-            forMethod: Auth_AuthService.Method.ConfirmEmail.descriptor,
-            deserializer: GRPCProtobuf.ProtobufDeserializer<Auth_ConfirmEmailRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<Auth_ForgotPasswordResponse>(),
-            handler: { request, context in
-                try await self.confirmEmail(
-                    request: request,
-                    context: context
-                )
-            }
-        )
-        router.registerHandler(
             forMethod: Auth_AuthService.Method.InitiateChangeEmail.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Auth_InitiateChangeEmailRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<Auth_ForgotPasswordResponse>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Auth_MutationResponse>(),
             handler: { request, context in
                 try await self.initiateChangeEmail(
                     request: request,
@@ -676,7 +542,7 @@ extension Auth_AuthService.StreamingServiceProtocol {
         router.registerHandler(
             forMethod: Auth_AuthService.Method.ConfirmChangeEmail.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Auth_ConfirmChangeEmailRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<Auth_ForgotPasswordResponse>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Auth_MutationResponse>(),
             handler: { request, context in
                 try await self.confirmChangeEmail(
                     request: request,
@@ -756,32 +622,10 @@ extension Auth_AuthService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    public func sendEmailConfirmation(
-        request: GRPCCore.StreamingServerRequest<Auth_SendEmailConfirmationRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<Auth_ForgotPasswordResponse> {
-        let response = try await self.sendEmailConfirmation(
-            request: GRPCCore.ServerRequest(stream: request),
-            context: context
-        )
-        return GRPCCore.StreamingServerResponse(single: response)
-    }
-
-    public func confirmEmail(
-        request: GRPCCore.StreamingServerRequest<Auth_ConfirmEmailRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<Auth_ForgotPasswordResponse> {
-        let response = try await self.confirmEmail(
-            request: GRPCCore.ServerRequest(stream: request),
-            context: context
-        )
-        return GRPCCore.StreamingServerResponse(single: response)
-    }
-
     public func initiateChangeEmail(
         request: GRPCCore.StreamingServerRequest<Auth_InitiateChangeEmailRequest>,
         context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<Auth_ForgotPasswordResponse> {
+    ) async throws -> GRPCCore.StreamingServerResponse<Auth_MutationResponse> {
         let response = try await self.initiateChangeEmail(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
@@ -792,7 +636,7 @@ extension Auth_AuthService.ServiceProtocol {
     public func confirmChangeEmail(
         request: GRPCCore.StreamingServerRequest<Auth_ConfirmChangeEmailRequest>,
         context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<Auth_ForgotPasswordResponse> {
+    ) async throws -> GRPCCore.StreamingServerResponse<Auth_MutationResponse> {
         let response = try await self.confirmChangeEmail(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
@@ -872,37 +716,11 @@ extension Auth_AuthService.SimpleServiceProtocol {
         )
     }
 
-    public func sendEmailConfirmation(
-        request: GRPCCore.ServerRequest<Auth_SendEmailConfirmationRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<Auth_ForgotPasswordResponse> {
-        return GRPCCore.ServerResponse<Auth_ForgotPasswordResponse>(
-            message: try await self.sendEmailConfirmation(
-                request: request.message,
-                context: context
-            ),
-            metadata: [:]
-        )
-    }
-
-    public func confirmEmail(
-        request: GRPCCore.ServerRequest<Auth_ConfirmEmailRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<Auth_ForgotPasswordResponse> {
-        return GRPCCore.ServerResponse<Auth_ForgotPasswordResponse>(
-            message: try await self.confirmEmail(
-                request: request.message,
-                context: context
-            ),
-            metadata: [:]
-        )
-    }
-
     public func initiateChangeEmail(
         request: GRPCCore.ServerRequest<Auth_InitiateChangeEmailRequest>,
         context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<Auth_ForgotPasswordResponse> {
-        return GRPCCore.ServerResponse<Auth_ForgotPasswordResponse>(
+    ) async throws -> GRPCCore.ServerResponse<Auth_MutationResponse> {
+        return GRPCCore.ServerResponse<Auth_MutationResponse>(
             message: try await self.initiateChangeEmail(
                 request: request.message,
                 context: context
@@ -914,8 +732,8 @@ extension Auth_AuthService.SimpleServiceProtocol {
     public func confirmChangeEmail(
         request: GRPCCore.ServerRequest<Auth_ConfirmChangeEmailRequest>,
         context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<Auth_ForgotPasswordResponse> {
-        return GRPCCore.ServerResponse<Auth_ForgotPasswordResponse>(
+    ) async throws -> GRPCCore.ServerResponse<Auth_MutationResponse> {
+        return GRPCCore.ServerResponse<Auth_MutationResponse>(
             message: try await self.confirmChangeEmail(
                 request: request.message,
                 context: context
@@ -1018,50 +836,12 @@ extension Auth_AuthService {
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_TokenPair>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
-        /// Call the "SendEmailConfirmation" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `Auth_SendEmailConfirmationRequest` message.
-        ///   - serializer: A serializer for `Auth_SendEmailConfirmationRequest` messages.
-        ///   - deserializer: A deserializer for `Auth_ForgotPasswordResponse` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        func sendEmailConfirmation<Result>(
-            request: GRPCCore.ClientRequest<Auth_SendEmailConfirmationRequest>,
-            serializer: some GRPCCore.MessageSerializer<Auth_SendEmailConfirmationRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Auth_ForgotPasswordResponse>,
-            options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result
-        ) async throws -> Result where Result: Sendable
-
-        /// Call the "ConfirmEmail" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `Auth_ConfirmEmailRequest` message.
-        ///   - serializer: A serializer for `Auth_ConfirmEmailRequest` messages.
-        ///   - deserializer: A deserializer for `Auth_ForgotPasswordResponse` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        func confirmEmail<Result>(
-            request: GRPCCore.ClientRequest<Auth_ConfirmEmailRequest>,
-            serializer: some GRPCCore.MessageSerializer<Auth_ConfirmEmailRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Auth_ForgotPasswordResponse>,
-            options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result
-        ) async throws -> Result where Result: Sendable
-
         /// Call the "InitiateChangeEmail" method.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Auth_InitiateChangeEmailRequest` message.
         ///   - serializer: A serializer for `Auth_InitiateChangeEmailRequest` messages.
-        ///   - deserializer: A deserializer for `Auth_ForgotPasswordResponse` messages.
+        ///   - deserializer: A deserializer for `Auth_MutationResponse` messages.
         ///   - options: Options to apply to this RPC.
         ///   - handleResponse: A closure which handles the response, the result of which is
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
@@ -1070,9 +850,9 @@ extension Auth_AuthService {
         func initiateChangeEmail<Result>(
             request: GRPCCore.ClientRequest<Auth_InitiateChangeEmailRequest>,
             serializer: some GRPCCore.MessageSerializer<Auth_InitiateChangeEmailRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Auth_ForgotPasswordResponse>,
+            deserializer: some GRPCCore.MessageDeserializer<Auth_MutationResponse>,
             options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_MutationResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "ConfirmChangeEmail" method.
@@ -1080,7 +860,7 @@ extension Auth_AuthService {
         /// - Parameters:
         ///   - request: A request containing a single `Auth_ConfirmChangeEmailRequest` message.
         ///   - serializer: A serializer for `Auth_ConfirmChangeEmailRequest` messages.
-        ///   - deserializer: A deserializer for `Auth_ForgotPasswordResponse` messages.
+        ///   - deserializer: A deserializer for `Auth_MutationResponse` messages.
         ///   - options: Options to apply to this RPC.
         ///   - handleResponse: A closure which handles the response, the result of which is
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
@@ -1089,9 +869,9 @@ extension Auth_AuthService {
         func confirmChangeEmail<Result>(
             request: GRPCCore.ClientRequest<Auth_ConfirmChangeEmailRequest>,
             serializer: some GRPCCore.MessageSerializer<Auth_ConfirmChangeEmailRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Auth_ForgotPasswordResponse>,
+            deserializer: some GRPCCore.MessageDeserializer<Auth_MutationResponse>,
             options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_MutationResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "Refresh" method.
@@ -1236,72 +1016,12 @@ extension Auth_AuthService {
             )
         }
 
-        /// Call the "SendEmailConfirmation" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `Auth_SendEmailConfirmationRequest` message.
-        ///   - serializer: A serializer for `Auth_SendEmailConfirmationRequest` messages.
-        ///   - deserializer: A deserializer for `Auth_ForgotPasswordResponse` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        public func sendEmailConfirmation<Result>(
-            request: GRPCCore.ClientRequest<Auth_SendEmailConfirmationRequest>,
-            serializer: some GRPCCore.MessageSerializer<Auth_SendEmailConfirmationRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Auth_ForgotPasswordResponse>,
-            options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
-                try response.message
-            }
-        ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
-                request: request,
-                descriptor: Auth_AuthService.Method.SendEmailConfirmation.descriptor,
-                serializer: serializer,
-                deserializer: deserializer,
-                options: options,
-                onResponse: handleResponse
-            )
-        }
-
-        /// Call the "ConfirmEmail" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `Auth_ConfirmEmailRequest` message.
-        ///   - serializer: A serializer for `Auth_ConfirmEmailRequest` messages.
-        ///   - deserializer: A deserializer for `Auth_ForgotPasswordResponse` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        public func confirmEmail<Result>(
-            request: GRPCCore.ClientRequest<Auth_ConfirmEmailRequest>,
-            serializer: some GRPCCore.MessageSerializer<Auth_ConfirmEmailRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Auth_ForgotPasswordResponse>,
-            options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
-                try response.message
-            }
-        ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
-                request: request,
-                descriptor: Auth_AuthService.Method.ConfirmEmail.descriptor,
-                serializer: serializer,
-                deserializer: deserializer,
-                options: options,
-                onResponse: handleResponse
-            )
-        }
-
         /// Call the "InitiateChangeEmail" method.
         ///
         /// - Parameters:
         ///   - request: A request containing a single `Auth_InitiateChangeEmailRequest` message.
         ///   - serializer: A serializer for `Auth_InitiateChangeEmailRequest` messages.
-        ///   - deserializer: A deserializer for `Auth_ForgotPasswordResponse` messages.
+        ///   - deserializer: A deserializer for `Auth_MutationResponse` messages.
         ///   - options: Options to apply to this RPC.
         ///   - handleResponse: A closure which handles the response, the result of which is
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
@@ -1310,9 +1030,9 @@ extension Auth_AuthService {
         public func initiateChangeEmail<Result>(
             request: GRPCCore.ClientRequest<Auth_InitiateChangeEmailRequest>,
             serializer: some GRPCCore.MessageSerializer<Auth_InitiateChangeEmailRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Auth_ForgotPasswordResponse>,
+            deserializer: some GRPCCore.MessageDeserializer<Auth_MutationResponse>,
             options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_MutationResponse>) async throws -> Result = { response in
                 try response.message
             }
         ) async throws -> Result where Result: Sendable {
@@ -1331,7 +1051,7 @@ extension Auth_AuthService {
         /// - Parameters:
         ///   - request: A request containing a single `Auth_ConfirmChangeEmailRequest` message.
         ///   - serializer: A serializer for `Auth_ConfirmChangeEmailRequest` messages.
-        ///   - deserializer: A deserializer for `Auth_ForgotPasswordResponse` messages.
+        ///   - deserializer: A deserializer for `Auth_MutationResponse` messages.
         ///   - options: Options to apply to this RPC.
         ///   - handleResponse: A closure which handles the response, the result of which is
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
@@ -1340,9 +1060,9 @@ extension Auth_AuthService {
         public func confirmChangeEmail<Result>(
             request: GRPCCore.ClientRequest<Auth_ConfirmChangeEmailRequest>,
             serializer: some GRPCCore.MessageSerializer<Auth_ConfirmChangeEmailRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<Auth_ForgotPasswordResponse>,
+            deserializer: some GRPCCore.MessageDeserializer<Auth_MutationResponse>,
             options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_MutationResponse>) async throws -> Result = { response in
                 try response.message
             }
         ) async throws -> Result where Result: Sendable {
@@ -1536,56 +1256,6 @@ extension Auth_AuthService.ClientProtocol {
         )
     }
 
-    /// Call the "SendEmailConfirmation" method.
-    ///
-    /// - Parameters:
-    ///   - request: A request containing a single `Auth_SendEmailConfirmationRequest` message.
-    ///   - options: Options to apply to this RPC.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func sendEmailConfirmation<Result>(
-        request: GRPCCore.ClientRequest<Auth_SendEmailConfirmationRequest>,
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        try await self.sendEmailConfirmation(
-            request: request,
-            serializer: GRPCProtobuf.ProtobufSerializer<Auth_SendEmailConfirmationRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<Auth_ForgotPasswordResponse>(),
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
-    /// Call the "ConfirmEmail" method.
-    ///
-    /// - Parameters:
-    ///   - request: A request containing a single `Auth_ConfirmEmailRequest` message.
-    ///   - options: Options to apply to this RPC.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func confirmEmail<Result>(
-        request: GRPCCore.ClientRequest<Auth_ConfirmEmailRequest>,
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        try await self.confirmEmail(
-            request: request,
-            serializer: GRPCProtobuf.ProtobufSerializer<Auth_ConfirmEmailRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<Auth_ForgotPasswordResponse>(),
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
     /// Call the "InitiateChangeEmail" method.
     ///
     /// - Parameters:
@@ -1598,14 +1268,14 @@ extension Auth_AuthService.ClientProtocol {
     public func initiateChangeEmail<Result>(
         request: GRPCCore.ClientRequest<Auth_InitiateChangeEmailRequest>,
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_MutationResponse>) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
         try await self.initiateChangeEmail(
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Auth_InitiateChangeEmailRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<Auth_ForgotPasswordResponse>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Auth_MutationResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -1623,14 +1293,14 @@ extension Auth_AuthService.ClientProtocol {
     public func confirmChangeEmail<Result>(
         request: GRPCCore.ClientRequest<Auth_ConfirmChangeEmailRequest>,
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_MutationResponse>) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
         try await self.confirmChangeEmail(
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Auth_ConfirmChangeEmailRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<Auth_ForgotPasswordResponse>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Auth_MutationResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -1794,64 +1464,6 @@ extension Auth_AuthService.ClientProtocol {
         )
     }
 
-    /// Call the "SendEmailConfirmation" method.
-    ///
-    /// - Parameters:
-    ///   - message: request message to send.
-    ///   - metadata: Additional metadata to send, defaults to empty.
-    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func sendEmailConfirmation<Result>(
-        _ message: Auth_SendEmailConfirmationRequest,
-        metadata: GRPCCore.Metadata = [:],
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        let request = GRPCCore.ClientRequest<Auth_SendEmailConfirmationRequest>(
-            message: message,
-            metadata: metadata
-        )
-        return try await self.sendEmailConfirmation(
-            request: request,
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
-    /// Call the "ConfirmEmail" method.
-    ///
-    /// - Parameters:
-    ///   - message: request message to send.
-    ///   - metadata: Additional metadata to send, defaults to empty.
-    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func confirmEmail<Result>(
-        _ message: Auth_ConfirmEmailRequest,
-        metadata: GRPCCore.Metadata = [:],
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        let request = GRPCCore.ClientRequest<Auth_ConfirmEmailRequest>(
-            message: message,
-            metadata: metadata
-        )
-        return try await self.confirmEmail(
-            request: request,
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
     /// Call the "InitiateChangeEmail" method.
     ///
     /// - Parameters:
@@ -1866,7 +1478,7 @@ extension Auth_AuthService.ClientProtocol {
         _ message: Auth_InitiateChangeEmailRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_MutationResponse>) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {
@@ -1895,7 +1507,7 @@ extension Auth_AuthService.ClientProtocol {
         _ message: Auth_ConfirmChangeEmailRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_ForgotPasswordResponse>) async throws -> Result = { response in
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Auth_MutationResponse>) async throws -> Result = { response in
             try response.message
         }
     ) async throws -> Result where Result: Sendable {

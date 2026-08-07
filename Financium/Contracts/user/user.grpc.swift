@@ -111,32 +111,6 @@ public enum User_UserService: Sendable {
                 type: .unary
             )
         }
-        /// Namespace for "GetMoviesSettings" metadata.
-        public enum GetMoviesSettings: Sendable {
-            /// Request type for "GetMoviesSettings".
-            public typealias Input = User_GetMoviesSettingsRequest
-            /// Response type for "GetMoviesSettings".
-            public typealias Output = User_MoviesSettings
-            /// Descriptor for "GetMoviesSettings".
-            public static let descriptor = GRPCCore.MethodDescriptor(
-                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "user.UserService"),
-                method: "GetMoviesSettings",
-                type: .unary
-            )
-        }
-        /// Namespace for "UpdateMoviesSettings" metadata.
-        public enum UpdateMoviesSettings: Sendable {
-            /// Request type for "UpdateMoviesSettings".
-            public typealias Input = User_UpdateMoviesSettingsRequest
-            /// Response type for "UpdateMoviesSettings".
-            public typealias Output = User_MoviesSettings
-            /// Descriptor for "UpdateMoviesSettings".
-            public static let descriptor = GRPCCore.MethodDescriptor(
-                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "user.UserService"),
-                method: "UpdateMoviesSettings",
-                type: .unary
-            )
-        }
         /// Namespace for "SetUserRole" metadata.
         public enum SetUserRole: Sendable {
             /// Request type for "SetUserRole".
@@ -289,8 +263,6 @@ public enum User_UserService: Sendable {
             UpdateEatometerSettings.descriptor,
             GetEatometerHealthProfile.descriptor,
             UpdateEatometerHealthProfile.descriptor,
-            GetMoviesSettings.descriptor,
-            UpdateMoviesSettings.descriptor,
             SetUserRole.descriptor,
             UpdateName.descriptor,
             SearchUsers.descriptor,
@@ -424,34 +396,6 @@ extension User_UserService {
             request: GRPCCore.StreamingServerRequest<User_UpdateEatometerHealthProfileRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<User_EatometerHealthProfile>
-
-        /// Handle the "GetMoviesSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A streaming request of `User_GetMoviesSettingsRequest` messages.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A streaming response of `User_MoviesSettings` messages.
-        func getMoviesSettings(
-            request: GRPCCore.StreamingServerRequest<User_GetMoviesSettingsRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<User_MoviesSettings>
-
-        /// Handle the "UpdateMoviesSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A streaming request of `User_UpdateMoviesSettingsRequest` messages.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A streaming response of `User_MoviesSettings` messages.
-        func updateMoviesSettings(
-            request: GRPCCore.StreamingServerRequest<User_UpdateMoviesSettingsRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<User_MoviesSettings>
 
         /// Handle the "SetUserRole" method.
         ///
@@ -714,34 +658,6 @@ extension User_UserService {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<User_EatometerHealthProfile>
 
-        /// Handle the "GetMoviesSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_GetMoviesSettingsRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A response containing a single `User_MoviesSettings` message.
-        func getMoviesSettings(
-            request: GRPCCore.ServerRequest<User_GetMoviesSettingsRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<User_MoviesSettings>
-
-        /// Handle the "UpdateMoviesSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_UpdateMoviesSettingsRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A response containing a single `User_MoviesSettings` message.
-        func updateMoviesSettings(
-            request: GRPCCore.ServerRequest<User_UpdateMoviesSettingsRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<User_MoviesSettings>
-
         /// Handle the "SetUserRole" method.
         ///
         /// - Parameters:
@@ -1001,34 +917,6 @@ extension User_UserService {
             context: GRPCCore.ServerContext
         ) async throws -> User_EatometerHealthProfile
 
-        /// Handle the "GetMoviesSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A `User_GetMoviesSettingsRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A `User_MoviesSettings` to respond with.
-        func getMoviesSettings(
-            request: User_GetMoviesSettingsRequest,
-            context: GRPCCore.ServerContext
-        ) async throws -> User_MoviesSettings
-
-        /// Handle the "UpdateMoviesSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A `User_UpdateMoviesSettingsRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A `User_MoviesSettings` to respond with.
-        func updateMoviesSettings(
-            request: User_UpdateMoviesSettingsRequest,
-            context: GRPCCore.ServerContext
-        ) async throws -> User_MoviesSettings
-
         /// Handle the "SetUserRole" method.
         ///
         /// - Parameters:
@@ -1268,28 +1156,6 @@ extension User_UserService.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
-            forMethod: User_UserService.Method.GetMoviesSettings.descriptor,
-            deserializer: GRPCProtobuf.ProtobufDeserializer<User_GetMoviesSettingsRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<User_MoviesSettings>(),
-            handler: { request, context in
-                try await self.getMoviesSettings(
-                    request: request,
-                    context: context
-                )
-            }
-        )
-        router.registerHandler(
-            forMethod: User_UserService.Method.UpdateMoviesSettings.descriptor,
-            deserializer: GRPCProtobuf.ProtobufDeserializer<User_UpdateMoviesSettingsRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<User_MoviesSettings>(),
-            handler: { request, context in
-                try await self.updateMoviesSettings(
-                    request: request,
-                    context: context
-                )
-            }
-        )
-        router.registerHandler(
             forMethod: User_UserService.Method.SetUserRole.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<User_SetUserRoleRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<User_SetUserRoleResponse>(),
@@ -1487,28 +1353,6 @@ extension User_UserService.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<User_EatometerHealthProfile> {
         let response = try await self.updateEatometerHealthProfile(
-            request: GRPCCore.ServerRequest(stream: request),
-            context: context
-        )
-        return GRPCCore.StreamingServerResponse(single: response)
-    }
-
-    public func getMoviesSettings(
-        request: GRPCCore.StreamingServerRequest<User_GetMoviesSettingsRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<User_MoviesSettings> {
-        let response = try await self.getMoviesSettings(
-            request: GRPCCore.ServerRequest(stream: request),
-            context: context
-        )
-        return GRPCCore.StreamingServerResponse(single: response)
-    }
-
-    public func updateMoviesSettings(
-        request: GRPCCore.StreamingServerRequest<User_UpdateMoviesSettingsRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<User_MoviesSettings> {
-        let response = try await self.updateMoviesSettings(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -1724,32 +1568,6 @@ extension User_UserService.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<User_EatometerHealthProfile> {
         return GRPCCore.ServerResponse<User_EatometerHealthProfile>(
             message: try await self.updateEatometerHealthProfile(
-                request: request.message,
-                context: context
-            ),
-            metadata: [:]
-        )
-    }
-
-    public func getMoviesSettings(
-        request: GRPCCore.ServerRequest<User_GetMoviesSettingsRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<User_MoviesSettings> {
-        return GRPCCore.ServerResponse<User_MoviesSettings>(
-            message: try await self.getMoviesSettings(
-                request: request.message,
-                context: context
-            ),
-            metadata: [:]
-        )
-    }
-
-    public func updateMoviesSettings(
-        request: GRPCCore.ServerRequest<User_UpdateMoviesSettingsRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<User_MoviesSettings> {
-        return GRPCCore.ServerResponse<User_MoviesSettings>(
-            message: try await self.updateMoviesSettings(
                 request: request.message,
                 context: context
             ),
@@ -2045,44 +1863,6 @@ extension User_UserService {
             deserializer: some GRPCCore.MessageDeserializer<User_EatometerHealthProfile>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_EatometerHealthProfile>) async throws -> Result
-        ) async throws -> Result where Result: Sendable
-
-        /// Call the "GetMoviesSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_GetMoviesSettingsRequest` message.
-        ///   - serializer: A serializer for `User_GetMoviesSettingsRequest` messages.
-        ///   - deserializer: A deserializer for `User_MoviesSettings` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        func getMoviesSettings<Result>(
-            request: GRPCCore.ClientRequest<User_GetMoviesSettingsRequest>,
-            serializer: some GRPCCore.MessageSerializer<User_GetMoviesSettingsRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<User_MoviesSettings>,
-            options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_MoviesSettings>) async throws -> Result
-        ) async throws -> Result where Result: Sendable
-
-        /// Call the "UpdateMoviesSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_UpdateMoviesSettingsRequest` message.
-        ///   - serializer: A serializer for `User_UpdateMoviesSettingsRequest` messages.
-        ///   - deserializer: A deserializer for `User_MoviesSettings` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        func updateMoviesSettings<Result>(
-            request: GRPCCore.ClientRequest<User_UpdateMoviesSettingsRequest>,
-            serializer: some GRPCCore.MessageSerializer<User_UpdateMoviesSettingsRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<User_MoviesSettings>,
-            options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_MoviesSettings>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "SetUserRole" method.
@@ -2514,66 +2294,6 @@ extension User_UserService {
             try await self.client.unary(
                 request: request,
                 descriptor: User_UserService.Method.UpdateEatometerHealthProfile.descriptor,
-                serializer: serializer,
-                deserializer: deserializer,
-                options: options,
-                onResponse: handleResponse
-            )
-        }
-
-        /// Call the "GetMoviesSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_GetMoviesSettingsRequest` message.
-        ///   - serializer: A serializer for `User_GetMoviesSettingsRequest` messages.
-        ///   - deserializer: A deserializer for `User_MoviesSettings` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        public func getMoviesSettings<Result>(
-            request: GRPCCore.ClientRequest<User_GetMoviesSettingsRequest>,
-            serializer: some GRPCCore.MessageSerializer<User_GetMoviesSettingsRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<User_MoviesSettings>,
-            options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_MoviesSettings>) async throws -> Result = { response in
-                try response.message
-            }
-        ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
-                request: request,
-                descriptor: User_UserService.Method.GetMoviesSettings.descriptor,
-                serializer: serializer,
-                deserializer: deserializer,
-                options: options,
-                onResponse: handleResponse
-            )
-        }
-
-        /// Call the "UpdateMoviesSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_UpdateMoviesSettingsRequest` message.
-        ///   - serializer: A serializer for `User_UpdateMoviesSettingsRequest` messages.
-        ///   - deserializer: A deserializer for `User_MoviesSettings` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        public func updateMoviesSettings<Result>(
-            request: GRPCCore.ClientRequest<User_UpdateMoviesSettingsRequest>,
-            serializer: some GRPCCore.MessageSerializer<User_UpdateMoviesSettingsRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<User_MoviesSettings>,
-            options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_MoviesSettings>) async throws -> Result = { response in
-                try response.message
-            }
-        ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
-                request: request,
-                descriptor: User_UserService.Method.UpdateMoviesSettings.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -3089,56 +2809,6 @@ extension User_UserService.ClientProtocol {
         )
     }
 
-    /// Call the "GetMoviesSettings" method.
-    ///
-    /// - Parameters:
-    ///   - request: A request containing a single `User_GetMoviesSettingsRequest` message.
-    ///   - options: Options to apply to this RPC.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func getMoviesSettings<Result>(
-        request: GRPCCore.ClientRequest<User_GetMoviesSettingsRequest>,
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_MoviesSettings>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        try await self.getMoviesSettings(
-            request: request,
-            serializer: GRPCProtobuf.ProtobufSerializer<User_GetMoviesSettingsRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<User_MoviesSettings>(),
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
-    /// Call the "UpdateMoviesSettings" method.
-    ///
-    /// - Parameters:
-    ///   - request: A request containing a single `User_UpdateMoviesSettingsRequest` message.
-    ///   - options: Options to apply to this RPC.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func updateMoviesSettings<Result>(
-        request: GRPCCore.ClientRequest<User_UpdateMoviesSettingsRequest>,
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_MoviesSettings>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        try await self.updateMoviesSettings(
-            request: request,
-            serializer: GRPCProtobuf.ProtobufSerializer<User_UpdateMoviesSettingsRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<User_MoviesSettings>(),
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
     /// Call the "SetUserRole" method.
     ///
     /// - Parameters:
@@ -3613,64 +3283,6 @@ extension User_UserService.ClientProtocol {
             metadata: metadata
         )
         return try await self.updateEatometerHealthProfile(
-            request: request,
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
-    /// Call the "GetMoviesSettings" method.
-    ///
-    /// - Parameters:
-    ///   - message: request message to send.
-    ///   - metadata: Additional metadata to send, defaults to empty.
-    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func getMoviesSettings<Result>(
-        _ message: User_GetMoviesSettingsRequest,
-        metadata: GRPCCore.Metadata = [:],
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_MoviesSettings>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        let request = GRPCCore.ClientRequest<User_GetMoviesSettingsRequest>(
-            message: message,
-            metadata: metadata
-        )
-        return try await self.getMoviesSettings(
-            request: request,
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
-    /// Call the "UpdateMoviesSettings" method.
-    ///
-    /// - Parameters:
-    ///   - message: request message to send.
-    ///   - metadata: Additional metadata to send, defaults to empty.
-    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func updateMoviesSettings<Result>(
-        _ message: User_UpdateMoviesSettingsRequest,
-        metadata: GRPCCore.Metadata = [:],
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_MoviesSettings>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        let request = GRPCCore.ClientRequest<User_UpdateMoviesSettingsRequest>(
-            message: message,
-            metadata: metadata
-        )
-        return try await self.updateMoviesSettings(
             request: request,
             options: options,
             onResponse: handleResponse

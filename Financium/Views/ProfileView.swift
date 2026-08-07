@@ -103,8 +103,10 @@ struct ProfileView: View {
                 Text("profile.logout.message")
             }
             .onAppear(perform: syncToggles)
-            .onChange(of: store.settings.notificationsEnabled) { _, _ in syncToggles() }
-            .onChange(of: monthlyRemind) { _, newValue in pushNotificationSetting(newValue) }
+            .onChange(of: store.settings) { _, _ in syncToggles() }
+            .onChange(of: monthlyRemind) { _, _ in pushNotificationSettings() }
+            .onChange(of: promoEmail) { _, _ in pushNotificationSettings() }
+            .onChange(of: promoPush) { _, _ in pushNotificationSettings() }
         }
     }
 
@@ -151,23 +153,33 @@ struct ProfileView: View {
 
     private func updateCurrency(_ code: String) {
         Task {
-            await store.updateSettings(currency: code, notifications: store.settings.notificationsEnabled)
+            await store.updateSettings(
+                currency: code,
+                monthlyReminders: monthlyRemind,
+                promoEmail: promoEmail,
+                promoPush: promoPush
+            )
         }
     }
 
-    /// The backend has one notifications flag so far, and "Monthly Remind" is
-    /// what it means. The promo switches stay local until the contract grows
-    /// fields for them — better than wiring three switches to one flag and
-    /// having them overwrite each other.
-    private func pushNotificationSetting(_ enabled: Bool) {
-        guard enabled != store.settings.notificationsEnabled else { return }
+    private func pushNotificationSettings() {
+        guard monthlyRemind != store.settings.monthlyRemindersEnabled
+                || promoEmail != store.settings.promoEmailEnabled
+                || promoPush != store.settings.promoPushEnabled else { return }
         Task {
-            await store.updateSettings(currency: currencyCode, notifications: enabled)
+            await store.updateSettings(
+                currency: currencyCode,
+                monthlyReminders: monthlyRemind,
+                promoEmail: promoEmail,
+                promoPush: promoPush
+            )
         }
     }
 
     private func syncToggles() {
-        monthlyRemind = store.settings.notificationsEnabled
+        monthlyRemind = store.settings.monthlyRemindersEnabled
+        promoEmail = store.settings.promoEmailEnabled
+        promoPush = store.settings.promoPushEnabled
     }
 }
 

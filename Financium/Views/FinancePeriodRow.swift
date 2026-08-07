@@ -34,13 +34,14 @@ struct FinancePeriodRow: View {
             FICurrencyMenu(code: currencyCode) {
                 ForEach(currencyChoices, id: \.self) { code in
                     Button {
-                        // Notifications are carried through unchanged: the
-                        // settings call replaces the whole record, so a default
-                        // here would quietly switch them off.
+                        // Notification preferences are carried through unchanged:
+                        // the settings call replaces the whole record.
                         Task {
                             await store.updateSettings(
                                 currency: code,
-                                notifications: store.settings.notificationsEnabled
+                                monthlyReminders: store.settings.monthlyRemindersEnabled,
+                                promoEmail: store.settings.promoEmailEnabled,
+                                promoPush: store.settings.promoPushEnabled
                             )
                         }
                     } label: {

@@ -1,5 +1,6 @@
 import AuthenticationServices
 import Combine
+import CryptoKit
 import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
@@ -89,13 +90,24 @@ final class AuthSession: ObservableObject {
         if await authorizedMetadata() != nil { await loadUser() }
     }
 
-    func signIn(credential: ASAuthorizationAppleIDCredential) async {
+    static func makeAppleNonce(length: Int = 32) -> String? {
+        let alphabet = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var bytes = [UInt8](repeating: 0, count: length)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { return nil }
+        return String(bytes.map { alphabet[Int($0) % alphabet.count] })
+    }
+
+    static func appleNonceHash(_ nonce: String) -> String {
+        SHA256.hash(data: Data(nonce.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    func signIn(credential: ASAuthorizationAppleIDCredential, nonce: String) async {
         guard let data = credential.identityToken,
-              let identityToken = String(data: data, encoding: .utf8) else {
+              let identityToken = String(data: data, encoding: .utf8),
+              !nonce.isEmpty else {
             errorMessage = "Apple ID не вернул токен входа"
             return
         }
-        let code = credential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let name = PersonNameComponentsFormatter.localizedString(
             from: credential.fullName ?? PersonNameComponents(), style: .default, options: []
         ).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -107,9 +119,9 @@ final class AuthSession: ObservableObject {
             let pair = try await withAuthClient { client in
                 var request = Auth_SignInWithAppleRequest()
                 request.identityToken = identityToken
-                request.authorizationCode = code
                 request.name = name
                 request.appID = Self.appID
+                request.nonce = nonce
                 return try await client.signInWithApple(request, metadata: self.publicMetadata())
             }
             guard SecureTokens.write(pair.accessToken, key: Self.accessKey),
@@ -327,7 +339,17 @@ final class FinanceStore: ObservableObject {
                 return try await client.getOverview(request, metadata: metadata)
             }
             accounts = overview.accounts
-            transactions = overview.recentTransactions
+            if let interval = Calendar(identifier: .gregorian).dateInterval(of: .month, for: selectedMonth) {
+                transactions = try await call { client, metadata in
+                    var request = Finance_ListTransactionsRequest()
+                    request.from = Google_Protobuf_Timestamp(date: interval.start)
+                    request.to = Google_Protobuf_Timestamp(date: interval.end)
+                    request.limit = 200
+                    return try await client.listTransactions(request, metadata: metadata).transactions
+                }
+            } else {
+                transactions = overview.recentTransactions
+            }
             budgets = try await call { client, metadata in
                 var request = Finance_ListBudgetsRequest(); request.month = self.monthKey
                 return try await client.listBudgets(request, metadata: metadata).budgets
@@ -364,7 +386,7 @@ final class FinanceStore: ObservableObject {
         }
     }
 
-    func createTransaction(kind: TransactionEditorKind, accountID: String, destinationID: String, title: String, category: String, amount: Decimal, note: String, date: Date) async -> Bool {
+    func saveTransaction(id: String = "", kind: TransactionEditorKind, accountID: String, destinationID: String, title: String, category: String, amount: Decimal, currency: String, note: String, date: Date) async -> Bool {
         await mutation {
             _ = try await self.call { client, metadata in
                 var request = Finance_CreateTransactionRequest()
@@ -372,10 +394,17 @@ final class FinanceStore: ObservableObject {
                 if kind == .income { request.toAccountID = accountID } else { request.fromAccountID = accountID }
                 if kind == .transfer { request.toAccountID = destinationID }
                 request.title = title; request.category = category; request.note = note
-                request.amount = Finance_Money(decimal: amount, currencyCode: self.settings.mainCurrencyCode.isEmpty ? "RUB" : self.settings.mainCurrencyCode)
-                request.destinationAmount = request.amount
+                request.amount = Finance_Money(decimal: amount, currencyCode: currency)
+                let destinationCurrency = self.accounts.first { $0.id == destinationID }?.balance.currencyCode ?? currency
+                request.destinationAmount = Finance_Money(decimal: amount, currencyCode: destinationCurrency)
                 request.occurredAt = Google_Protobuf_Timestamp(date: date)
-                return try await client.createTransaction(request, metadata: metadata)
+                if id.isEmpty {
+                    return try await client.createTransaction(request, metadata: metadata)
+                }
+                var update = Finance_UpdateTransactionRequest()
+                update.id = id
+                update.transaction = request
+                return try await client.updateTransaction(update, metadata: metadata)
             }
         }
     }
@@ -432,11 +461,14 @@ final class FinanceStore: ObservableObject {
         }
     }
 
-    func updateSettings(currency: String, notifications: Bool) async -> Bool {
+    func updateSettings(currency: String, monthlyReminders: Bool, promoEmail: Bool, promoPush: Bool) async -> Bool {
         await mutation {
             self.settings = try await self.call { client, metadata in
                 var request = Finance_UpdateSettingsRequest()
-                request.mainCurrencyCode = currency.uppercased(); request.notificationsEnabled = notifications
+                request.mainCurrencyCode = currency.uppercased()
+                request.monthlyRemindersEnabled = monthlyReminders
+                request.promoEmailEnabled = promoEmail
+                request.promoPushEnabled = promoPush
                 return try await client.updateSettings(request, metadata: metadata)
             }
         }
