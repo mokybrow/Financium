@@ -1,0 +1,123 @@
+/* Common */
+"common.close" = "Закрыть";
+"common.save" = "Сохранить";
+"common.cancel" = "Отмена";
+"common.delete" = "Удалить";
+"common.edit" = "Изменить";
+"common.clear" = "Очистить";
+"common.amount" = "Сумма";
+"common.ok" = "ОК";
+"common.error" = "Ошибка";
+
+/* Tabs */
+"tab.money" = "Деньги";
+"tab.budget" = "Бюджет";
+"tab.goals" = "Цели";
+"tab.profile" = "Профиль";
+
+/* Money */
+"money.title" = "Деньги";
+"money.spended" = "Потрачено";
+"money.earned" = "Получено";
+"money.accounts" = "Счета";
+"money.accounts.empty" = "Счетов пока нет";
+"money.accounts.empty.subtitle" = "Добавьте счёт, чтобы начать вести учёт";
+"money.accounts.add" = "Добавить счёт";
+"money.activity" = "Операции по счетам";
+"money.activity.expenses" = "Расходы";
+"money.activity.incoming" = "Поступления";
+"money.add.incoming" = "Добавить поступление";
+"money.add.expense" = "Добавить расход";
+"money.add.transfer" = "Добавить перевод";
+"money.account.copy_balance" = "Скопировать баланс";
+"money.account.delete" = "Удалить счёт";
+
+/* Transaction editors */
+"transaction.category" = "Категория";
+"transaction.account" = "Счёт";
+"transaction.from" = "Откуда";
+"transaction.to" = "Куда";
+"transaction.transfer.hint" = "Укажите счёт, с которого переводите средства, и счёт получателя. Если счёта в разных валютах, потребуется выбрать валюту.";
+"transaction.delete" = "Удалить операцию";
+
+/* Account editor */
+"account.name" = "Название";
+"account.name.placeholder" = "Наличные";
+"account.symbol" = "Значок";
+"account.currency" = "Валюта";
+"account.opening_balance" = "Начальный баланс";
+
+/* Activity */
+"activity.expenses.title" = "Расходы";
+"activity.incoming.title" = "Поступления";
+"activity.empty" = "Операций пока нет";
+"activity.empty.subtitle" = "Добавленные расходы и поступления появятся здесь";
+
+/* Budget */
+"budget.title" = "Бюджет";
+"budget.left_format" = "осталось %@";
+"budget.empty" = "Бюджетов пока нет";
+"budget.empty.subtitle" = "Задайте лимит для категории расходов";
+"budget.add" = "Добавить бюджет";
+"budget.add_category" = "Добавить категорию";
+"budget.remind" = "Напоминать";
+"budget.payment_day" = "День платежа";
+"budget.limit" = "Лимит";
+"budget.hint" = "Категория определяет, какие расходы будут уменьшать бюджет. Смахните категорию, чтобы удалить её.";
+"budget.delete" = "Удалить бюджет";
+
+/* Goals */
+"goals.title" = "Цели";
+"goals.left_format" = "осталось %@";
+"goals.empty" = "Целей пока нет";
+"goals.empty.subtitle" = "Укажите сумму, к которой копите";
+"goals.add" = "Добавить цель";
+"goals.name" = "Цель";
+"goals.hint" = "Укажите счёт, поступления на который будут засчитываться в цель. Валютой станет базовая валюта счёта.";
+"goals.delete" = "Удалить цель";
+
+/* Profile */
+"profile.title" = "Профиль";
+"profile.general" = "Основное";
+"profile.name" = "Имя";
+"profile.security" = "Безопасность";
+"profile.email" = "Почта";
+"profile.email.verified" = "Подтверждена";
+"profile.email.unverified" = "Не подтверждена";
+"profile.money" = "Деньги";
+"profile.main_currency" = "Основная валюта";
+"profile.notifications" = "Уведомления";
+"profile.notifications.monthly" = "Ежемесячное напоминание";
+"profile.notifications.promo_email" = "Промо на почту";
+"profile.notifications.promo_push" = "Промо пуши";
+"profile.appearance" = "Оформление";
+"profile.app_icon" = "Иконка приложения";
+"profile.logout" = "Выйти";
+"profile.copyright" = "Financium 2026, все права защищены. Разработал Михаил Панин";
+
+"profile.logout.confirm" = "Выйти из Financium?";
+"email.placeholder" = "name@example.com";
+"email.code" = "Код";
+"email.change.hint" = "На новый адрес придёт код подтверждения. Почта сменится после его ввода.";
+"email.code.hint" = "Введите код из письма, которое мы только что отправили.";
+
+/* App icon */
+"app_icon.title" = "Иконка приложения";
+"app_icon.empty" = "Альтернативных иконок пока нет";
+"app_icon.empty.subtitle" = "Иконки появятся здесь, когда их добавят в приложение";
+"app_icon.unsupported" = "Это устройство не поддерживает альтернативные иконки.";
+"app_icon.default" = "Основная";
+
+/* Auth */
+"auth.greeting" = "Деньги под контролем";
+"auth.continue_with_apple" = "Продолжить с Apple";
+"auth.apple.invalid_response" = "Не удалось прочитать ответ Apple ID";
+"legal.link" = "Юридической информацией";
+"legal.auth_consent" = "Продолжая, вы соглашаетесь с %@.";
+
+/* Currency picker */
+"currency.title" = "Валюта";
+"currency.popular" = "Популярные";
+"currency.all" = "Все валюты";
+"currency.search" = "Поиск валюты";
+"profile.logout.message" = "Чтобы продолжить пользоваться приложением, потребуется войти снова.";

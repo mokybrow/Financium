@@ -1,0 +1,290 @@
+import SwiftUI
+
+/// The Profile tab, per the mock-up: an avatar and name at the top, then
+/// General / Security / Money / Notifications as separate labelled cards, and a
+/// copyright line at the bottom.
+///
+/// Each row edits one thing and saves it on its own. The previous version had
+/// "Save name" and "Save settings" buttons, which meant a user could leave the
+/// screen having changed something that was never sent.
+struct ProfileView: View {
+    @EnvironmentObject private var auth: AuthSession
+    @EnvironmentObject private var store: FinanceStore
+
+    @State private var nameEditor = false
+    @State private var emailEditor = false
+    @State private var showLogout = false
+    @State private var monthlyRemind = true
+    @State private var promoEmail = false
+    @State private var promoPush = true
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
+                    header
+
+                    FISection("profile.general") {
+                        Button {
+                            nameEditor = true
+                        } label: {
+                            FIListRow(
+                                title: Text("profile.name"),
+                                accessory: .valueChevron(Text("common.edit"))
+                            )
+                        }
+                        .buttonStyle(.plain)
+
+                        FIRowSeparator()
+
+                        NavigationLink {
+                            AppIconPickerView()
+                        } label: {
+                            FIListRow(title: Text("profile.app_icon"), accessory: .chevron)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    FISection("profile.security") {
+                        Button {
+                            emailEditor = true
+                        } label: {
+                            FIListRow(
+                                title: Text("profile.email"),
+                                subtitle: Text(emailStatusKey),
+                                accessory: .valueChevron(Text("common.edit"))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    FISection("profile.money") {
+                        NavigationLink {
+                            CurrencyPickerView(selected: currencyCode, onSelect: updateCurrency)
+                        } label: {
+                            FIListRow(
+                                title: Text("profile.main_currency"),
+                                accessory: .valueChevron(Text(verbatim: currencyCode))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    FISection("profile.notifications") {
+                        FIToggleRow("profile.notifications.monthly", isOn: $monthlyRemind)
+                        FIRowSeparator()
+                        FIToggleRow("profile.notifications.promo_email", isOn: $promoEmail)
+                        FIRowSeparator()
+                        FIToggleRow("profile.notifications.promo_push", isOn: $promoPush)
+                    }
+
+                    FICard {
+                        FIDestructiveRow("profile.logout") {
+                            showLogout = true
+                        }
+                    }
+
+                    FIFootnote("profile.copyright")
+                }
+                .fiCardInsets()
+                .padding(.top, 4)
+                .padding(.bottom, 28)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .fiPageBackground()
+            .navigationTitle(Text("profile.title"))
+            .toolbarTitleDisplayMode(.inlineLarge)
+            .sheet(isPresented: $nameEditor) { NameEditorView() }
+            .sheet(isPresented: $emailEditor) { EmailChangeView() }
+            .alert(Text("profile.logout.confirm"), isPresented: $showLogout) {
+                Button("profile.logout", role: .destructive) { auth.logout() }
+                Button("common.cancel", role: .cancel) {}
+            } message: {
+                Text("profile.logout.message")
+            }
+            .onAppear(perform: syncToggles)
+            .onChange(of: store.settings.notificationsEnabled) { _, _ in syncToggles() }
+            .onChange(of: monthlyRemind) { _, newValue in pushNotificationSetting(newValue) }
+        }
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        VStack(spacing: 10) {
+            // Initials rather than a photo: there is no avatar upload, and a
+            // generic silhouette says less than the user's own initial.
+            Text(verbatim: initials)
+                .font(.system(size: 44, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 108, height: 108)
+                .background(FITheme.Palette.controlFill, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+
+            Text(verbatim: displayName)
+                .font(.headline)
+                .foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
+    }
+
+    private var displayName: String {
+        let name = auth.user?.name ?? ""
+        return name.isEmpty ? (auth.user?.email ?? "") : name
+    }
+
+    private var initials: String {
+        guard let first = displayName.first else { return "?" }
+        return String(first).uppercased()
+    }
+
+    private var emailStatusKey: LocalizedStringKey {
+        (auth.user?.emailConfirmed ?? false) ? "profile.email.verified" : "profile.email.unverified"
+    }
+
+    private var currencyCode: String {
+        let code = store.settings.mainCurrencyCode
+        return code.isEmpty ? "RUB" : code.uppercased()
+    }
+
+    // MARK: - Actions
+
+    private func updateCurrency(_ code: String) {
+        Task {
+            await store.updateSettings(currency: code, notifications: store.settings.notificationsEnabled)
+        }
+    }
+
+    /// The backend has one notifications flag so far, and "Monthly Remind" is
+    /// what it means. The promo switches stay local until the contract grows
+    /// fields for them — better than wiring three switches to one flag and
+    /// having them overwrite each other.
+    private func pushNotificationSetting(_ enabled: Bool) {
+        guard enabled != store.settings.notificationsEnabled else { return }
+        Task {
+            await store.updateSettings(currency: currencyCode, notifications: enabled)
+        }
+    }
+
+    private func syncToggles() {
+        monthlyRemind = store.settings.notificationsEnabled
+    }
+}
+
+// MARK: - Name editor
+
+private struct NameEditorView: View {
+    @EnvironmentObject private var auth: AuthSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var working = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                FICard {
+                    FITextFieldRow("profile.name", text: $name)
+                        .textContentType(.name)
+                        .textInputAutocapitalization(.words)
+                }
+                .fiCardInsets()
+                .padding(.top, 12)
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .fiPageBackground()
+            .fiSheetChrome(
+                title: Text("profile.name"),
+                confirm: .confirm(isEnabled: !trimmed.isEmpty && !working) { submit() },
+                onClose: { dismiss() }
+            )
+        }
+        .presentationDetents([.height(220)])
+        .presentationDragIndicator(.visible)
+        .onAppear { name = auth.user?.name ?? "" }
+    }
+
+    private var trimmed: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func submit() {
+        working = true
+        Task {
+            let updated = await auth.updateName(trimmed)
+            working = false
+            if updated { dismiss() }
+        }
+    }
+}
+
+// MARK: - Email change
+
+private struct EmailChangeView: View {
+    @EnvironmentObject private var auth: AuthSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var email = ""
+    @State private var code = ""
+    @State private var codeSent = false
+    @State private var working = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
+                FICard {
+                    FITextFieldRow("email.placeholder", text: $email)
+                        .keyboardType(.emailAddress)
+                        .textContentType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .disabled(codeSent)
+
+                    // The code field appears only once there is a code to enter,
+                    // so the sheet never asks for something the user cannot have.
+                    if codeSent {
+                        FIRowSeparator()
+                        FITextFieldRow("email.code", text: $code, showsClearButton: false)
+                            .keyboardType(.numberPad)
+                            .textContentType(.oneTimeCode)
+                    }
+                }
+
+                FIFootnote(codeSent ? "email.code.hint" : "email.change.hint")
+            }
+            .fiCardInsets()
+            .padding(.top, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .fiPageBackground()
+            .fiSheetChrome(
+                title: Text("profile.email"),
+                confirm: .confirm(isEnabled: isValid && !working) { submit() },
+                onClose: { dismiss() }
+            )
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var isValid: Bool {
+        if codeSent {
+            return !code.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+        // Not a full RFC check — just enough to catch the obvious typo before
+        // spending a round trip and an email on it.
+        let trimmed = email.trimmingCharacters(in: .whitespaces)
+        return trimmed.contains("@") && trimmed.contains(".") && !trimmed.hasPrefix("@")
+    }
+
+    private func submit() {
+        working = true
+        Task {
+            if codeSent {
+                if await auth.confirmEmailChange(code) { dismiss() }
+            } else if await auth.initiateEmailChange(email.trimmingCharacters(in: .whitespaces)) {
+                codeSent = true
+            }
+            working = false
+        }
+    }
+}

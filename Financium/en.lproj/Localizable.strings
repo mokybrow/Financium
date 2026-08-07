@@ -1,0 +1,123 @@
+/* Common */
+"common.close" = "Close";
+"common.save" = "Save";
+"common.cancel" = "Cancel";
+"common.delete" = "Delete";
+"common.edit" = "Edit";
+"common.clear" = "Clear";
+"common.amount" = "Amount";
+"common.ok" = "OK";
+"common.error" = "Error";
+
+/* Tabs */
+"tab.money" = "Money";
+"tab.budget" = "Budget";
+"tab.goals" = "Goals";
+"tab.profile" = "Profile";
+
+/* Money */
+"money.title" = "Money";
+"money.spended" = "Spended";
+"money.earned" = "Earned";
+"money.accounts" = "Accounts";
+"money.accounts.empty" = "No accounts yet";
+"money.accounts.empty.subtitle" = "Add an account to start tracking your money";
+"money.accounts.add" = "Add Account";
+"money.activity" = "Accounts Activity";
+"money.activity.expenses" = "Expenses";
+"money.activity.incoming" = "Incoming";
+"money.add.incoming" = "Add Incoming";
+"money.add.expense" = "Add Expense";
+"money.add.transfer" = "Add Transfer";
+"money.account.copy_balance" = "Copy balance";
+"money.account.delete" = "Delete account";
+
+/* Transaction editors */
+"transaction.category" = "Category";
+"transaction.account" = "Account";
+"transaction.from" = "From";
+"transaction.to" = "To";
+"transaction.transfer.hint" = "Specify the account from which you transferred the funds and the destination account. If the accounts are in different currencies, you will be prompted to select a currency.";
+"transaction.delete" = "Delete transaction";
+
+/* Account editor */
+"account.name" = "Name";
+"account.name.placeholder" = "Cash";
+"account.symbol" = "Icon";
+"account.currency" = "Currency";
+"account.opening_balance" = "Opening balance";
+
+/* Activity */
+"activity.expenses.title" = "Expenses";
+"activity.incoming.title" = "Incoming";
+"activity.empty" = "No operations yet";
+"activity.empty.subtitle" = "Added expenses and incoming will show up here";
+
+/* Budget */
+"budget.title" = "Budget";
+"budget.left_format" = "%@ left";
+"budget.empty" = "No budgets yet";
+"budget.empty.subtitle" = "Set a limit for a spending category";
+"budget.add" = "Add Budget";
+"budget.add_category" = "Add Category";
+"budget.remind" = "Remind";
+"budget.payment_day" = "Payment Day";
+"budget.limit" = "Limit";
+"budget.hint" = "The category indicates which spending category will reduce the budget. Swipe across the category to delete it.";
+"budget.delete" = "Delete budget";
+
+/* Goals */
+"goals.title" = "Goals";
+"goals.left_format" = "%@ left";
+"goals.empty" = "No goals yet";
+"goals.empty.subtitle" = "Set an amount you are saving towards";
+"goals.add" = "Add Goal";
+"goals.name" = "Goal";
+"goals.hint" = "Specify the account where incoming funds will be tracked towards achieving the goal. The currency will be the account's base currency.";
+"goals.delete" = "Delete goal";
+
+/* Profile */
+"profile.title" = "Profile";
+"profile.general" = "General";
+"profile.name" = "Name";
+"profile.security" = "Security";
+"profile.email" = "Email";
+"profile.email.verified" = "Verified";
+"profile.email.unverified" = "Not verified";
+"profile.money" = "Money";
+"profile.main_currency" = "Main Currency";
+"profile.notifications" = "Notifications";
+"profile.notifications.monthly" = "Monthly Remind";
+"profile.notifications.promo_email" = "Promo Email";
+"profile.notifications.promo_push" = "Promo Push";
+"profile.appearance" = "Appearance";
+"profile.app_icon" = "App Icon";
+"profile.logout" = "Log out";
+"profile.copyright" = "Financium 2026, all rights reserved. Developed by Mikhail Panin";
+
+"profile.logout.confirm" = "Log out of Financium?";
+"email.placeholder" = "name@example.com";
+"email.code" = "Code";
+"email.change.hint" = "We will send a confirmation code to the new address. The change takes effect once the code is entered.";
+"email.code.hint" = "Enter the code from the email we just sent.";
+
+/* App icon */
+"app_icon.title" = "App Icon";
+"app_icon.empty" = "No alternate icons yet";
+"app_icon.empty.subtitle" = "Alternate icons will show up here once they are added to the app";
+"app_icon.unsupported" = "This device does not support alternate app icons.";
+"app_icon.default" = "Default";
+
+/* Auth */
+"auth.greeting" = "Money, Sorted";
+"auth.continue_with_apple" = "Continue with Apple";
+"auth.apple.invalid_response" = "Could not read the Apple ID response";
+"legal.link" = "legal information";
+"legal.auth_consent" = "By continuing, you agree to the %@.";
+
+/* Currency picker */
+"currency.title" = "Currency";
+"currency.popular" = "Popular";
+"currency.all" = "All currencies";
+"currency.search" = "Search currency";
+"profile.logout.message" = "You will need to sign in again to keep using the app.";
