@@ -59,32 +59,6 @@ public enum User_UserService: Sendable {
                 type: .unary
             )
         }
-        /// Namespace for "GetLaptaAppSettings" metadata.
-        public enum GetLaptaAppSettings: Sendable {
-            /// Request type for "GetLaptaAppSettings".
-            public typealias Input = User_GetLaptaAppSettingsRequest
-            /// Response type for "GetLaptaAppSettings".
-            public typealias Output = User_LaptaAppSettings
-            /// Descriptor for "GetLaptaAppSettings".
-            public static let descriptor = GRPCCore.MethodDescriptor(
-                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "user.UserService"),
-                method: "GetLaptaAppSettings",
-                type: .unary
-            )
-        }
-        /// Namespace for "UpdateLaptaAppSettings" metadata.
-        public enum UpdateLaptaAppSettings: Sendable {
-            /// Request type for "UpdateLaptaAppSettings".
-            public typealias Input = User_UpdateLaptaAppSettingsRequest
-            /// Response type for "UpdateLaptaAppSettings".
-            public typealias Output = User_LaptaAppSettings
-            /// Descriptor for "UpdateLaptaAppSettings".
-            public static let descriptor = GRPCCore.MethodDescriptor(
-                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "user.UserService"),
-                method: "UpdateLaptaAppSettings",
-                type: .unary
-            )
-        }
         /// Namespace for "GetEatometerSettings" metadata.
         public enum GetEatometerSettings: Sendable {
             /// Request type for "GetEatometerSettings".
@@ -311,8 +285,6 @@ public enum User_UserService: Sendable {
             GetCurrentUser.descriptor,
             GetUserSettings.descriptor,
             UpdateUserSettings.descriptor,
-            GetLaptaAppSettings.descriptor,
-            UpdateLaptaAppSettings.descriptor,
             GetEatometerSettings.descriptor,
             UpdateEatometerSettings.descriptor,
             GetEatometerHealthProfile.descriptor,
@@ -396,34 +368,6 @@ extension User_UserService {
             request: GRPCCore.StreamingServerRequest<User_UpdateUserSettingsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<User_UserSettings>
-
-        /// Handle the "GetLaptaAppSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A streaming request of `User_GetLaptaAppSettingsRequest` messages.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A streaming response of `User_LaptaAppSettings` messages.
-        func getLaptaAppSettings(
-            request: GRPCCore.StreamingServerRequest<User_GetLaptaAppSettingsRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<User_LaptaAppSettings>
-
-        /// Handle the "UpdateLaptaAppSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A streaming request of `User_UpdateLaptaAppSettingsRequest` messages.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A streaming response of `User_LaptaAppSettings` messages.
-        func updateLaptaAppSettings(
-            request: GRPCCore.StreamingServerRequest<User_UpdateLaptaAppSettingsRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.StreamingServerResponse<User_LaptaAppSettings>
 
         /// Handle the "GetEatometerSettings" method.
         ///
@@ -714,34 +658,6 @@ extension User_UserService {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<User_UserSettings>
 
-        /// Handle the "GetLaptaAppSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_GetLaptaAppSettingsRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A response containing a single `User_LaptaAppSettings` message.
-        func getLaptaAppSettings(
-            request: GRPCCore.ServerRequest<User_GetLaptaAppSettingsRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<User_LaptaAppSettings>
-
-        /// Handle the "UpdateLaptaAppSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_UpdateLaptaAppSettingsRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A response containing a single `User_LaptaAppSettings` message.
-        func updateLaptaAppSettings(
-            request: GRPCCore.ServerRequest<User_UpdateLaptaAppSettingsRequest>,
-            context: GRPCCore.ServerContext
-        ) async throws -> GRPCCore.ServerResponse<User_LaptaAppSettings>
-
         /// Handle the "GetEatometerSettings" method.
         ///
         /// - Parameters:
@@ -1029,34 +945,6 @@ extension User_UserService {
             context: GRPCCore.ServerContext
         ) async throws -> User_UserSettings
 
-        /// Handle the "GetLaptaAppSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A `User_GetLaptaAppSettingsRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A `User_LaptaAppSettings` to respond with.
-        func getLaptaAppSettings(
-            request: User_GetLaptaAppSettingsRequest,
-            context: GRPCCore.ServerContext
-        ) async throws -> User_LaptaAppSettings
-
-        /// Handle the "UpdateLaptaAppSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A `User_UpdateLaptaAppSettingsRequest` message.
-        ///   - context: Context providing information about the RPC.
-        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
-        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
-        ///     to an internal error.
-        /// - Returns: A `User_LaptaAppSettings` to respond with.
-        func updateLaptaAppSettings(
-            request: User_UpdateLaptaAppSettingsRequest,
-            context: GRPCCore.ServerContext
-        ) async throws -> User_LaptaAppSettings
-
         /// Handle the "GetEatometerSettings" method.
         ///
         /// - Parameters:
@@ -1336,28 +1224,6 @@ extension User_UserService.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
-            forMethod: User_UserService.Method.GetLaptaAppSettings.descriptor,
-            deserializer: GRPCProtobuf.ProtobufDeserializer<User_GetLaptaAppSettingsRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<User_LaptaAppSettings>(),
-            handler: { request, context in
-                try await self.getLaptaAppSettings(
-                    request: request,
-                    context: context
-                )
-            }
-        )
-        router.registerHandler(
-            forMethod: User_UserService.Method.UpdateLaptaAppSettings.descriptor,
-            deserializer: GRPCProtobuf.ProtobufDeserializer<User_UpdateLaptaAppSettingsRequest>(),
-            serializer: GRPCProtobuf.ProtobufSerializer<User_LaptaAppSettings>(),
-            handler: { request, context in
-                try await self.updateLaptaAppSettings(
-                    request: request,
-                    context: context
-                )
-            }
-        )
-        router.registerHandler(
             forMethod: User_UserService.Method.GetEatometerSettings.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<User_GetEatometerSettingsRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<User_EatometerSettings>(),
@@ -1577,28 +1443,6 @@ extension User_UserService.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<User_UserSettings> {
         let response = try await self.updateUserSettings(
-            request: GRPCCore.ServerRequest(stream: request),
-            context: context
-        )
-        return GRPCCore.StreamingServerResponse(single: response)
-    }
-
-    public func getLaptaAppSettings(
-        request: GRPCCore.StreamingServerRequest<User_GetLaptaAppSettingsRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<User_LaptaAppSettings> {
-        let response = try await self.getLaptaAppSettings(
-            request: GRPCCore.ServerRequest(stream: request),
-            context: context
-        )
-        return GRPCCore.StreamingServerResponse(single: response)
-    }
-
-    public func updateLaptaAppSettings(
-        request: GRPCCore.StreamingServerRequest<User_UpdateLaptaAppSettingsRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.StreamingServerResponse<User_LaptaAppSettings> {
-        let response = try await self.updateLaptaAppSettings(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -1828,32 +1672,6 @@ extension User_UserService.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<User_UserSettings> {
         return GRPCCore.ServerResponse<User_UserSettings>(
             message: try await self.updateUserSettings(
-                request: request.message,
-                context: context
-            ),
-            metadata: [:]
-        )
-    }
-
-    public func getLaptaAppSettings(
-        request: GRPCCore.ServerRequest<User_GetLaptaAppSettingsRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<User_LaptaAppSettings> {
-        return GRPCCore.ServerResponse<User_LaptaAppSettings>(
-            message: try await self.getLaptaAppSettings(
-                request: request.message,
-                context: context
-            ),
-            metadata: [:]
-        )
-    }
-
-    public func updateLaptaAppSettings(
-        request: GRPCCore.ServerRequest<User_UpdateLaptaAppSettingsRequest>,
-        context: GRPCCore.ServerContext
-    ) async throws -> GRPCCore.ServerResponse<User_LaptaAppSettings> {
-        return GRPCCore.ServerResponse<User_LaptaAppSettings>(
-            message: try await self.updateLaptaAppSettings(
                 request: request.message,
                 context: context
             ),
@@ -2151,44 +1969,6 @@ extension User_UserService {
             deserializer: some GRPCCore.MessageDeserializer<User_UserSettings>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_UserSettings>) async throws -> Result
-        ) async throws -> Result where Result: Sendable
-
-        /// Call the "GetLaptaAppSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_GetLaptaAppSettingsRequest` message.
-        ///   - serializer: A serializer for `User_GetLaptaAppSettingsRequest` messages.
-        ///   - deserializer: A deserializer for `User_LaptaAppSettings` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        func getLaptaAppSettings<Result>(
-            request: GRPCCore.ClientRequest<User_GetLaptaAppSettingsRequest>,
-            serializer: some GRPCCore.MessageSerializer<User_GetLaptaAppSettingsRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<User_LaptaAppSettings>,
-            options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_LaptaAppSettings>) async throws -> Result
-        ) async throws -> Result where Result: Sendable
-
-        /// Call the "UpdateLaptaAppSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_UpdateLaptaAppSettingsRequest` message.
-        ///   - serializer: A serializer for `User_UpdateLaptaAppSettingsRequest` messages.
-        ///   - deserializer: A deserializer for `User_LaptaAppSettings` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        func updateLaptaAppSettings<Result>(
-            request: GRPCCore.ClientRequest<User_UpdateLaptaAppSettingsRequest>,
-            serializer: some GRPCCore.MessageSerializer<User_UpdateLaptaAppSettingsRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<User_LaptaAppSettings>,
-            options: GRPCCore.CallOptions,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_LaptaAppSettings>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "GetEatometerSettings" method.
@@ -2614,66 +2394,6 @@ extension User_UserService {
             try await self.client.unary(
                 request: request,
                 descriptor: User_UserService.Method.UpdateUserSettings.descriptor,
-                serializer: serializer,
-                deserializer: deserializer,
-                options: options,
-                onResponse: handleResponse
-            )
-        }
-
-        /// Call the "GetLaptaAppSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_GetLaptaAppSettingsRequest` message.
-        ///   - serializer: A serializer for `User_GetLaptaAppSettingsRequest` messages.
-        ///   - deserializer: A deserializer for `User_LaptaAppSettings` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        public func getLaptaAppSettings<Result>(
-            request: GRPCCore.ClientRequest<User_GetLaptaAppSettingsRequest>,
-            serializer: some GRPCCore.MessageSerializer<User_GetLaptaAppSettingsRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<User_LaptaAppSettings>,
-            options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_LaptaAppSettings>) async throws -> Result = { response in
-                try response.message
-            }
-        ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
-                request: request,
-                descriptor: User_UserService.Method.GetLaptaAppSettings.descriptor,
-                serializer: serializer,
-                deserializer: deserializer,
-                options: options,
-                onResponse: handleResponse
-            )
-        }
-
-        /// Call the "UpdateLaptaAppSettings" method.
-        ///
-        /// - Parameters:
-        ///   - request: A request containing a single `User_UpdateLaptaAppSettingsRequest` message.
-        ///   - serializer: A serializer for `User_UpdateLaptaAppSettingsRequest` messages.
-        ///   - deserializer: A deserializer for `User_LaptaAppSettings` messages.
-        ///   - options: Options to apply to this RPC.
-        ///   - handleResponse: A closure which handles the response, the result of which is
-        ///       returned to the caller. Returning from the closure will cancel the RPC if it
-        ///       hasn't already finished.
-        /// - Returns: The result of `handleResponse`.
-        public func updateLaptaAppSettings<Result>(
-            request: GRPCCore.ClientRequest<User_UpdateLaptaAppSettingsRequest>,
-            serializer: some GRPCCore.MessageSerializer<User_UpdateLaptaAppSettingsRequest>,
-            deserializer: some GRPCCore.MessageDeserializer<User_LaptaAppSettings>,
-            options: GRPCCore.CallOptions = .defaults,
-            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_LaptaAppSettings>) async throws -> Result = { response in
-                try response.message
-            }
-        ) async throws -> Result where Result: Sendable {
-            try await self.client.unary(
-                request: request,
-                descriptor: User_UserService.Method.UpdateLaptaAppSettings.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -3269,56 +2989,6 @@ extension User_UserService.ClientProtocol {
         )
     }
 
-    /// Call the "GetLaptaAppSettings" method.
-    ///
-    /// - Parameters:
-    ///   - request: A request containing a single `User_GetLaptaAppSettingsRequest` message.
-    ///   - options: Options to apply to this RPC.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func getLaptaAppSettings<Result>(
-        request: GRPCCore.ClientRequest<User_GetLaptaAppSettingsRequest>,
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_LaptaAppSettings>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        try await self.getLaptaAppSettings(
-            request: request,
-            serializer: GRPCProtobuf.ProtobufSerializer<User_GetLaptaAppSettingsRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<User_LaptaAppSettings>(),
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
-    /// Call the "UpdateLaptaAppSettings" method.
-    ///
-    /// - Parameters:
-    ///   - request: A request containing a single `User_UpdateLaptaAppSettingsRequest` message.
-    ///   - options: Options to apply to this RPC.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func updateLaptaAppSettings<Result>(
-        request: GRPCCore.ClientRequest<User_UpdateLaptaAppSettingsRequest>,
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_LaptaAppSettings>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        try await self.updateLaptaAppSettings(
-            request: request,
-            serializer: GRPCProtobuf.ProtobufSerializer<User_UpdateLaptaAppSettingsRequest>(),
-            deserializer: GRPCProtobuf.ProtobufDeserializer<User_LaptaAppSettings>(),
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
     /// Call the "GetEatometerSettings" method.
     ///
     /// - Parameters:
@@ -3827,64 +3497,6 @@ extension User_UserService.ClientProtocol {
             metadata: metadata
         )
         return try await self.updateUserSettings(
-            request: request,
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
-    /// Call the "GetLaptaAppSettings" method.
-    ///
-    /// - Parameters:
-    ///   - message: request message to send.
-    ///   - metadata: Additional metadata to send, defaults to empty.
-    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func getLaptaAppSettings<Result>(
-        _ message: User_GetLaptaAppSettingsRequest,
-        metadata: GRPCCore.Metadata = [:],
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_LaptaAppSettings>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        let request = GRPCCore.ClientRequest<User_GetLaptaAppSettingsRequest>(
-            message: message,
-            metadata: metadata
-        )
-        return try await self.getLaptaAppSettings(
-            request: request,
-            options: options,
-            onResponse: handleResponse
-        )
-    }
-
-    /// Call the "UpdateLaptaAppSettings" method.
-    ///
-    /// - Parameters:
-    ///   - message: request message to send.
-    ///   - metadata: Additional metadata to send, defaults to empty.
-    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
-    ///   - handleResponse: A closure which handles the response, the result of which is
-    ///       returned to the caller. Returning from the closure will cancel the RPC if it
-    ///       hasn't already finished.
-    /// - Returns: The result of `handleResponse`.
-    public func updateLaptaAppSettings<Result>(
-        _ message: User_UpdateLaptaAppSettingsRequest,
-        metadata: GRPCCore.Metadata = [:],
-        options: GRPCCore.CallOptions = .defaults,
-        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<User_LaptaAppSettings>) async throws -> Result = { response in
-            try response.message
-        }
-    ) async throws -> Result where Result: Sendable {
-        let request = GRPCCore.ClientRequest<User_UpdateLaptaAppSettingsRequest>(
-            message: message,
-            metadata: metadata
-        )
-        return try await self.updateLaptaAppSettings(
             request: request,
             options: options,
             onResponse: handleResponse
