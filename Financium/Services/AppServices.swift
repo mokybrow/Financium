@@ -16,8 +16,16 @@ private struct ServiceEndpoint {
     static func from(prefix: String, defaultPort: Int) -> Self {
         let info = Bundle.main.infoDictionary ?? [:]
         let host = (info["\(prefix)_HOST"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let port = (info["\(prefix)_PORT"] as? NSNumber)?.intValue
-        let tls = (info["\(prefix)_TLS"] as? NSNumber)?.boolValue
+        let portValue = info["\(prefix)_PORT"]
+        let port = (portValue as? NSNumber)?.intValue ?? (portValue as? String).flatMap(Int.init)
+        let tlsValue = info["\(prefix)_TLS"]
+        let tls = (tlsValue as? NSNumber)?.boolValue ?? (tlsValue as? String).flatMap {
+            switch $0.lowercased() {
+            case "1", "true", "yes": true
+            case "0", "false", "no": false
+            default: nil
+            }
+        }
         return Self(host: host?.isEmpty == false ? host! : "127.0.0.1", port: port ?? defaultPort, useTLS: tls ?? false)
     }
 }
@@ -78,7 +86,7 @@ final class AuthSession: ObservableObject {
     @Published var errorMessage: String?
 
     private let authEndpoint = ServiceEndpoint.from(prefix: "FINANCIUM_AUTH", defaultPort: 44044)
-    private let userEndpoint = ServiceEndpoint.from(prefix: "FINANCIUM_USERS", defaultPort: 45045)
+    private let userEndpoint = ServiceEndpoint.from(prefix: "FINANCIUM_USERS", defaultPort: 44044)
     private var refreshTask: Task<Bool, Never>?
 
     init() {
