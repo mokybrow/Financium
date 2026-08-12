@@ -21,8 +21,6 @@ enum FITheme {
         /// Inner padding of a card.
         static let cardInset: CGFloat = 16
         static let cardRadius: CGFloat = 22
-        /// Small pills: the month chip, the payment-day chip.
-        static let pillRadius: CGFloat = 16
         static let rowVerticalPadding: CGFloat = 13
         static let rowMinHeight: CGFloat = 44
         /// Between stacked cards and sections.
@@ -174,8 +172,6 @@ enum FIRowAccessory {
     case valueChevron(Text)
     /// Value plus the up/down chevrons that mean "this opens a menu".
     case menu(Text)
-    case symbol(name: String, color: Color)
-    case checkmark
 }
 
 struct FIRowAccessoryView: View {
@@ -214,16 +210,6 @@ struct FIRowAccessoryView: View {
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-
-        case .symbol(let name, let color):
-            Image(systemName: name)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(color)
-
-        case .checkmark:
-            Image(systemName: "checkmark")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(FITheme.Palette.accent)
         }
     }
 }
@@ -306,6 +292,65 @@ extension FIListRow where Trailing == FIRowAccessoryView {
     }
 }
 
+/// Row with a filled bar under it — a goal or a budget.
+///
+/// The bar is the point of the row: "38 000 ₽ left" is a number the reader has
+/// to hold against the target to mean anything, while a bar answers "how far
+/// along am I" before the text is read at all. It stays visible past 100% so an
+/// exceeded goal reads as full rather than as an empty bar that wrapped around.
+struct FIProgressRow: View {
+    let title: Text
+    var subtitle: Text?
+    var trailing: Text?
+    var trailingColor: Color = .secondary
+    /// Unclamped: values above 1 are expected and the bar handles them.
+    let progress: Double
+    var tint: Color = FITheme.Palette.accent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    title
+                        .font(FITheme.Typography.rowTitle)
+                        .foregroundStyle(.primary)
+
+                    if let subtitle {
+                        subtitle
+                            .font(FITheme.Typography.rowSubtitle)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let trailing {
+                    trailing
+                        .font(FITheme.Typography.rowValue)
+                        .foregroundStyle(trailingColor)
+                        .lineLimit(1)
+                }
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(FITheme.Palette.controlFill)
+
+                    Capsule()
+                        .fill(tint)
+                        .frame(width: proxy.size.width * min(max(progress, 0), 1))
+                }
+            }
+            .frame(height: 6)
+            .accessibilityHidden(true)
+        }
+        .padding(.horizontal, FITheme.Metrics.cardInset)
+        .padding(.vertical, FITheme.Metrics.rowVerticalPadding)
+        .frame(minHeight: FITheme.Metrics.rowMinHeight)
+        .contentShape(Rectangle())
+    }
+}
+
 /// Row whose trailing side is a switch.
 struct FIToggleRow: View {
     private let title: Text
@@ -323,6 +368,31 @@ struct FIToggleRow: View {
             Toggle("", isOn: $isOn)
                 .labelsHidden()
                 .tint(FITheme.Palette.positive)
+        }
+    }
+}
+
+/// Row whose trailing side is a date chip — the `Payment Day  [June 2024]`
+/// pattern.
+///
+/// A compact `DatePicker` rather than a hand-drawn chip: it already renders as
+/// the grey capsule in the mock-up, and tapping it opens the real system
+/// calendar with all its keyboard, locale and accessibility behaviour.
+struct FIDateRow: View {
+    private let title: Text
+    @Binding private var date: Date
+
+    init(_ titleKey: LocalizedStringKey, date: Binding<Date>) {
+        self.title = Text(titleKey)
+        self._date = date
+    }
+
+    var body: some View {
+        FIListRow(title: title) {
+            DatePicker("", selection: $date, displayedComponents: .date)
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .tint(FITheme.Palette.accent)
         }
     }
 }
@@ -411,12 +481,20 @@ struct FIInlineActionRow: View {
     private let title: Text
     private let tint: Color
     private let symbol: String?
+    private let centred: Bool
     private let action: () -> Void
 
-    init(_ titleKey: LocalizedStringKey, tint: Color = FITheme.Palette.accent, symbol: String? = nil, action: @escaping () -> Void) {
+    init(
+        _ titleKey: LocalizedStringKey,
+        tint: Color = FITheme.Palette.accent,
+        symbol: String? = nil,
+        centred: Bool = false,
+        action: @escaping () -> Void
+    ) {
         self.title = Text(titleKey)
         self.tint = tint
         self.symbol = symbol
+        self.centred = centred
         self.action = action
     }
 
@@ -426,7 +504,7 @@ struct FIInlineActionRow: View {
                 title
                     .font(FITheme.Typography.rowTitle)
                     .foregroundStyle(symbol == nil ? tint : .primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: centred ? .center : .leading)
 
                 if let symbol {
                     Image(systemName: symbol)
@@ -494,26 +572,6 @@ struct FIMonthChip: View {
     }
 }
 
-/// The blue currency selector at the trailing edge of the month row.
-struct FICurrencyMenu<Content: View>: View {
-    let code: String
-    @ViewBuilder let menuContent: () -> Content
-
-    var body: some View {
-        Menu {
-            menuContent()
-        } label: {
-            HStack(spacing: 4) {
-                Text(verbatim: code)
-                    .font(.headline.weight(.semibold))
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.footnote.weight(.semibold))
-            }
-            .foregroundStyle(FITheme.Palette.accent)
-        }
-    }
-}
-
 // MARK: - Sheet chrome
 
 /// Native sheet chrome: an inline title with a system close button on the left
@@ -542,6 +600,7 @@ extension View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(role: .close, action: onClose)
+                        .tint(.primary)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -555,8 +614,6 @@ extension View {
                     }
                 }
             }
-            // Toolbar glyphs otherwise inherit the accent and come out blue.
-            .tint(.primary)
     }
 
     func fiSheetChrome(
@@ -583,7 +640,10 @@ struct FIAmountRow: View {
     var body: some View {
         HStack(spacing: 12) {
             TextField(placeholder, text: $text)
-                .font(.title3)
+                // The same size as every other row's text. It used to be
+                // `.title3`, so "Opening balance" sat visibly larger than
+                // "Name" one row above it in the same card.
+                .font(FITheme.Typography.rowTitle)
                 .monospacedDigit()
                 .keyboardType(.decimalPad)
                 .onChange(of: text) { _, newValue in
@@ -595,16 +655,18 @@ struct FIAmountRow: View {
                     text = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.body)
-                        .foregroundStyle(.tertiary)
+                        .font(.system(size: 17))
+                        .foregroundStyle(Color.secondary.opacity(0.55))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("common.clear"))
             }
         }
+        // Matched to FITextFieldRow so an amount row and a text row are the
+        // same height in the same card.
         .padding(.horizontal, FITheme.Metrics.cardInset)
-        .padding(.vertical, 14)
-        .frame(minHeight: 52)
+        .padding(.vertical, FITheme.Metrics.rowVerticalPadding)
+        .frame(minHeight: FITheme.Metrics.rowMinHeight)
     }
 
     /// Keeps the field to a well-formed amount as it is typed.
@@ -631,22 +693,81 @@ struct FIAmountRow: View {
 // MARK: - Buttons
 
 /// The round white "+" in the top-right corner of every list screen.
-struct FIToolbarAddButton<Content: View>: View {
+/// A plain toolbar icon button.
+///
+/// Toolbar glyphs are black, not blue. Blue is reserved for the one button that
+/// commits something — the confirm button on a sheet — so that colour keeps
+/// meaning "this is the action" instead of "this is tappable". `.tint` has to be
+/// set as well as `foregroundStyle`: a menu inherits the ambient tint for its
+/// own rows, and without it they come out looking disabled.
+struct FIToolbarButton: View {
+    let systemImage: String
+    let accessibilityLabel: LocalizedStringKey
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.primary)
+        }
+        .tint(.primary)
+        .accessibilityLabel(Text(accessibilityLabel))
+    }
+}
+
+/// The same glyph treatment, for a toolbar button that opens a menu.
+struct FIToolbarMenu<Content: View>: View {
+    let systemImage: String
+    let accessibilityLabel: LocalizedStringKey
     @ViewBuilder let menuContent: () -> Content
 
     var body: some View {
         Menu {
             menuContent()
         } label: {
-            Image(systemName: "plus")
+            Image(systemName: systemImage)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(.primary)
         }
         .tint(.primary)
+        .accessibilityLabel(Text(accessibilityLabel))
+    }
+}
+
+struct FIToolbarAddButton<Content: View>: View {
+    @ViewBuilder let menuContent: () -> Content
+
+    var body: some View {
+        FIToolbarMenu(systemImage: "plus", accessibilityLabel: "common.add", menuContent: menuContent)
+    }
+}
+
+extension View {
+    /// Surfaces whatever the store last failed at.
+    ///
+    /// Only Money used to carry this, so a rejected save on Budget or Goals
+    /// left the sheet sitting there with no explanation — the write had failed
+    /// and the app said nothing.
+    func fiErrorAlert(_ message: Binding<String?>) -> some View {
+        alert(Text("common.error"), isPresented: Binding(
+            get: { message.wrappedValue != nil },
+            set: { if !$0 { message.wrappedValue = nil } }
+        )) {
+            Button("common.ok", role: .cancel) { message.wrappedValue = nil }
+        } message: {
+            Text(message.wrappedValue ?? "")
+        }
     }
 }
 
 /// Empty-state placeholder, matching the tone of the rest of the app.
+/// Shown in place of a screen's content when there is nothing to list.
+///
+/// No card behind it: a white rectangle containing only the words "no accounts
+/// yet" is a container drawn around an absence. Without one the text sits on
+/// the page and centres in the space the list would have filled, which is where
+/// the eye goes when a screen is empty.
 struct FIEmptyState: View {
     let title: LocalizedStringKey
     var subtitle: LocalizedStringKey?
@@ -664,9 +785,17 @@ struct FIEmptyState: View {
                     .multilineTextAlignment(.center)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 36)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, FITheme.Metrics.cardInset)
+        // Laid over a scroll view, so it must not swallow taps meant for the
+        // month chip underneath it.
+        .allowsHitTesting(false)
+        // Sized by whatever it is laid over rather than by a container-relative
+        // height: as a sibling inside the scroll view's stack it measured a
+        // whole viewport *plus* the rows above it, so the screen scrolled and
+        // the text sat below the fold instead of in the middle of it. Call
+        // sites put this in an `.overlay` on the scroll view, which is exactly
+        // the box it should centre in.
     }
 }
 
@@ -683,22 +812,36 @@ extension View {
         padding(.horizontal, FITheme.Metrics.screenInset)
     }
 
-    /// Long-press menu on a card, with the preview clipped to the card's own
-    /// shape so the highlight does not overhang its corners.
-    func fiCardContextMenu<MenuItems: View>(
-        cornerRadius: CGFloat = FITheme.Metrics.cardRadius,
-        @ViewBuilder menuItems: () -> MenuItems
-    ) -> some View {
-        contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .contextMenu(menuItems: menuItems)
-    }
-
     /// Long-press menu on a row inside a card. The opaque background is what
     /// keeps the lifted preview from showing the page through it.
+    ///
+    /// The menu's tint is reset to `.primary` and then to `.red` for
+    /// destructive items: rows sit inside buttons that carry the accent tint,
+    /// and a menu inherits the ambient tint — which was repainting the delete
+    /// item's trash glyph blue, so the one item that should look dangerous
+    /// looked like every other one.
     func fiRowContextMenu<MenuItems: View>(@ViewBuilder menuItems: () -> MenuItems) -> some View {
         background(FITheme.Palette.card)
             .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: FITheme.Metrics.cardRadius, style: .continuous))
-            .contextMenu(menuItems: menuItems)
+            .contextMenu { menuItems().tint(.primary) }
+    }
+}
+
+/// A menu item that deletes something.
+///
+/// `Button(role: .destructive)` alone leaves the icon on the ambient tint
+/// inside a tinted container, so the label went red while the trash stayed
+/// blue. Tinting the item destructive makes both agree.
+struct FIDestructiveMenuButton: View {
+    let titleKey: LocalizedStringKey
+    var systemImage: String = "trash"
+    let action: () -> Void
+
+    var body: some View {
+        Button(role: .destructive, action: action) {
+            Label(titleKey, systemImage: systemImage)
+        }
+        .tint(FITheme.Palette.destructive)
     }
 }
 

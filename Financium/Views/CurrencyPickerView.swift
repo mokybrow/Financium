@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Every currency the system knows about, with its localized name.
-enum FinanceCurrencies {
+nonisolated enum FinanceCurrencies {
     /// `commonISOCurrencyCodes` rather than `isoCurrencyCodes`: the latter
     /// includes withdrawn currencies and metals, which nobody keeps a bank
     /// account in.
@@ -14,20 +14,70 @@ enum FinanceCurrencies {
         Locale.current.localizedString(forCurrencyCode: code) ?? code
     }
 
-    static func symbol(for code: String) -> String {
-        // `Locale.currencySymbol` is the *locale's* symbol, not the code's, so
-        // the symbol has to come from a formatter pinned to that currency.
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = code
-        return formatter.currencySymbol ?? code
+    /// The currency's own sign, where it has one.
+    ///
+    /// Deliberately not taken from `NumberFormatter`. A formatter prints the
+    /// sign as the *reader's* locale writes it, which is the disambiguated form
+    /// for anything foreign: a Russian phone renders USD as "US$", an English
+    /// one renders RUB as "RUB". Both are correct for prose and wrong on a row
+    /// that has already said which account it belongs to. This table is the
+    /// sign as the currency's own country writes it.
+    ///
+    /// `nil` where a currency has no distinctive sign, so callers can decide
+    /// for themselves — print the ISO code, or nothing where the code is
+    /// already on screen.
+    static func sign(for code: String) -> String? {
+        switch code.uppercased() {
+        case "RUB": return "₽"
+        case "USD": return "$"
+        case "EUR": return "€"
+        case "GBP": return "£"
+        case "JPY": return "¥"
+        case "CNY": return "¥"
+        case "KZT": return "₸"
+        case "TRY": return "₺"
+        case "UAH": return "₴"
+        case "GEL": return "₾"
+        case "INR": return "₹"
+        case "KRW": return "₩"
+        case "THB": return "฿"
+        case "VND": return "₫"
+        case "ILS": return "₪"
+        case "NGN": return "₦"
+        case "PHP": return "₱"
+        case "BRL": return "R$"
+        case "AED": return "د.إ"
+        case "PLN": return "zł"
+        case "CZK": return "Kč"
+        case "CHF": return "Fr."
+        case "SEK", "NOK", "DKK", "ISK": return "kr"
+        case "AMD": return "֏"
+        case "AZN": return "₼"
+        case "KGS": return "с"
+        case "UZS": return "so'm"
+        case "BYN": return "Br"
+        case "HUF": return "Ft"
+        case "BTC": return "₿"
+        default: return nil
+        }
     }
 
-    /// SF Symbol for the sign, when one exists — used on the account rows.
-    static func symbolName(for code: String) -> String {
+    /// What to print next to an amount: the sign if the currency has one, its
+    /// ISO code otherwise. Never a locale-disambiguated form like "US$".
+    static func symbol(for code: String) -> String {
+        sign(for: code) ?? code.uppercased()
+    }
+
+    /// SF Symbol for the sign, when one exists — used on the account rows and
+    /// beside each code in the picker.
+    ///
+    /// `nil` rather than a "banknote" fallback so callers can tell a real sign
+    /// from a stand-in: an account row prints the text sign instead, which says
+    /// more than a glyph that looks the same for every exotic currency.
+    static func logo(for code: String) -> String? {
         switch code.uppercased() {
         case "RUB": return "rublesign"
-        case "USD": return "dollarsign"
+        case "USD", "CAD", "AUD", "NZD", "HKD", "SGD", "MXN", "ARS", "CLP", "COP": return "dollarsign"
         case "EUR": return "eurosign"
         case "GBP": return "sterlingsign"
         case "JPY", "CNY": return "yensign"
@@ -43,10 +93,12 @@ enum FinanceCurrencies {
         case "VND": return "dongsign"
         case "UAH": return "hryvniasign"
         case "GEL": return "larisign"
-        case "PLN": return "florinsign"
-        default: return "banknote"
+        case "CHF": return "francsign"
+        case "BTC": return "bitcoinsign"
+        default: return nil
         }
     }
+
 }
 
 /// Currency chooser.
@@ -85,6 +137,12 @@ struct CurrencyPickerView: View {
             }
         }
         .listStyle(.insetGrouped)
+        // The list draws its own grouped background, which is a different grey
+        // from the one every other screen uses. Clearing it and putting the
+        // app's background behind makes the pushed picker look like it belongs
+        // to the sheet it was opened from.
+        .scrollContentBackground(.hidden)
+        .fiPageBackground()
         .searchable(text: $query, prompt: Text("currency.search"))
         .navigationTitle(Text("currency.title"))
         .navigationBarTitleDisplayMode(.inline)
@@ -108,6 +166,16 @@ struct CurrencyPickerView: View {
             dismiss()
         } label: {
             HStack(spacing: 12) {
+                // Leading, and holding its width whether or not it is drawn, so
+                // the codes stay in one column instead of shifting sideways as
+                // the selection moves.
+                Image(systemName: "checkmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(FITheme.Palette.accent)
+                    .opacity(code == selected ? 1 : 0)
+                    .frame(width: 18)
+                    .accessibilityHidden(code != selected)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: code)
                         .font(FITheme.Typography.rowTitle)
@@ -119,17 +187,17 @@ struct CurrencyPickerView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Text(verbatim: FinanceCurrencies.symbol(for: code))
-                    .font(FITheme.Typography.rowValue)
-                    .foregroundStyle(.secondary)
-
-                if code == selected {
-                    Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(FITheme.Palette.accent)
+                // Only where the currency has a sign of its own: the code is
+                // already the row's title, and printing it twice says nothing.
+                if let sign = FinanceCurrencies.sign(for: code) {
+                    Text(verbatim: sign)
+                        .font(FITheme.Typography.rowValue)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
         }
         .buttonStyle(.plain)
+        .listRowBackground(FITheme.Palette.card)
     }
 }

@@ -1,42 +1,10 @@
 import SwiftUI
 import SwiftProtobuf
 
-// The editor sheets, per the mock-ups: a drawn header with a round close button
-// and a filled blue confirm button, one card of menu rows, and a digits-only pad
-// pinned to the bottom.
-//
-// The amount row is a real TextField on the decimal pad. The mock-up's number
-// pad is the system decimal pad, so nothing here is hand-built: focus, the
-// caret, paste and dictation all behave natively.
+// Editor sheets use native navigation chrome, controls and input methods so
+// calendars, menus, focus, paste, dictation and accessibility follow iOS.
 
 // MARK: - Shared pieces
-
-/// Categories offered by the menus.
-///
-/// There is no category catalog on the backend yet, so the list is the union of
-/// a sensible default set and whatever the user has already typed — which means
-/// their own categories keep showing up without a schema change.
-enum FinanceCategories {
-    static let expense = ["Groceries", "Clothing", "Leisure", "Transport", "Home", "Health", "Other"]
-    static let income = ["Salary", "Bonus", "Gift", "Refund", "Other"]
-
-    static func options(for kind: TransactionEditorKind, existing: [Finance_Transaction]) -> [String] {
-        let defaults = kind == .income ? income : expense
-        let used = existing
-            .filter { transaction in
-                switch kind {
-                case .income: return transaction.kind == .income
-                case .expense: return transaction.kind == .expense
-                case .transfer: return false
-                }
-            }
-            .map(\.category)
-            .filter { !$0.isEmpty }
-
-        var seen = Set<String>()
-        return (defaults + used).filter { seen.insert($0).inserted }
-    }
-}
 
 /// Parses what the pad produced into a `Decimal`.
 ///
@@ -58,10 +26,16 @@ func financeAmountText(_ value: Decimal) -> String {
 
 private extension View {
     /// Common frame for the editor sheets.
-    func financeEditorSheet() -> some View {
+    ///
+    /// The error alert belongs here rather than on the screen underneath:
+    /// saving fails inside the sheet, and SwiftUI will not present an alert
+    /// from a view a sheet is covering — so the sheet just sat there saying
+    /// nothing while the write had been refused.
+    func financeEditorSheet(error: Binding<String?>) -> some View {
         fiPageBackground()
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+            .fiErrorAlert(error)
     }
 }
 
@@ -69,6 +43,7 @@ private extension View {
 
 struct TransactionEditorView: View {
     @EnvironmentObject private var store: FinanceStore
+    @EnvironmentObject private var categories: FinanceCategoryStore
     @Environment(\.dismiss) private var dismiss
     let kind: TransactionEditorKind
     let transaction: Finance_Transaction?
@@ -78,6 +53,7 @@ struct TransactionEditorView: View {
     @State private var category = ""
     @State private var title = ""
     @State private var amount = ""
+    @State private var destinationAmount = ""
     @State private var occurredAt = Date()
     @State private var saving = false
 
@@ -112,13 +88,22 @@ struct TransactionEditorView: View {
                         }
 
                         FIRowSeparator()
-                        FIListRow(
-                            title: Text("transaction.currency"),
-                            accessory: .value(Text(verbatim: transactionCurrency))
-                        )
+                        FIDateRow("transaction.date", date: $occurredAt)
 
                         FIRowSeparator()
-                        FIAmountRow(text: $amount)
+                        FIAmountRow(text: $amount, placeholder: amountPlaceholder)
+
+                        // A cross-currency transfer is two amounts, not one
+                        // amount converted: the bank has already picked a rate
+                        // and the user is copying both numbers off a statement.
+                        if isCrossCurrency {
+                            FIRowSeparator()
+                            FIAmountRow(text: $destinationAmount, placeholder: "transaction.amount.received")
+                        }
+                    }
+
+                    if let rate = exchangeRateText {
+                        FIFootnote(verbatim: rate)
                     }
 
                     if kind == .transfer {
@@ -136,7 +121,7 @@ struct TransactionEditorView: View {
                 onClose: { dismiss() }
             )
         }
-        .financeEditorSheet()
+        .financeEditorSheet(error: $store.errorMessage)
         .onAppear(perform: prefill)
         .overlay {
             if saving {
@@ -157,17 +142,7 @@ struct TransactionEditorView: View {
     @ViewBuilder
     private var standardRows: some View {
         FIMenuRow(title: Text("transaction.category"), value: Text(verbatim: categoryLabel)) {
-            ForEach(categoryOptions, id: \.self) { option in
-                Button {
-                    category = option
-                } label: {
-                    if option == category {
-                        Label(option, systemImage: "checkmark")
-                    } else {
-                        Text(verbatim: option)
-                    }
-                }
-            }
+            categoryButtons
         }
 
         FIRowSeparator()
@@ -208,30 +183,90 @@ struct TransactionEditorView: View {
     }
 
     private var categoryOptions: [String] {
-        FinanceCategories.options(for: kind, existing: store.transactions)
+        categories.options(for: kind, existing: store.transactions)
+    }
+
+    /// The category menu.
+    ///
+    /// The button's value is the stored identifier — that is what gets written
+    /// to the transaction — while the label is its localized name, so switching
+    /// the app's language re-labels existing categories instead of splitting
+    /// them into new ones.
+    @ViewBuilder
+    private var categoryButtons: some View {
+        ForEach(categoryOptions, id: \.self) { option in
+            Button {
+                category = option
+            } label: {
+                let name = FinanceCategoryStore.displayName(for: option)
+                if option == category {
+                    Label(name, systemImage: "checkmark")
+                } else {
+                    Text(verbatim: name)
+                }
+            }
+        }
+    }
+
+    /// What gets written to the transaction: the stable identifier, never the
+    /// translated name. Storing the display name would file a spend under
+    /// "Продукты" on a Russian phone and "Groceries" on an English one, and the
+    /// two would never again be recognised as the same category.
+    private var storedCategory: String {
+        category.isEmpty ? (categoryOptions.first ?? "") : category
     }
 
     private var categoryLabel: String {
-        category.isEmpty ? (categoryOptions.first ?? "") : category
+        FinanceCategoryStore.displayName(for: storedCategory)
     }
 
     private func accountLabel(_ id: String) -> String {
         store.accounts.first { $0.id == id }?.name ?? ""
     }
 
+    /// What the transaction is called if the user did not name it.
+    ///
+    /// For a spend or an income the category is a decent stand-in. A transfer
+    /// has no category, so it is named after where the money went — which is
+    /// the only thing that tells one transfer from another in a list.
+    private var savedTitle: String {
+        let typed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard typed.isEmpty else { return typed }
+        guard kind == .transfer else { return categoryLabel }
+
+        let destination = accountLabel(destinationID)
+        guard !destination.isEmpty else { return NSLocalizedString("transaction.transfer", comment: "Transfer") }
+        return String(
+            format: NSLocalizedString("transaction.transfer_to_format", comment: "Transfer to account"),
+            destination
+        )
+    }
+
     private func prefill() {
         if let transaction {
             accountID = kind == .income ? transaction.toAccountID : transaction.fromAccountID
             destinationID = transaction.toAccountID
-            category = transaction.category
-            title = transaction.title
+            category = kind == .transfer ? "" : FinanceCategoryStore.canonical(transaction.category)
+            // Old transfers were saved with their borrowed category as the
+            // title. Leaving the field empty regenerates a proper name on save
+            // instead of writing "Groceries" back.
+            let isLegacyDefault = kind == .transfer
+                && !transaction.category.isEmpty
+                && transaction.title == transaction.category
+            title = isLegacyDefault ? "" : transaction.title
             amount = financeAmountText(transaction.amount.decimalValue)
+            if transaction.hasDestinationAmount, transaction.destinationAmount.minorUnits > 0 {
+                destinationAmount = financeAmountText(transaction.destinationAmount.decimalValue)
+            }
             if transaction.hasOccurredAt { occurredAt = transaction.occurredAt.date }
             return
         }
         if accountID.isEmpty {
             accountID = store.accounts.first?.id ?? ""
         }
+        // A transfer gets no default category — `categoryOptions` is empty for
+        // it, and defaulting to the first expense category is what named every
+        // transfer after a grocery run.
         if kind == .transfer, destinationID.isEmpty {
             destinationID = store.accounts.first { $0.id != accountID }?.id ?? ""
         }
@@ -244,17 +279,74 @@ struct TransactionEditorView: View {
         guard let value = financeDecimal(from: amount), value > 0 else { return false }
         guard !accountID.isEmpty else { return false }
         if kind == .transfer {
-            return !destinationID.isEmpty && destinationID != accountID
+            guard !destinationID.isEmpty, destinationID != accountID else { return false }
+            // Across currencies the received amount is a second fact the app
+            // cannot derive, so it has to be filled in before saving.
+            if isCrossCurrency, (financeDecimal(from: destinationAmount) ?? 0) <= 0 { return false }
         }
         return true
     }
 
+    private func account(_ id: String) -> Finance_Account? {
+        store.accounts.first { $0.id == id }
+    }
+
+    /// The currency the money lands in — the destination account's own.
+    private var destinationCurrency: String {
+        let code = account(destinationID)?.balance.currencyCode ?? ""
+        return code.isEmpty ? transactionCurrency : code
+    }
+
+    private var isCrossCurrency: Bool {
+        kind == .transfer && !destinationID.isEmpty && destinationCurrency != transactionCurrency
+    }
+
+    /// "Amount" normally, "Sent" once there is a second amount to tell it apart
+    /// from.
+    private var amountPlaceholder: LocalizedStringKey {
+        isCrossCurrency ? "transaction.amount.sent" : "common.amount"
+    }
+
+    /// The rate the two amounts imply, shown rather than applied.
+    ///
+    /// The app has no rate feed and should not pretend to: this is arithmetic on
+    /// what the user typed, offered as a sanity check on a pair of numbers
+    /// copied off a statement. Rounded to four places because a rate like
+    /// 0.010815 is meaningless at two and noise at eight.
+    private var exchangeRateText: String? {
+        guard isCrossCurrency,
+              let sent = financeDecimal(from: amount), sent > 0,
+              let received = financeDecimal(from: destinationAmount), received > 0 else { return nil }
+
+        let rate = NSDecimalNumber(decimal: received / sent).rounding(
+            accordingToBehavior: NSDecimalNumberHandler(
+                roundingMode: .plain, scale: 4,
+                raiseOnExactness: false, raiseOnOverflow: false,
+                raiseOnUnderflow: false, raiseOnDivideByZero: false
+            )
+        )
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 4
+        guard let value = formatter.string(from: rate) else { return nil }
+
+        return String(
+            format: NSLocalizedString("transaction.rate_format", comment: "Implied exchange rate"),
+            transactionCurrency,
+            value,
+            destinationCurrency
+        )
+    }
+
+    /// The currency is never asked for: an amount is always in the currency of
+    /// the account it moves through, and failing that the one currency the user
+    /// set in Profile.
     private var transactionCurrency: String {
         if let code = store.accounts.first(where: { $0.id == accountID })?.balance.currencyCode, !code.isEmpty {
             return code
         }
         if let transaction, !transaction.amount.currencyCode.isEmpty { return transaction.amount.currencyCode }
-        return store.settings.mainCurrencyCode.isEmpty ? "RUB" : store.settings.mainCurrencyCode
+        return store.mainCurrencyCode
     }
 
     private func save() {
@@ -267,9 +359,11 @@ struct TransactionEditorView: View {
                 kind: kind,
                 accountID: accountID,
                 destinationID: destinationID,
-                title: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? categoryLabel : title,
-                category: categoryLabel,
+                title: savedTitle,
+                // Empty for a transfer, so it never lands in a spend budget.
+                category: kind == .transfer ? "" : storedCategory,
                 amount: value,
+                destinationAmount: isCrossCurrency ? financeDecimal(from: destinationAmount) : nil,
                 currency: transactionCurrency,
                 note: "",
                 date: occurredAt
@@ -282,17 +376,71 @@ struct TransactionEditorView: View {
 
 // MARK: - Accounts
 
+/// The glyphs an account can be marked with.
+///
+/// Each one carries a name: a menu listing "creditcard.fill" and
+/// "wallet.bifold.fill" asks the user to read SF Symbol identifiers. The
+/// currency signs are here as well, so an account can be marked by what it
+/// holds rather than by what kind of thing it is — which is how a wallet of
+/// foreign cash actually reads on the Money screen.
+struct FinanceAccountIcon: Identifiable, Hashable {
+    let symbol: String
+    let titleKey: LocalizedStringKey
+
+    var id: String { symbol }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.symbol == rhs.symbol }
+    func hash(into hasher: inout Hasher) { hasher.combine(symbol) }
+
+    static let kinds: [Self] = [
+        Self(symbol: "creditcard.fill", titleKey: "account.icon.card"),
+        Self(symbol: "banknote.fill", titleKey: "account.icon.cash"),
+        Self(symbol: "building.columns.fill", titleKey: "account.icon.bank"),
+        Self(symbol: "wallet.bifold.fill", titleKey: "account.icon.wallet"),
+        Self(symbol: "chart.line.uptrend.xyaxis", titleKey: "account.icon.investments"),
+        Self(symbol: "gift.fill", titleKey: "account.icon.savings")
+    ]
+
+    static let currencies: [Self] = [
+        Self(symbol: "rublesign.circle.fill", titleKey: "account.icon.ruble"),
+        Self(symbol: "dollarsign.circle.fill", titleKey: "account.icon.dollar"),
+        Self(symbol: "eurosign.circle.fill", titleKey: "account.icon.euro"),
+        Self(symbol: "sterlingsign.circle.fill", titleKey: "account.icon.pound"),
+        Self(symbol: "yensign.circle.fill", titleKey: "account.icon.yen"),
+        Self(symbol: "tengesign.circle.fill", titleKey: "account.icon.tenge"),
+        Self(symbol: "turkishlirasign.circle.fill", titleKey: "account.icon.lira"),
+        Self(symbol: "bitcoinsign.circle.fill", titleKey: "account.icon.bitcoin")
+    ]
+
+    static var all: [Self] { kinds + currencies }
+
+    static func titleKey(for symbol: String) -> LocalizedStringKey {
+        all.first { $0.symbol == symbol }?.titleKey ?? "account.icon.card"
+    }
+}
+
+/// Creates a new account, or edits an existing one.
+///
+/// One sheet for both: the fields are the same, and an account's currency is a
+/// property of that account rather than something fixed at creation — a travel
+/// wallet that was opened in the wrong currency should be fixable without
+/// deleting it and losing the name.
 struct AccountEditorView: View {
     @EnvironmentObject private var store: FinanceStore
     @Environment(\.dismiss) private var dismiss
 
+    let account: Finance_Account?
+
     @State private var name = ""
     @State private var symbol = "creditcard.fill"
     @State private var currency = "RUB"
-    @State private var opening = ""
+    @State private var balance = ""
     @State private var saving = false
+    @State private var prefilled = false
 
-    private let symbols = ["creditcard.fill", "banknote.fill", "building.columns.fill", "wallet.bifold.fill"]
+    init(account: Finance_Account? = nil) {
+        self.account = account
+    }
 
     var body: some View {
         NavigationStack {
@@ -303,13 +451,12 @@ struct AccountEditorView: View {
 
                     FIRowSeparator()
 
-                    FIMenuRow(title: Text("account.symbol"), value: Text(verbatim: "")) {
-                        ForEach(symbols, id: \.self) { option in
-                            Button {
-                                symbol = option
-                            } label: {
-                                Label(option, systemImage: option)
-                            }
+                    FIMenuRow(title: Text("account.symbol"), value: Text(FinanceAccountIcon.titleKey(for: symbol))) {
+                        Section {
+                            iconButtons(FinanceAccountIcon.kinds)
+                        }
+                        Section("account.icon.currencies") {
+                            iconButtons(FinanceAccountIcon.currencies)
                         }
                     }
 
@@ -327,7 +474,7 @@ struct AccountEditorView: View {
 
                     FIRowSeparator()
 
-                    FIAmountRow(text: $opening, placeholder: "account.opening_balance")
+                    FIAmountRow(text: $balance, placeholder: balancePlaceholder)
                 }
                 .fiCardInsets()
                 .padding(.bottom, 16)
@@ -335,12 +482,13 @@ struct AccountEditorView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .fiPageBackground()
             .fiSheetChrome(
-                title: Text("money.accounts.add"),
+                title: Text(account == nil ? "money.accounts.add" : "account.edit"),
                 confirm: .confirm(isEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty && !saving) { save() },
                 onClose: { dismiss() }
             )
         }
-        .financeEditorSheet()
+        .financeEditorSheet(error: $store.errorMessage)
+        .onAppear(perform: prefill)
         .overlay {
             if saving {
                 ProgressView().controlSize(.large)
@@ -348,21 +496,212 @@ struct AccountEditorView: View {
         }
     }
 
+    @ViewBuilder
+    private func iconButtons(_ icons: [FinanceAccountIcon]) -> some View {
+        ForEach(icons) { icon in
+            Button {
+                symbol = icon.symbol
+            } label: {
+                Label {
+                    Text(icon.titleKey)
+                } icon: {
+                    Image(systemName: icon.symbol == symbol ? "checkmark" : icon.symbol)
+                }
+            }
+        }
+    }
+
+    private var balancePlaceholder: LocalizedStringKey {
+        account == nil ? "account.opening_balance" : "account.balance"
+    }
+
+    /// Fills the fields once. Coming back from the pushed currency picker must
+    /// not re-run this and throw away the code the user just chose.
+    private func prefill() {
+        guard !prefilled else { return }
+        prefilled = true
+
+        guard let account else {
+            currency = store.mainCurrencyCode
+            return
+        }
+        name = account.name
+        symbol = account.symbolName.isEmpty ? "creditcard.fill" : account.symbolName
+        currency = account.balance.currencyCode.isEmpty ? "RUB" : account.balance.currencyCode
+        balance = financeAmountText(account.balance.decimalValue)
+    }
+
     private func save() {
         saving = true
-        // An empty opening balance means zero, not "invalid": most accounts are
-        // created empty and typing a 0 for that is busywork.
-        let value = financeDecimal(from: opening) ?? 0
+        // On a new account an empty field means zero: most accounts start empty
+        // and typing a 0 for that is busywork. On an existing one it means
+        // "leave the money alone" — clearing the field to change the currency
+        // must not also wipe the balance.
+        let typed = financeDecimal(from: balance)
+        let value = typed ?? (account?.balance.decimalValue ?? 0)
 
         Task {
-            let created = await store.createAccount(
-                name: name.trimmingCharacters(in: .whitespaces),
-                symbol: symbol,
-                opening: value,
-                currency: currency
+            let saved: Bool
+            if let account {
+                // The balance travels whenever the amount or the currency
+                // changed. Sending it unconditionally would let a rename
+                // overwrite money that moved in the meantime; never sending it
+                // left the currency stuck on the old code.
+                let untouched = value == account.balance.decimalValue
+                    && currency == account.balance.currencyCode
+                saved = await store.updateAccount(
+                    id: account.id,
+                    name: name.trimmingCharacters(in: .whitespaces),
+                    symbol: symbol,
+                    balance: untouched ? nil : value,
+                    currency: currency,
+                    isArchived: account.isArchived
+                )
+            } else {
+                saved = await store.createAccount(
+                    name: name.trimmingCharacters(in: .whitespaces),
+                    symbol: symbol,
+                    opening: value,
+                    currency: currency
+                )
+            }
+            saving = false
+            if saved { dismiss() }
+        }
+    }
+}
+
+/// Adjusts an account's balance up or down by an amount.
+///
+/// The account editor can already set a balance outright, but a correction is
+/// how the question actually arrives: the bank says 12 340 and the app says
+/// 12 300, so the answer is "add 40", not "work out 12 340 and type it in".
+///
+/// Written as a real transaction rather than a silent balance edit. A balance
+/// that no longer equals the movements that produced it is a ledger nobody can
+/// check, and a correction the user cannot find afterwards is the one entry they
+/// will most want to find. The money is real too: if the bank says there is 40
+/// more, that 40 came from somewhere the app failed to record, so counting it as
+/// income is nearer the truth than hiding it.
+struct BalanceCorrectionView: View {
+    @EnvironmentObject private var store: FinanceStore
+    @Environment(\.dismiss) private var dismiss
+
+    let account: Finance_Account
+
+    private enum Direction: String, CaseIterable, Identifiable {
+        case add, subtract
+        var id: String { rawValue }
+        var titleKey: LocalizedStringKey {
+            self == .add ? "correction.add" : "correction.subtract"
+        }
+    }
+
+    @State private var direction: Direction = .add
+    @State private var amount = ""
+    @State private var saving = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
+                FICard {
+                    FIListRow(
+                        title: Text("correction.current"),
+                        accessory: .value(Text(verbatim: account.balance.formatted))
+                    )
+
+                    FIRowSeparator()
+
+                    FIMenuRow(title: Text("correction.direction"), value: Text(direction.titleKey)) {
+                        ForEach(Direction.allCases) { option in
+                            Button {
+                                direction = option
+                            } label: {
+                                if option == direction {
+                                    Label { Text(option.titleKey) } icon: {
+                                        Image(systemName: "checkmark")
+                                    }
+                                } else {
+                                    Text(option.titleKey)
+                                }
+                            }
+                        }
+                    }
+
+                    FIRowSeparator()
+
+                    FIAmountRow(text: $amount, placeholder: "correction.amount")
+
+                    // The result, shown before it is committed: the point of a
+                    // correction is landing on a particular number, so that
+                    // number should be on screen before the tap that saves it.
+                    if let preview = resultText {
+                        FIRowSeparator()
+                        FIListRow(
+                            title: Text("correction.result"),
+                            accessory: .value(Text(verbatim: preview))
+                        )
+                    }
+                }
+
+                FIFootnote("correction.hint")
+
+                Spacer(minLength: 0)
+            }
+            .fiCardInsets()
+            .padding(.top, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .fiPageBackground()
+            .fiSheetChrome(
+                title: Text("correction.title"),
+                confirm: .confirm(isEnabled: delta != nil && !saving) { save() },
+                onClose: { dismiss() }
+            )
+        }
+        .financeEditorSheet(error: $store.errorMessage)
+        .overlay {
+            if saving {
+                ProgressView().controlSize(.large)
+            }
+        }
+    }
+
+    /// The signed change, or `nil` while there is nothing to apply.
+    private var delta: Decimal? {
+        guard let value = financeDecimal(from: amount), value > 0 else { return nil }
+        return direction == .add ? value : -value
+    }
+
+    private var resultText: String? {
+        guard let delta else { return nil }
+        let money = Finance_Money(
+            decimal: account.balance.decimalValue + delta,
+            currencyCode: account.balance.currencyCode
+        )
+        return money.formatted
+    }
+
+    private func save() {
+        guard let delta, let value = financeDecimal(from: amount) else { return }
+        saving = true
+
+        Task {
+            let saved = await store.saveTransaction(
+                kind: delta > 0 ? .income : .expense,
+                accountID: account.id,
+                destinationID: "",
+                title: NSLocalizedString("correction.entry", comment: "Balance correction entry"),
+                // No category: a correction is not spending on anything, and
+                // filing it under one would count it against that category's
+                // budget.
+                category: "",
+                amount: value,
+                currency: account.balance.currencyCode,
+                note: "",
+                date: Date()
             )
             saving = false
-            if created { dismiss() }
+            if saved { dismiss() }
         }
     }
 }
@@ -371,13 +710,16 @@ struct AccountEditorView: View {
 
 struct BudgetEditorView: View {
     @EnvironmentObject private var store: FinanceStore
+    @EnvironmentObject private var categories: FinanceCategoryStore
     @Environment(\.dismiss) private var dismiss
     var budget: Finance_Budget?
 
+    @State private var title = ""
     @State private var category = ""
     @State private var limit = ""
     @State private var reminder = true
-    @State private var paymentDay = 1
+    @State private var paymentDate = Date()
+    @State private var recurrence: Finance_BudgetRecurrence = .monthly
     @State private var saving = false
 
     var body: some View {
@@ -385,31 +727,46 @@ struct BudgetEditorView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
                     FICard {
+                        FITextFieldRow("budget.name.placeholder", text: $title)
+                            .textInputAutocapitalization(.sentences)
+
+                        FIRowSeparator()
+
                         FIMenuRow(title: Text("transaction.category"), value: Text(verbatim: categoryLabel)) {
-                            ForEach(categoryOptions, id: \.self) { option in
-                                Button {
-                                    category = option
-                                } label: {
-                                    if option == category {
-                                        Label(option, systemImage: "checkmark")
-                                    } else {
-                                        Text(verbatim: option)
+                            categoryButtons
+                        }
+
+                        FIRowSeparator()
+
+                        FIToggleRow("budget.remind", isOn: $reminder)
+
+                        // The date and how often it comes round are only
+                        // meaningful if there is a reminder to schedule.
+                        if reminder {
+                            FIRowSeparator()
+                            FIDateRow("budget.payment_date", date: $paymentDate)
+
+                            FIRowSeparator()
+                            FIMenuRow(title: Text("budget.recurrence"), value: Text(recurrenceTitle(recurrence))) {
+                                ForEach(recurrenceOptions, id: \.rawValue) { option in
+                                    Button {
+                                        recurrence = option
+                                    } label: {
+                                        if option == recurrence {
+                                            Label { Text(recurrenceTitle(option)) } icon: {
+                                                Image(systemName: "checkmark")
+                                            }
+                                        } else {
+                                            Text(recurrenceTitle(option))
+                                        }
                                     }
                                 }
                             }
                         }
 
                         FIRowSeparator()
-                        FIToggleRow("budget.remind", isOn: $reminder)
 
-                        // Only meaningful when something is going to remind you.
-                        if reminder {
-                            FIRowSeparator()
-                            paymentDayRow
-                        }
-
-                        FIRowSeparator()
-                        FIAmountRow(text: $limit, placeholder: "budget.limit")
+                        FIAmountRow(text: $limit, placeholder: "budget.limit.placeholder")
                     }
 
                     FIFootnote("budget.hint")
@@ -420,12 +777,12 @@ struct BudgetEditorView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .fiPageBackground()
             .fiSheetChrome(
-                title: Text(budget == nil ? "budget.add" : "budget.title"),
+                title: Text(budget == nil ? "budget.add" : "budget.edit"),
                 confirm: .confirm(isEnabled: isValid && !saving) { save() },
                 onClose: { dismiss() }
             )
         }
-        .financeEditorSheet()
+        .financeEditorSheet(error: $store.errorMessage)
         .onAppear(perform: prefill)
         .overlay {
             if saving {
@@ -434,55 +791,99 @@ struct BudgetEditorView: View {
         }
     }
 
-    /// Day of the month, shown as the grey chip from the mock-up.
-    private var paymentDayRow: some View {
-        FIListRow(title: Text("budget.payment_day")) {
-            Menu {
-                ForEach(1...31, id: \.self) { day in
-                    Button {
-                        paymentDay = day
-                    } label: {
-                        if day == paymentDay {
-                            Label(String(day), systemImage: "checkmark")
-                        } else {
-                            Text(verbatim: String(day))
-                        }
-                    }
-                }
+    /// Categories that can still take a budget this month.
+    ///
+    /// A month holds one budget per category, so offering a category that
+    /// already has one only sets up a refusal at save time. The category this
+    /// budget is already on stays in the list, otherwise editing it would find
+    /// its own value missing.
+    private var categoryOptions: [String] {
+        // Both sides folded onto identifiers. A budget stored under a
+        // translated name would otherwise not match the identifier in `all`,
+        // so the menu offered a category that already had a budget and the
+        // save came back refused.
+        let taken = Set(
+            store.budgets
+                .filter { $0.id != budget?.id }
+                .map { FinanceCategoryStore.canonical($0.category) }
+        )
+        let all = categories.options(for: .expense, existing: store.transactions)
+        let free = all.filter { !taken.contains($0) }
+        // If every known category is spoken for, fall back to the full list
+        // rather than an empty menu the user cannot get out of.
+        return free.isEmpty ? all : free
+    }
+
+    /// The category menu.
+    ///
+    /// The button's value is the stored identifier — that is what gets written
+    /// to the transaction — while the label is its localized name, so switching
+    /// the app's language re-labels existing categories instead of splitting
+    /// them into new ones.
+    @ViewBuilder
+    private var categoryButtons: some View {
+        ForEach(categoryOptions, id: \.self) { option in
+            Button {
+                category = option
             } label: {
-                Text(verbatim: String(paymentDay))
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(FITheme.Palette.controlFill, in: Capsule())
+                let name = FinanceCategoryStore.displayName(for: option)
+                if option == category {
+                    Label(name, systemImage: "checkmark")
+                } else {
+                    Text(verbatim: name)
+                }
             }
-            .tint(.primary)
         }
     }
 
-    private var categoryOptions: [String] {
-        FinanceCategories.options(for: .expense, existing: store.transactions)
+    /// What gets written to the transaction: the stable identifier, never the
+    /// translated name. Storing the display name would file a spend under
+    /// "Продукты" on a Russian phone and "Groceries" on an English one, and the
+    /// two would never again be recognised as the same category.
+    private var storedCategory: String {
+        category.isEmpty ? (categoryOptions.first ?? "") : category
     }
 
     private var categoryLabel: String {
-        category.isEmpty ? (categoryOptions.first ?? "") : category
+        FinanceCategoryStore.displayName(for: storedCategory)
+    }
+
+    private var recurrenceOptions: [Finance_BudgetRecurrence] {
+        [.once, .weekly, .monthly, .quarterly, .yearly]
+    }
+
+    private func recurrenceTitle(_ value: Finance_BudgetRecurrence) -> LocalizedStringKey {
+        switch value {
+        case .weekly: "budget.recurrence.weekly"
+        case .monthly: "budget.recurrence.monthly"
+        case .quarterly: "budget.recurrence.quarterly"
+        case .yearly: "budget.recurrence.yearly"
+        default: "budget.recurrence.once"
+        }
     }
 
     private var isValid: Bool {
         guard let value = financeDecimal(from: limit), value > 0 else { return false }
-        return !categoryLabel.isEmpty
+        return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !storedCategory.isEmpty
     }
 
     private func prefill() {
         guard let budget else {
+            // Default to a category that is still free. Spend is attributed by
+            // category, so a month can only carry one budget per category —
+            // starting on one that is already taken means the save is refused
+            // for a choice the user never made.
             if category.isEmpty { category = categoryOptions.first ?? "" }
             return
         }
-        category = budget.category
+        title = budget.title.isEmpty ? FinanceCategoryStore.displayName(for: budget.category) : budget.title
+        category = FinanceCategoryStore.canonical(budget.category)
         limit = financeAmountText(budget.limit.decimalValue)
         reminder = budget.reminderEnabled
-        paymentDay = max(1, min(31, Int(budget.paymentDay)))
+        recurrence = budget.recurrence == .unspecified ? .once : budget.recurrence
+        if let storedDate = financeDate(from: budget.paymentDate) {
+            paymentDate = storedDate
+        }
     }
 
     private func save() {
@@ -492,10 +893,12 @@ struct BudgetEditorView: View {
         Task {
             let saved = await store.upsertBudget(
                 id: budget?.id ?? "",
-                category: categoryLabel,
+                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                category: storedCategory,
                 limit: value,
                 reminder: reminder,
-                paymentDay: paymentDay
+                paymentDate: paymentDate,
+                recurrence: recurrence
             )
             saving = false
             if saved { dismiss() }
@@ -507,6 +910,7 @@ struct BudgetEditorView: View {
 
 struct GoalEditorView: View {
     @EnvironmentObject private var store: FinanceStore
+    @EnvironmentObject private var categories: FinanceCategoryStore
     @Environment(\.dismiss) private var dismiss
     var goal: Finance_Goal?
 
@@ -516,13 +920,17 @@ struct GoalEditorView: View {
     @State private var target = ""
     @State private var saving = false
 
-    private let categories = ["Home", "Travel", "Education", "Health", "Tech", "Other"]
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
                     FICard {
+                        FITextFieldRow("goals.name.placeholder", text: $title)
+                            .textInputAutocapitalization(.sentences)
+
+                        FIRowSeparator()
+
                         FIMenuRow(title: Text("transaction.account"), value: Text(verbatim: accountLabel)) {
                             ForEach(store.accounts) { account in
                                 Button {
@@ -540,21 +948,20 @@ struct GoalEditorView: View {
                         FIRowSeparator()
 
                         FIMenuRow(title: Text("transaction.category"), value: Text(verbatim: categoryLabel)) {
-                            ForEach(categories, id: \.self) { option in
-                                Button {
-                                    category = option
-                                } label: {
-                                    if option == category {
-                                        Label(option, systemImage: "checkmark")
-                                    } else {
-                                        Text(verbatim: option)
-                                    }
-                                }
-                            }
+                            categoryButtons
+                        }
+
+                        if let account = selectedAccount {
+                            FIRowSeparator()
+                            FIListRow(
+                                title: Text("goals.current_savings"),
+                                accessory: .value(Text(verbatim: account.balance.formatted))
+                            )
                         }
 
                         FIRowSeparator()
-                        FIAmountRow(text: $target, placeholder: "goals.name")
+
+                        FIAmountRow(text: $target, placeholder: "goals.target.placeholder")
                     }
 
                     FIFootnote("goals.hint")
@@ -565,12 +972,12 @@ struct GoalEditorView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .fiPageBackground()
             .fiSheetChrome(
-                title: Text(goal == nil ? "goals.add" : "goals.title"),
+                title: Text(goal == nil ? "goals.add" : "goals.edit"),
                 confirm: .confirm(isEnabled: isValid && !saving) { save() },
                 onClose: { dismiss() }
             )
         }
-        .financeEditorSheet()
+        .financeEditorSheet(error: $store.errorMessage)
         .onAppear(perform: prefill)
         .overlay {
             if saving {
@@ -579,28 +986,80 @@ struct GoalEditorView: View {
         }
     }
 
+    private var selectedAccount: Finance_Account? {
+        store.accounts.first { $0.id == accountID }
+    }
+
     private var accountLabel: String {
-        store.accounts.first { $0.id == accountID }?.name ?? ""
+        selectedAccount?.name ?? ""
+    }
+
+    /// A goal is saved into one account, so it is denominated in that account's
+    /// currency — which is also what the backend stores, whatever this sends.
+    /// Asking the user for it separately would only create a second copy of a
+    /// fact that already has an owner.
+    private var currency: String {
+        let code = selectedAccount?.balance.currencyCode ?? ""
+        return code.isEmpty ? store.mainCurrencyCode : code
+    }
+
+    private var categoryOptions: [String] {
+        categories.options(for: .expense, existing: store.transactions)
+    }
+
+    /// The category menu.
+    ///
+    /// The button's value is the stored identifier — that is what gets written
+    /// to the transaction — while the label is its localized name, so switching
+    /// the app's language re-labels existing categories instead of splitting
+    /// them into new ones.
+    @ViewBuilder
+    private var categoryButtons: some View {
+        ForEach(categoryOptions, id: \.self) { option in
+            Button {
+                category = option
+            } label: {
+                let name = FinanceCategoryStore.displayName(for: option)
+                if option == category {
+                    Label(name, systemImage: "checkmark")
+                } else {
+                    Text(verbatim: name)
+                }
+            }
+        }
+    }
+
+    /// What gets written to the transaction: the stable identifier, never the
+    /// translated name. Storing the display name would file a spend under
+    /// "Продукты" on a Russian phone and "Groceries" on an English one, and the
+    /// two would never again be recognised as the same category.
+    private var storedCategory: String {
+        category.isEmpty ? (categoryOptions.first ?? "") : category
     }
 
     private var categoryLabel: String {
-        category.isEmpty ? (categories.first ?? "") : category
+        FinanceCategoryStore.displayName(for: storedCategory)
     }
 
     private var isValid: Bool {
         guard let value = financeDecimal(from: target), value > 0 else { return false }
-        return !accountID.isEmpty
+        return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && selectedAccount != nil
     }
 
     private func prefill() {
         guard let goal else {
-            if accountID.isEmpty { accountID = store.accounts.first?.id ?? "" }
-            if category.isEmpty { category = categories.first ?? "" }
+            // Prefer an account already in the user's main currency, so the
+            // default goal is denominated the way the rest of the app is.
+            if accountID.isEmpty {
+                let preferred = store.accounts.first { $0.balance.currencyCode == store.mainCurrencyCode }
+                accountID = (preferred ?? store.accounts.first)?.id ?? ""
+            }
+            if category.isEmpty { category = categoryOptions.first ?? "" }
             return
         }
         title = goal.title
         accountID = goal.accountID
-        category = goal.category
+        category = FinanceCategoryStore.canonical(goal.category)
         target = financeAmountText(goal.target.decimalValue)
     }
 
@@ -611,18 +1070,21 @@ struct GoalEditorView: View {
         Task {
             let stored = await store.upsertGoal(
                 id: goal?.id ?? "",
-                // The sheet has no separate name field, so the category names
-                // the goal — matching how the list renders it.
-                title: title.isEmpty ? categoryLabel : title,
+                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                 accountID: accountID,
-                category: categoryLabel,
+                category: storedCategory,
                 target: value,
-                // Progress is accumulated from incoming transactions, not typed
-                // in: the goal sheet is where you say what you are saving for.
-                saved: goal?.saved.decimalValue ?? 0
+                currency: currency
             )
             saving = false
             if stored { dismiss() }
         }
     }
+}
+
+private func financeDate(from value: String) -> Date? {
+    guard value.count == 10 else { return nil }
+    let components = value.split(separator: "-").compactMap { Int($0) }
+    guard components.count == 3 else { return nil }
+    return Calendar.current.date(from: DateComponents(year: components[0], month: components[1], day: components[2]))
 }

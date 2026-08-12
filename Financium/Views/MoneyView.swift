@@ -1,11 +1,10 @@
 import SwiftProtobuf
 import SwiftUI
-import UIKit
 
 struct MoneyView: View {
     @EnvironmentObject private var store: FinanceStore
-    @State private var transactionEditor: TransactionEditorKind?
-    @State private var showAccountEditor = false
+    @EnvironmentObject private var rates: ExchangeRates
+    @State private var sheet: MoneySheet?
     @State private var activityKind: ActivityKind?
     @State private var accountActivity: Finance_Account?
 
@@ -13,10 +12,9 @@ struct MoneyView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
-                    FinancePeriodRow()
-                    flowCard
-                    accountsSection
+                    FinancePeriodRow(showsCurrency: true)
                     activitySection
+                    accountsSection
                 }
                 .fiCardInsets()
                 .padding(.top, 4)
@@ -29,9 +27,9 @@ struct MoneyView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { addMenu }
             }
-            .refreshable { await store.refresh() }
-            .overlay {
-                if store.isLoading && store.accounts.isEmpty { ProgressView() }
+            .refreshable {
+                await rates.refresh()
+                await store.refresh()
             }
             .navigationDestination(item: $activityKind) { kind in
                 AccountActivityView(kind: kind)
@@ -39,40 +37,44 @@ struct MoneyView: View {
             .navigationDestination(item: $accountActivity) { account in
                 AccountActivityView(account: account)
             }
-            .sheet(item: $transactionEditor) { TransactionEditorView(kind: $0) }
-            .sheet(isPresented: $showAccountEditor) { AccountEditorView() }
-            .alert(Text("common.error"), isPresented: Binding(
-                get: { store.errorMessage != nil },
-                set: { if !$0 { store.errorMessage = nil } }
-            )) {
-                Button("common.ok", role: .cancel) { store.errorMessage = nil }
-            } message: {
-                Text(store.errorMessage ?? "")
+            // One sheet, chosen by case. Stacked `.sheet` modifiers on the same
+            // view fight over the presentation and only the last one reliably
+            // wins — a bug that shows up as a tap doing nothing.
+            .sheet(item: $sheet) { destination in
+                switch destination {
+                case .transaction(let kind):
+                    TransactionEditorView(kind: kind)
+                case .account(let account):
+                    AccountEditorView(account: account)
+                case .correction(let account):
+                    BalanceCorrectionView(account: account)
+                }
             }
+            .fiErrorAlert($store.errorMessage)
         }
-    }
-
-    private var flowCard: some View {
-        FICard {
-            FIListRow(title: Text("money.spended"), accessory: .value(Text(verbatim: approximate(store.overview.spent.formatted))))
-            FIRowSeparator()
-            FIListRow(title: Text("money.earned"), accessory: .value(Text(verbatim: approximate(store.overview.earned.formatted))))
-        }
-    }
-
-    private func approximate(_ value: String) -> String {
-        value.isEmpty ? value : "~" + value
     }
 
     private var accountsSection: some View {
         VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
             FISectionHeader("money.accounts")
-            FICard {
-                if store.accounts.isEmpty {
-                    FIEmptyState(title: "money.accounts.empty", subtitle: "money.accounts.empty.subtitle")
-                    FIRowSeparator()
-                    FIInlineActionRow("money.accounts.add") { showAccountEditor = true }
-                } else {
+
+            if store.accounts.isEmpty {
+                // "No accounts yet" is an answer, and it should only be given
+                // once one is known. Until the backend has spoken — a cold start
+                // with nothing cached, or the moment after signing in — the
+                // space is left blank rather than telling the reader something
+                // untrue about their money.
+                FIEmptyState(
+                    title: "money.accounts.empty",
+                    subtitle: "money.accounts.empty.subtitle"
+                )
+                .opacity(store.hasLoaded ? 1 : 0)
+                // Given height rather than measured against the screen: the
+                // card above it is a fixed four rows, so the slack below is
+                // predictable and a geometry reader would earn nothing.
+                .frame(minHeight: 260)
+            } else {
+                FICard {
                     ForEach(Array(store.accounts.enumerated()), id: \.element.id) { index, account in
                         if index > 0 { FIRowSeparator() }
                         accountRow(account)
@@ -88,7 +90,7 @@ struct MoneyView: View {
         } label: {
             FIListRow(title: Text(verbatim: account.name), subtitle: Text(verbatim: account.balance.formatted)) {
                 HStack(spacing: 12) {
-                    Image(systemName: accountSymbol(account))
+                    accountGlyph(account)
                         .foregroundStyle(FITheme.Palette.accent)
                     FIChevron()
                 }
@@ -98,54 +100,219 @@ struct MoneyView: View {
         .id(account.id)
         .fiRowContextMenu {
             Button {
-                UIPasteboard.general.string = account.balance.formatted
+                sheet = .account(account)
             } label: {
-                Label("money.account.copy_balance", systemImage: "doc.on.doc")
+                Label("money.account.edit", systemImage: "pencil")
             }
-            Button(role: .destructive) {
-                Task { await store.deleteAccount(account) }
+            Button {
+                sheet = .correction(account)
             } label: {
-                Label("money.account.delete", systemImage: "trash")
+                Label("money.account.correct", systemImage: "plusminus")
+            }
+            FIDestructiveMenuButton(titleKey: "money.account.delete") {
+                Task { await store.deleteAccount(account) }
             }
         }
     }
 
-    private func accountSymbol(_ account: Finance_Account) -> String {
-        account.symbolName.isEmpty ? FinanceCurrencies.symbolName(for: account.balance.currencyCode) : account.symbolName
+    /// The mark at the trailing edge of an account row.
+    ///
+    /// The icon the user picked, if they picked one. Otherwise the currency's
+    /// own SF Symbol — and where the currency has none, its sign as text rather
+    /// than a generic banknote glyph, which looked the same for every exotic
+    /// currency and so said nothing about any of them.
+    @ViewBuilder
+    private func accountGlyph(_ account: Finance_Account) -> some View {
+        let code = account.balance.currencyCode.isEmpty ? store.mainCurrencyCode : account.balance.currencyCode
+
+        if !account.symbolName.isEmpty {
+            Image(systemName: account.symbolName)
+        } else if let logo = FinanceCurrencies.logo(for: code) {
+            Image(systemName: logo)
+        } else {
+            Text(verbatim: FinanceCurrencies.symbol(for: code))
+                .font(FITheme.Typography.rowValue)
+                .lineLimit(1)
+        }
     }
 
+    /// The month's figures: what is held, what it came to, and the two rows
+    /// that produced it.
+    ///
+    /// No header — the chip above already says which period and which currency.
+    /// The balance is converted into that currency; spend and income are not,
+    /// because each is already a total in one currency and converting them
+    /// would hide which.
     private var activitySection: some View {
         VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
-            FISectionHeader("money.activity")
             FICard {
+                FIListRow(title: Text("money.total_balance")) {
+                    Text(verbatim: totalBalanceText)
+                        .font(FITheme.Typography.rowValue)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                }
+
+                FIRowSeparator()
+
+                FIListRow(title: Text("money.net")) {
+                    Text(verbatim: netText)
+                        .font(FITheme.Typography.rowValue)
+                        .foregroundStyle(netColor)
+                        .lineLimit(1)
+                }
+
+                FIRowSeparator()
+
                 Button { activityKind = .expenses } label: {
-                    FIListRow(title: Text("money.activity.expenses"), accessory: .chevron)
+                    FIListRow(
+                        title: Text("money.spended"),
+                        accessory: .valueChevron(Text(verbatim: selectedTotals.spent.formatted))
+                    )
                 }
                 .buttonStyle(.plain)
+
                 FIRowSeparator()
+
                 Button { activityKind = .incoming } label: {
-                    FIListRow(title: Text("money.activity.incoming"), accessory: .chevron)
+                    FIListRow(
+                        title: Text("money.earned"),
+                        accessory: .valueChevron(Text(verbatim: selectedTotals.earned.formatted))
+                    )
                 }
                 .buttonStyle(.plain)
             }
+
+            if let note = conversionNote {
+                FIFootnote(verbatim: note)
+            }
         }
+    }
+
+    private var selectedTotals: Finance_CurrencyTotal {
+        store.totals(for: store.effectiveDisplayCurrency)
+    }
+
+    /// Every account, converted into the currency on screen.
+    ///
+    /// Accounts the rates cannot reach are left out rather than added in at face
+    /// value — a rouble counted as a dollar is a wrong total, and the footnote
+    /// below says which ones were skipped.
+    private var convertedBalance: (amount: Decimal, skipped: [String]) {
+        let target = store.effectiveDisplayCurrency
+        var total: Decimal = 0
+        var skipped: Set<String> = []
+
+        for account in store.accounts {
+            let code = account.balance.currencyCode.isEmpty ? target : account.balance.currencyCode
+            if let converted = rates.convert(account.balance.decimalValue, from: code, to: target) {
+                total += converted
+            } else {
+                skipped.insert(code)
+            }
+        }
+        return (total, skipped.sorted())
+    }
+
+    private var totalBalanceText: String {
+        let result = convertedBalance
+        let money = Finance_Money(decimal: result.amount, currencyCode: store.effectiveDisplayCurrency)
+        // "≈" only when something was actually converted: a single-currency
+        // total is exact, and hedging an exact number teaches the reader to
+        // ignore the mark where it matters.
+        let target = store.effectiveDisplayCurrency
+        let converted = store.accounts.contains { !$0.balance.currencyCode.isEmpty && $0.balance.currencyCode != target }
+        return converted ? "≈ " + money.formatted : money.formatted
+    }
+
+    /// Earned minus spent for the period, in the currency on screen.
+    private var netText: String {
+        let net = selectedTotals.earned.decimalValue - selectedTotals.spent.decimalValue
+        let money = Finance_Money(decimal: abs(net), currencyCode: store.effectiveDisplayCurrency)
+        return (net < 0 ? "−" : "+") + money.formatted
+    }
+
+    private var netColor: Color {
+        let net = selectedTotals.earned.decimalValue - selectedTotals.spent.decimalValue
+        if net > 0 { return FITheme.Palette.positive }
+        if net < 0 { return FITheme.Palette.destructive }
+        return .secondary
+    }
+
+    /// Says how old the rates are, and names anything that could not be
+    /// converted — a total quietly missing an account is worse than a total
+    /// that explains itself.
+    private var conversionNote: String? {
+        let target = store.effectiveDisplayCurrency
+        let needsRates = store.accounts.contains {
+            !$0.balance.currencyCode.isEmpty && $0.balance.currencyCode != target
+        }
+        guard needsRates else { return nil }
+
+        // Checked first: with no rates at all, *every* foreign currency lands in
+        // `skipped`, so listing them would report a dozen missing currencies
+        // when the real answer is that nothing has been fetched yet.
+        guard rates.isReady else {
+            return NSLocalizedString("money.rates.unavailable", comment: "No rates at all")
+        }
+
+        // Named, not just counted: knowing it is the yen account that is missing
+        // tells the reader how far off the total is.
+        let skipped = convertedBalance.skipped
+        if !skipped.isEmpty {
+            return String(
+                format: NSLocalizedString("money.rates.missing", comment: "Currencies left out of the total"),
+                skipped.joined(separator: ", ")
+            )
+        }
+        // Yesterday's rates are still worth using — they are far closer than no
+        // total at all — but the reader is told which day they are from rather
+        // than left to assume the figure is current.
+        guard rates.isStale, let published = rates.publishedOn else { return nil }
+        return String(
+            format: NSLocalizedString("money.rates.stale", comment: "Rates are from an earlier day"),
+            published.formatted(.dateTime.day().month(.abbreviated).year())
+        )
     }
 
     private var addMenu: some View {
         FIToolbarAddButton {
-            Button { transactionEditor = .income } label: {
-                Label("money.add.incoming", systemImage: "arrow.down")
+            // Plus and minus rather than arrows: the menu names three kinds of
+            // money, and a sign says which direction it goes without needing a
+            // convention explained. The transfer keeps the two-way arrow it
+            // already wears on every transfer row.
+            Button { sheet = .transaction(.income) } label: {
+                Label("money.add.incoming", systemImage: "plus")
             }
-            Button { transactionEditor = .expense } label: {
-                Label("money.add.expense", systemImage: "arrow.up")
+            Button { sheet = .transaction(.expense) } label: {
+                Label("money.add.expense", systemImage: "minus")
             }
-            Button { transactionEditor = .transfer } label: {
-                Label("money.add.transfer", systemImage: "arrow.up.arrow.down")
+            Button { sheet = .transaction(.transfer) } label: {
+                Label("money.add.transfer", systemImage: "arrow.left.arrow.right")
             }
             Divider()
-            Button { showAccountEditor = true } label: {
+            Button { sheet = .account(nil) } label: {
                 Label("money.accounts.add", systemImage: "creditcard")
             }
+        }
+    }
+}
+
+/// What the Money screen can put in front of you.
+///
+/// One type for all of them so a single `sheet(item:)` drives the presentation.
+/// The id distinguishes cases as well as accounts, so going straight from
+/// editing an account to correcting it rebuilds the sheet.
+enum MoneySheet: Identifiable {
+    case transaction(TransactionEditorKind)
+    case account(Finance_Account?)
+    case correction(Finance_Account)
+
+    var id: String {
+        switch self {
+        case .transaction(let kind): "transaction.\(kind.id)"
+        case .account(let account): "account.\(account?.id ?? "new")"
+        case .correction(let account): "correction.\(account.id)"
         }
     }
 }
@@ -185,6 +352,16 @@ private enum ActivityAccountFilter: String, CaseIterable, Identifiable {
         case .banks: "activity.filter.banks"
         }
     }
+
+    /// Drawn as icons in the menu's palette row, so each option needs a glyph
+    /// that reads at a glance without its label.
+    var symbol: String {
+        switch self {
+        case .all: "chart.pie"
+        case .cash: "wallet.bifold"
+        case .banks: "building.columns"
+        }
+    }
 }
 
 struct AccountActivityView: View {
@@ -194,8 +371,9 @@ struct AccountActivityView: View {
 
     @State private var sort: ActivitySort = .dateDescending
     @State private var accountFilter: ActivityAccountFilter = .all
+    /// Seeded from the Money screen's currency picker on appear, so tapping a
+    /// total opens the transactions that add up to it rather than all of them.
     @State private var currencyFilter = ""
-    @State private var filtersVisible = false
     @State private var editingTransaction: Finance_Transaction?
 
     init(kind: ActivityKind) {
@@ -232,11 +410,8 @@ struct AccountActivityView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
-                if filtersVisible && account == nil { filterCard }
-                FICard {
-                    if transactions.isEmpty {
-                        FIEmptyState(title: "activity.empty", subtitle: "activity.empty.subtitle")
-                    } else {
+                if !transactions.isEmpty {
+                    FICard {
                         ForEach(Array(transactions.enumerated()), id: \.element.id) { index, transaction in
                             if index > 0 { FIRowSeparator() }
                             row(transaction)
@@ -250,66 +425,97 @@ struct AccountActivityView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .fiPageBackground()
+        .overlay {
+            if transactions.isEmpty {
+                FIEmptyState(title: "activity.empty", subtitle: "activity.empty.subtitle")
+            }
+        }
         .navigationTitle(account.map { Text(verbatim: $0.name) } ?? Text(kind?.titleKey ?? "activity.title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 sortMenu
                 if account == nil {
-                    Button { filtersVisible.toggle() } label: {
-                        Image(systemName: filtersVisible ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                    }
-                    .accessibilityLabel(Text("activity.filter"))
+                    filterMenu
                 }
+            }
+        }
+        .onAppear {
+            // Only when that currency actually has transactions here: seeding a
+            // code the picker has no option for would leave nothing selected
+            // and an empty list with no visible reason.
+            if currencyFilter.isEmpty, account == nil,
+               availableCurrencies.contains(store.effectiveDisplayCurrency) {
+                currencyFilter = store.effectiveDisplayCurrency
             }
         }
         .sheet(item: $editingTransaction) { TransactionEditorView(transaction: $0) }
     }
 
-    private var filterCard: some View {
-        FICard {
-            Picker("activity.filter", selection: $accountFilter) {
-                ForEach(ActivityAccountFilter.allCases) { filter in
-                    Text(filter.titleKey).tag(filter)
+    /// Account scope and currency, both as named rows.
+    ///
+    /// The palette style drew the mock-up's icon row, but it renders glyphs
+    /// only — the captions under them in the design do not exist in a real
+    /// menu, leaving three unlabelled shapes to guess at. An inline picker
+    /// shows icon, name and checkmark together, which is what the sort menu
+    /// beside it already does. Currency stays a submenu because the list is as
+    /// long as the user has currencies.
+    private var filterMenu: some View {
+        FIToolbarMenu(systemImage: "line.3.horizontal.decrease", accessibilityLabel: "activity.filter") {
+            Picker(selection: $accountFilter) {
+                ForEach(ActivityAccountFilter.allCases) { option in
+                    Label(option.titleKey, systemImage: option.symbol).tag(option)
                 }
+            } label: {
+                Text("activity.filter.account")
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, FITheme.Metrics.cardInset)
-            .padding(.vertical, 10)
+            .pickerStyle(.inline)
 
-            FIRowSeparator()
-            FIMenuRow("activity.filter.currency", value: currencyFilter.isEmpty ? String(localized: "activity.filter.all") : currencyFilter) {
-                Button("activity.filter.all") { currencyFilter = "" }
-                ForEach(availableCurrencies, id: \.self) { code in
-                    Button { currencyFilter = code } label: {
-                        if code == currencyFilter { Label(code, systemImage: "checkmark") } else { Text(verbatim: code) }
+            Menu {
+                Picker(selection: $currencyFilter) {
+                    Text("activity.filter.all").tag("")
+                    ForEach(availableCurrencies, id: \.self) { code in
+                        Text(verbatim: code).tag(code)
                     }
+                } label: {
+                    Text("activity.filter.currency")
                 }
+                .pickerStyle(.inline)
+            } label: {
+                Label("activity.filter.currency", systemImage: "coloncurrencysign.circle")
             }
         }
     }
 
     private var sortMenu: some View {
-        Menu {
-            ForEach(ActivitySort.allCases) { option in
-                Button { sort = option } label: {
-                    if option == sort { Label(option.titleKey, systemImage: "checkmark") } else { Text(option.titleKey) }
+        FIToolbarMenu(systemImage: "arrow.up.arrow.down", accessibilityLabel: "activity.sort") {
+            Picker(selection: $sort) {
+                ForEach(ActivitySort.allCases) { option in
+                    Text(option.titleKey).tag(option)
                 }
+            } label: {
+                Text("activity.sort")
             }
-        } label: {
-            Image(systemName: "arrow.up.arrow.down")
+            .pickerStyle(.inline)
         }
-        .accessibilityLabel(Text("activity.sort"))
     }
 
     private func row(_ transaction: Finance_Transaction) -> some View {
         Button { editingTransaction = transaction } label: {
             FIListRow(
-                title: Text(verbatim: transaction.title.isEmpty ? transaction.category : transaction.title),
+                title: Text(verbatim: title(for: transaction)),
                 subtitle: Text(verbatim: subtitle(for: transaction))
             ) {
                 HStack(spacing: 10) {
-                    Text(verbatim: transaction.amount.formatted).foregroundStyle(.primary)
+                    Text(verbatim: amountText(for: transaction))
+                        .foregroundStyle(amountColor(for: transaction))
+                        // The amount is the one thing that must stay on one
+                        // line: "−5 000,00 RUB" wrapping mid-figure is unreadable
+                        // and drags the row's height around. The title above it
+                        // is what gives way instead.
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+
                     FIChevron()
                 }
             }
@@ -320,18 +526,118 @@ struct AccountActivityView: View {
             Button { editingTransaction = transaction } label: {
                 Label("common.edit", systemImage: "pencil")
             }
-            Button(role: .destructive) {
+            FIDestructiveMenuButton(titleKey: "transaction.delete") {
                 Task { await store.deleteTransaction(transaction) }
-            } label: {
-                Label("transaction.delete", systemImage: "trash")
             }
         }
     }
 
+    /// Which way the money moved, seen from the account being viewed.
+    ///
+    /// A transfer is an expense to one account and income to the other, so the
+    /// direction cannot come from `kind` alone — it depends on which side of
+    /// the transfer this screen is standing on. `nil` on the combined Expenses
+    /// and Incoming lists, where every row already moves the same way and a
+    /// column of identical signs would be noise.
+    private enum Direction { case outgoing, incoming }
+
+    private func direction(for transaction: Finance_Transaction) -> Direction? {
+        guard let account else { return nil }
+        switch transaction.kind {
+        case .expense: return .outgoing
+        case .income: return .incoming
+        case .transfer: return transaction.toAccountID == account.id ? .incoming : .outgoing
+        default: return nil
+        }
+    }
+
+    /// What the row shows on the right.
+    ///
+    /// A transfer between currencies carries two amounts. Looking at the
+    /// receiving account, the money that left the other one is the wrong
+    /// number — and in the wrong currency — so the destination amount is shown
+    /// instead.
+    private func amountText(for transaction: Finance_Transaction) -> String {
+        var money = transaction.amount
+        if let account,
+           transaction.kind == .transfer,
+           transaction.toAccountID == account.id,
+           transaction.hasDestinationAmount,
+           transaction.destinationAmount.minorUnits > 0 {
+            money = transaction.destinationAmount
+        }
+
+        switch direction(for: transaction) {
+        // A true minus sign rather than a hyphen: it lines up with the digits
+        // and is what a currency formatter would print.
+        case .outgoing: return "−" + money.formatted
+        case .incoming: return "+" + money.formatted
+        case nil: return money.formatted
+        }
+    }
+
+    private func amountColor(for transaction: Finance_Transaction) -> Color {
+        switch direction(for: transaction) {
+        case .outgoing: FITheme.Palette.destructive
+        case .incoming: FITheme.Palette.positive
+        case nil: .primary
+        }
+    }
+
+    /// The row's name.
+    ///
+    /// Transfers created before they stopped borrowing a spend category were
+    /// *saved* with that category as their title — the old editor wrote
+    /// `title: categoryLabel`. So a stored title is only trusted on a transfer
+    /// when it differs from the category; otherwise it is that old default and
+    /// the row is named after the other account, which is what a transfer
+    /// actually is.
+    private func title(for transaction: Finance_Transaction) -> String {
+        let stored = transaction.title
+        let isLegacyDefault = transaction.kind == .transfer
+            && !transaction.category.isEmpty
+            && stored == transaction.category
+
+        if !stored.isEmpty, !isLegacyDefault { return stored }
+
+        guard transaction.kind == .transfer else {
+            // A row written by an older build can have neither, and a blank
+            // title reads as a rendering fault rather than as missing data.
+            return transaction.category.isEmpty
+                ? NSLocalizedString("transaction.untitled", comment: "No title or category")
+                : FinanceCategoryStore.displayName(for: transaction.category)
+        }
+        let incoming = direction(for: transaction) == .incoming
+        let otherID = incoming ? transaction.fromAccountID : transaction.toAccountID
+        guard let other = store.accounts.first(where: { $0.id == otherID }) else {
+            return NSLocalizedString("transaction.transfer", comment: "Transfer")
+        }
+        // Money arriving is named after where it came from, with no preamble:
+        // the row already carries a "+", a green amount and the word "Transfer"
+        // in its subtitle, so "Incoming from Cash" was the fourth thing on one
+        // line saying the same thing. Outgoing keeps its preposition, which is
+        // what distinguishes "to Sber" from a plain account name.
+        guard !incoming else { return other.name }
+        return String(
+            format: NSLocalizedString("transaction.transfer_to_format", comment: "Transfer destination"),
+            other.name
+        )
+    }
+
+    /// Date, counterparty account, and the word "Transfer" when it is one.
+    ///
+    /// The transfer marker lives on this line rather than beside the amount:
+    /// squeezed in next to the figure it pushed "−5 000,00 RUB" onto two lines,
+    /// and an icon sitting between a date and a number reads as decoration. In
+    /// the subtitle it is a word, in the reader's language, next to the other
+    /// facts about the row.
     private func subtitle(for transaction: Finance_Transaction) -> String {
         let day = transaction.hasOccurredAt ? transaction.occurredAt.date.formatted(.dateTime.day().month(.abbreviated)) : ""
         let accountName = account == nil ? account(for: transaction)?.name ?? "" : ""
-        return [day, accountName].filter { !$0.isEmpty }.joined(separator: " – ")
+        let marker = transaction.kind == .transfer
+            ? NSLocalizedString("transaction.transfer", comment: "Transfer")
+            : ""
+        return [day, accountName, marker].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     private func account(for transaction: Finance_Transaction) -> Finance_Account? {

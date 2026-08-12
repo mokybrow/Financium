@@ -11,7 +11,11 @@ struct ProfileView: View {
     @EnvironmentObject private var auth: AuthSession
     @EnvironmentObject private var store: FinanceStore
 
+    /// Cleared to send a local user back to the sign-in screen.
+    @AppStorage("finance.local_mode") private var localMode = false
+
     @State private var nameEditor = false
+    @State private var showLocalReset = false
     @State private var emailEditor = false
     @State private var showLogout = false
     @State private var monthlyRemind = true
@@ -25,17 +29,22 @@ struct ProfileView: View {
                     header
 
                     FISection("profile.general") {
-                        Button {
-                            nameEditor = true
-                        } label: {
-                            FIListRow(
-                                title: Text("profile.name"),
-                                accessory: .valueChevron(Text("common.edit"))
-                            )
-                        }
-                        .buttonStyle(.plain)
+                        // A name and an email belong to an account. Without one
+                        // there is nothing to edit, so the rows are absent
+                        // rather than present and inert.
+                        if store.mode == .account {
+                            Button {
+                                nameEditor = true
+                            } label: {
+                                FIListRow(
+                                    title: Text("profile.name"),
+                                    accessory: .valueChevron(Text("common.edit"))
+                                )
+                            }
+                            .buttonStyle(.plain)
 
-                        FIRowSeparator()
+                            FIRowSeparator()
+                        }
 
                         NavigationLink {
                             AppIconPickerView()
@@ -45,17 +54,19 @@ struct ProfileView: View {
                         .buttonStyle(.plain)
                     }
 
-                    FISection("profile.security") {
-                        Button {
-                            emailEditor = true
-                        } label: {
-                            FIListRow(
-                                title: Text("profile.email"),
-                                subtitle: Text(emailStatusKey),
-                                accessory: .valueChevron(Text("common.edit"))
-                            )
+                    if store.mode == .account {
+                        FISection("profile.security") {
+                            Button {
+                                emailEditor = true
+                            } label: {
+                                FIListRow(
+                                    title: Text("profile.email"),
+                                    subtitle: Text(emailStatusKey),
+                                    accessory: .valueChevron(Text("common.edit"))
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
 
                     FISection("profile.money") {
@@ -68,19 +79,49 @@ struct ProfileView: View {
                             )
                         }
                         .buttonStyle(.plain)
+
+                        FIRowSeparator()
+
+                        NavigationLink {
+                            CategoriesView()
+                        } label: {
+                            FIListRow(title: Text("profile.categories"), accessory: .chevron)
+                        }
+                        .buttonStyle(.plain)
                     }
 
                     FISection("profile.notifications") {
-                        FIToggleRow("profile.notifications.monthly", isOn: $monthlyRemind)
-                        FIRowSeparator()
-                        FIToggleRow("profile.notifications.promo_email", isOn: $promoEmail)
-                        FIRowSeparator()
-                        FIToggleRow("profile.notifications.promo_push", isOn: $promoPush)
+                        // Payment reminders are scheduled on the device, so they
+                        // work either way.
+                        FIToggleRow(
+                            "profile.notifications.monthly",
+                            subtitle: "profile.notifications.monthly.hint",
+                            isOn: $monthlyRemind
+                        )
+
+                        // Promotional mail and pushes are sent from the server
+                        // to an address it knows. Without an account there is no
+                        // address and nothing to send, so the switches are
+                        // absent rather than present and inert.
+                        if store.mode == .account {
+                            FIRowSeparator()
+                            FIToggleRow("profile.notifications.promo_email", isOn: $promoEmail)
+                            FIRowSeparator()
+                            FIToggleRow("profile.notifications.promo_push", isOn: $promoPush)
+                        }
                     }
 
-                    FICard {
-                        FIDestructiveRow("profile.logout") {
-                            showLogout = true
+                    if store.mode == .account {
+                        FICard {
+                            FIDestructiveRow("profile.logout") {
+                                showLogout = true
+                            }
+                        }
+                    } else {
+                        FISection(footnote: Text("profile.local.hint")) {
+                            FIInlineActionRow("profile.go_to_sign_in", centred: true) { localMode = false }
+                            FIRowSeparator()
+                            FIDestructiveRow("profile.local.reset") { showLocalReset = true }
                         }
                     }
 
@@ -102,9 +143,35 @@ struct ProfileView: View {
             } message: {
                 Text("profile.logout.message")
             }
+            .alert(Text("profile.local.reset.confirm"), isPresented: $showLocalReset) {
+                Button("common.delete", role: .destructive) {
+                    Task {
+                        await store.localBackend.removeAll()
+                        await store.refresh()
+                    }
+                }
+                Button("common.cancel", role: .cancel) {}
+            } message: {
+                Text("profile.local.reset.message")
+            }
             .onAppear(perform: syncToggles)
             .onChange(of: store.settings) { _, _ in syncToggles() }
-            .onChange(of: monthlyRemind) { _, _ in pushNotificationSettings() }
+            .onChange(of: monthlyRemind) { _, isOn in
+                // Permission is asked for at the moment it starts to matter. A
+                // refusal turns the switch back off rather than storing a
+                // setting the system will not act on.
+                guard isOn else {
+                    pushNotificationSettings()
+                    return
+                }
+                Task {
+                    if await store.requestReminderAuthorization() {
+                        pushNotificationSettings()
+                    } else {
+                        monthlyRemind = false
+                    }
+                }
+            }
             .onChange(of: promoEmail) { _, _ in pushNotificationSettings() }
             .onChange(of: promoPush) { _, _ in pushNotificationSettings() }
         }
@@ -131,6 +198,9 @@ struct ProfileView: View {
     }
 
     private var displayName: String {
+        guard store.mode == .account else {
+            return NSLocalizedString("profile.local.title", comment: "Working without an account")
+        }
         let name = auth.user?.name ?? ""
         return name.isEmpty ? (auth.user?.email ?? "") : name
     }
@@ -145,15 +215,14 @@ struct ProfileView: View {
     }
 
     private var currencyCode: String {
-        let code = store.settings.mainCurrencyCode
-        return code.isEmpty ? "RUB" : code.uppercased()
+        store.mainCurrencyCode
     }
 
     // MARK: - Actions
 
     private func updateCurrency(_ code: String) {
         Task {
-            await store.updateSettings(
+            _ = await store.updateSettings(
                 currency: code,
                 monthlyReminders: monthlyRemind,
                 promoEmail: promoEmail,
@@ -167,7 +236,7 @@ struct ProfileView: View {
                 || promoEmail != store.settings.promoEmailEnabled
                 || promoPush != store.settings.promoPushEnabled else { return }
         Task {
-            await store.updateSettings(
+            _ = await store.updateSettings(
                 currency: currencyCode,
                 monthlyReminders: monthlyRemind,
                 promoEmail: promoEmail,

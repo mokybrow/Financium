@@ -18,9 +18,22 @@
 		0B79BAA03020589B00F7510A /* Financium.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Financium.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FC0003013020589B00F7510A /* Exceptions for "Financium" folder in "Financium" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0B79BA9F3020589B00F7510A /* Financium */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0B79BAA23020589B00F7510A /* Financium */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FC0003013020589B00F7510A /* Exceptions for "Financium" folder in "Financium" target */,
+			);
 			path = Financium;
 			sourceTree = "<group>";
 		};
@@ -269,8 +282,10 @@
 		0B79BAAC3020589C00F7510A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = Financium;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Piggy;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Financium/Financium.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -279,16 +294,26 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				INFOPLIST_KEY_FINANCIUM_AUTH_HOST = 127.0.0.1;
-				INFOPLIST_KEY_FINANCIUM_AUTH_PORT = 44044;
-				INFOPLIST_KEY_FINANCIUM_AUTH_TLS = NO;
-				INFOPLIST_KEY_FINANCIUM_FINANCE_HOST = 127.0.0.1;
-				INFOPLIST_KEY_FINANCIUM_FINANCE_PORT = 50071;
-				INFOPLIST_KEY_FINANCIUM_FINANCE_TLS = NO;
-				INFOPLIST_KEY_FINANCIUM_USERS_HOST = 127.0.0.1;
-				INFOPLIST_KEY_FINANCIUM_USERS_PORT = 45045;
-				INFOPLIST_KEY_FINANCIUM_USERS_TLS = NO;
+				FINANCIUM_AUTH_HOST = 127.0.0.1;
+				"FINANCIUM_AUTH_HOST[sdk=iphoneos*]" = auth.golapta.com;
+				FINANCIUM_AUTH_PORT = 44044;
+				"FINANCIUM_AUTH_PORT[sdk=iphoneos*]" = 443;
+				FINANCIUM_AUTH_TLS = NO;
+				"FINANCIUM_AUTH_TLS[sdk=iphoneos*]" = YES;
+				FINANCIUM_FINANCE_HOST = 127.0.0.1;
+				"FINANCIUM_FINANCE_HOST[sdk=iphoneos*]" = money.golapta.com;
+				FINANCIUM_FINANCE_PORT = 44044;
+				"FINANCIUM_FINANCE_PORT[sdk=iphoneos*]" = 443;
+				FINANCIUM_FINANCE_TLS = NO;
+				"FINANCIUM_FINANCE_TLS[sdk=iphoneos*]" = YES;
+				FINANCIUM_USERS_HOST = 127.0.0.1;
+				"FINANCIUM_USERS_HOST[sdk=iphoneos*]" = users.golapta.com;
+				FINANCIUM_USERS_PORT = 44044;
+				"FINANCIUM_USERS_PORT[sdk=iphoneos*]" = 443;
+				FINANCIUM_USERS_TLS = NO;
+				"FINANCIUM_USERS_TLS[sdk=iphoneos*]" = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Financium/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -302,7 +327,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gofinancium.Financium;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -321,8 +346,10 @@
 		0B79BAAD3020589C00F7510A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = Financium;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Piggy;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Financium/Financium.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -331,16 +358,26 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				INFOPLIST_KEY_FINANCIUM_AUTH_HOST = auth.golapta.com;
-				INFOPLIST_KEY_FINANCIUM_AUTH_PORT = 443;
-				INFOPLIST_KEY_FINANCIUM_AUTH_TLS = YES;
-				INFOPLIST_KEY_FINANCIUM_FINANCE_HOST = money.golapta.com;
-				INFOPLIST_KEY_FINANCIUM_FINANCE_PORT = 443;
-				INFOPLIST_KEY_FINANCIUM_FINANCE_TLS = YES;
-				INFOPLIST_KEY_FINANCIUM_USERS_HOST = users.golapta.com;
-				INFOPLIST_KEY_FINANCIUM_USERS_PORT = 443;
-				INFOPLIST_KEY_FINANCIUM_USERS_TLS = YES;
+				FINANCIUM_AUTH_HOST = auth.golapta.com;
+				"FINANCIUM_AUTH_HOST[sdk=iphonesimulator*]" = 127.0.0.1;
+				FINANCIUM_AUTH_PORT = 443;
+				"FINANCIUM_AUTH_PORT[sdk=iphonesimulator*]" = 44044;
+				FINANCIUM_AUTH_TLS = YES;
+				"FINANCIUM_AUTH_TLS[sdk=iphonesimulator*]" = NO;
+				FINANCIUM_FINANCE_HOST = money.golapta.com;
+				"FINANCIUM_FINANCE_HOST[sdk=iphonesimulator*]" = 127.0.0.1;
+				FINANCIUM_FINANCE_PORT = 443;
+				"FINANCIUM_FINANCE_PORT[sdk=iphonesimulator*]" = 44044;
+				FINANCIUM_FINANCE_TLS = YES;
+				"FINANCIUM_FINANCE_TLS[sdk=iphonesimulator*]" = NO;
+				FINANCIUM_USERS_HOST = users.golapta.com;
+				"FINANCIUM_USERS_HOST[sdk=iphonesimulator*]" = 127.0.0.1;
+				FINANCIUM_USERS_PORT = 443;
+				"FINANCIUM_USERS_PORT[sdk=iphonesimulator*]" = 44044;
+				FINANCIUM_USERS_TLS = YES;
+				"FINANCIUM_USERS_TLS[sdk=iphonesimulator*]" = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Financium/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -354,7 +391,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gofinancium.Financium;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

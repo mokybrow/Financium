@@ -1,85 +1,60 @@
 import SwiftUI
 
-/// The month chip and currency selector that sit under the title on Money,
-/// Budget and Goals.
+/// The period chip, and optionally the currency the figures are shown in.
 ///
-/// Shared rather than repeated three times because the month is one piece of
+/// Shared rather than repeated three times because the period is one piece of
 /// state on the store: switching it on Budget and coming back to Money must not
-/// show two different months.
+/// show two different windows.
+///
+/// The currency control only appears where there are figures for it to switch —
+/// Money. It changes what is displayed and nothing else; the app's own currency
+/// still lives in Profile.
 struct FinancePeriodRow: View {
     @EnvironmentObject private var store: FinanceStore
 
+    var showsCurrency = false
+
+    @State private var choosingPeriod = false
+
     var body: some View {
         HStack {
-            Menu {
-                ForEach(monthChoices, id: \.self) { month in
-                    Button {
-                        store.selectedMonth = month
-                        Task { await store.refresh() }
-                    } label: {
-                        if Calendar.current.isDate(month, equalTo: store.selectedMonth, toGranularity: .month) {
-                            Label(monthTitle(month), systemImage: "checkmark")
-                        } else {
-                            Text(verbatim: monthTitle(month))
+            FIMonthChip(title: store.period.label) { choosingPeriod = true }
+
+            Spacer()
+
+            // Hidden with a single currency: a picker between one option is a
+            // control that cannot do anything.
+            if showsCurrency, store.displayCurrencyChoices.count > 1 {
+                Menu {
+                    ForEach(store.displayCurrencyChoices, id: \.self) { code in
+                        Button {
+                            store.displayCurrency = code
+                        } label: {
+                            if code == store.effectiveDisplayCurrency {
+                                Label(code, systemImage: "checkmark")
+                            } else {
+                                Text(verbatim: code)
+                            }
                         }
                     }
-                }
-            } label: {
-                FIMonthChip(title: monthTitle(store.selectedMonth))
-            }
-            .tint(.primary)
-
-            Spacer(minLength: 12)
-
-            FICurrencyMenu(code: currencyCode) {
-                ForEach(currencyChoices, id: \.self) { code in
-                    Button {
-                        // Notification preferences are carried through unchanged:
-                        // the settings call replaces the whole record.
-                        Task {
-                            await store.updateSettings(
-                                currency: code,
-                                monthlyReminders: store.settings.monthlyRemindersEnabled,
-                                promoEmail: store.settings.promoEmailEnabled,
-                                promoPush: store.settings.promoPushEnabled
-                            )
-                        }
-                    } label: {
-                        if code == currencyCode {
-                            Label(code, systemImage: "checkmark")
-                        } else {
-                            Text(verbatim: code)
-                        }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(verbatim: store.effectiveDisplayCurrency)
+                            .font(.headline.weight(.semibold))
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.footnote.weight(.semibold))
                     }
+                    .foregroundStyle(FITheme.Palette.accent)
                 }
+                .accessibilityLabel(Text("money.currency"))
             }
         }
         .padding(.horizontal, FITheme.Metrics.cardInset)
-    }
-
-    /// "Apr 2025" — abbreviated month plus year, as in the mock-ups.
-    private func monthTitle(_ date: Date) -> String {
-        date.formatted(.dateTime.month(.abbreviated).year())
-    }
-
-    /// A year back and one month forward: far enough to fix an old month, near
-    /// enough that the menu stays a menu rather than a date picker.
-    private var monthChoices: [Date] {
-        Array((-11...1).compactMap { Calendar.current.date(byAdding: .month, value: $0, to: Date()) }.reversed())
-    }
-
-    private var currencyCode: String {
-        let code = store.settings.mainCurrencyCode
-        return code.isEmpty ? "RUB" : code.uppercased()
-    }
-
-    /// The user's own currency plus whatever their accounts are in, so the menu
-    /// offers what is relevant instead of a list of 150 codes.
-    private var currencyChoices: [String] {
-        var codes = Set(store.accounts.map { $0.balance.currencyCode.uppercased() })
-        codes.insert(currencyCode)
-        codes.formUnion(FinanceCurrencies.popular)
-        codes.remove("")
-        return codes.sorted()
+        .sheet(isPresented: $choosingPeriod) {
+            PeriodPickerView(period: store.period) { period in
+                store.period = period
+                Task { await store.refresh() }
+            }
+        }
     }
 }

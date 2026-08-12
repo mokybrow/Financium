@@ -4,6 +4,8 @@ import SwiftUI
 struct FinanciumApp: App {
     @StateObject private var auth: AuthSession
     @StateObject private var finance: FinanceStore
+    @StateObject private var categories = FinanceCategoryStore()
+    @StateObject private var rates = ExchangeRates()
 
     init() {
         let session = AuthSession()
@@ -16,7 +18,9 @@ struct FinanciumApp: App {
             ContentView()
                 .environmentObject(auth)
                 .environmentObject(finance)
-                .tint(.indigo)
+                .environmentObject(categories)
+                .environmentObject(rates)
+                .tint(.blue)
         }
     }
 }

@@ -6,8 +6,31 @@
 "common.edit" = "Edit";
 "common.clear" = "Clear";
 "common.amount" = "Amount";
+"common.add" = "Add";
 "common.ok" = "OK";
 "common.error" = "Error";
+"error.budget.duplicate_category" = "This category already has a budget this month. Pick another category, or edit the existing budget.";
+"error.account.has_transactions" = "This account still has transactions, so it cannot be deleted.";
+"error.unreachable" = "Could not reach the server. Check your connection and try again.";
+"error.invalid" = "That could not be saved. Check the fields and try again.";
+
+/* Working without an account */
+"auth.continue_locally" = "Continue without an account";
+"profile.local.title" = "On this device";
+"profile.go_to_sign_in" = "Go to sign-in";
+"profile.local.hint" = "Signing in lets you keep your records across devices. You will be asked whether to move what is already here.";
+"profile.local.reset" = "Delete all local data";
+"profile.local.reset.confirm" = "Delete everything on this device?";
+"profile.local.reset.message" = "Accounts, transactions, budgets and goals kept on this device will be removed. This cannot be undone.";
+
+/* Moving local data to an account */
+"migration.offer.title" = "Move your records?";
+"migration.offer.message" = "You have records on this device. They can be moved to your account so they are available everywhere.";
+"migration.offer.move" = "Move";
+"migration.offer.keep" = "Not now";
+"migration.done.title" = "Done";
+"migration.done.message" = "Moved %d records to your account.";
+"migration.done.partial" = "Moved %1$d records. %2$d could not be moved and are still on this device.";
 
 /* Tabs */
 "tab.money" = "Money";
@@ -17,38 +40,81 @@
 
 /* Money */
 "money.title" = "Money";
+"money.currency" = "Currency";
+"money.total_balance" = "Total";
+"money.net" = "Difference";
+"money.rates.missing" = "Not included: %@ — no exchange rate available for it.";
+"money.rates.unavailable" = "Converted using no rates yet — the total covers only accounts already in this currency.";
+"money.rates.stale" = "Converted at the rates published on %@.";
+
+/* Period */
+"period.title" = "Period";
+"period.month" = "Month";
+"period.year" = "Year";
 "money.spended" = "Spended";
 "money.earned" = "Earned";
 "money.accounts" = "Accounts";
 "money.accounts.empty" = "No accounts yet";
 "money.accounts.empty.subtitle" = "Add an account to start tracking your money";
 "money.accounts.add" = "Add Account";
-"money.activity" = "Accounts Activity";
-"money.activity.expenses" = "Expenses";
-"money.activity.incoming" = "Incoming";
-"money.add.incoming" = "Add Incoming";
-"money.add.expense" = "Add Expense";
-"money.add.transfer" = "Add Transfer";
-"money.account.copy_balance" = "Copy balance";
+"money.add.incoming" = "Incoming";
+"money.add.expense" = "Expense";
+"money.add.transfer" = "Transfer";
+"money.account.edit" = "Edit account";
+"money.account.correct" = "Correct balance";
+
+/* Balance correction */
+"correction.title" = "Correct Balance";
+"correction.current" = "Now";
+"correction.direction" = "Change";
+"correction.add" = "Add";
+"correction.subtract" = "Subtract";
+"correction.amount" = "Amount";
+"correction.result" = "Becomes";
+"correction.hint" = "Recorded as an entry in your transactions, so the balance always matches the movements behind it.";
+"correction.entry" = "Balance correction";
 "money.account.delete" = "Delete account";
 
 /* Transaction editors */
 "transaction.category" = "Category";
 "transaction.name" = "Name";
-"transaction.currency" = "Currency";
 "transaction.edit" = "Edit Transaction";
+"transaction.date" = "Date";
 "transaction.account" = "Account";
 "transaction.from" = "From";
 "transaction.to" = "To";
-"transaction.transfer.hint" = "Specify the account from which you transferred the funds and the destination account. If the accounts are in different currencies, you will be prompted to select a currency.";
+"transaction.transfer.hint" = "Specify the account you moved the funds from and the destination account. Each amount is recorded in the currency of its own account.";
 "transaction.delete" = "Delete transaction";
+"transaction.transfer" = "Transfer";
+"transaction.untitled" = "Untitled";
+"transaction.transfer_to_format" = "Transfer to %@";
+"transaction.amount.sent" = "Sent";
+"transaction.amount.received" = "Received";
+"transaction.rate_format" = "Rate: 1 %1$@ ≈ %2$@ %3$@";
 
 /* Account editor */
 "account.name" = "Name";
-"account.name.placeholder" = "Cash";
+"account.name.placeholder" = "Name";
 "account.symbol" = "Icon";
 "account.currency" = "Currency";
 "account.opening_balance" = "Opening balance";
+"account.icon.currencies" = "Currencies";
+"account.icon.card" = "Card";
+"account.icon.cash" = "Cash";
+"account.icon.bank" = "Bank";
+"account.icon.wallet" = "Wallet";
+"account.icon.investments" = "Investments";
+"account.icon.savings" = "Savings";
+"account.icon.ruble" = "Ruble";
+"account.icon.dollar" = "Dollar";
+"account.icon.euro" = "Euro";
+"account.icon.pound" = "Pound";
+"account.icon.yen" = "Yen";
+"account.icon.tenge" = "Tenge";
+"account.icon.lira" = "Lira";
+"account.icon.bitcoin" = "Bitcoin";
+"account.balance" = "Balance";
+"account.edit" = "Edit Account";
 
 /* Activity */
 "activity.expenses.title" = "Expenses";
@@ -63,6 +129,7 @@
 "activity.filter.all" = "All";
 "activity.filter.cash" = "Cash";
 "activity.filter.banks" = "Banks";
+"activity.filter.account" = "Account";
 "activity.filter.currency" = "Currency";
 "activity.empty" = "No operations yet";
 "activity.empty.subtitle" = "Added expenses and incoming will show up here";
@@ -70,23 +137,69 @@
 /* Budget */
 "budget.title" = "Budget";
 "budget.left_format" = "%@ left";
+"budget.over_format" = "%@ over";
+"budget.spent_format" = "%1$@ of %2$@";
 "budget.empty" = "No budgets yet";
 "budget.empty.subtitle" = "Set a limit for a spending category";
 "budget.add" = "Add Budget";
-"budget.add_category" = "Add Category";
+"budget.edit" = "Edit Budget";
+"profile.categories" = "Categories";
+
+/* Categories */
+"categories.title" = "Categories";
+"categories.custom" = "Your Categories";
+"categories.custom.hint" = "Categories you add appear alongside the built-in ones when recording money and setting budgets.";
+"categories.expense" = "Built-in Expenses";
+"categories.income" = "Built-in Income";
+"categories.add" = "Add Category";
+"categories.name.placeholder" = "Category name";
+"categories.kind" = "Type";
+"categories.kind.expense" = "Expense";
+"categories.kind.income" = "Income";
+"categories.hint" = "The name is stored as you type it and is not translated.";
+"categories.duplicate" = "A category with this name already exists.";
+"categories.delete" = "Delete category";
+"categories.delete.confirm" = "Delete this category?";
+"categories.delete.message" = "Transactions already filed under it keep the category. Only the suggestion is removed.";
+
+/* Built-in category names */
+"category.groceries" = "Groceries";
+"category.clothing" = "Clothing";
+"category.leisure" = "Leisure";
+"category.transport" = "Transport";
+"category.home" = "Home";
+"category.health" = "Health";
+"category.other" = "Other";
+"category.salary" = "Salary";
+"category.bonus" = "Bonus";
+"category.gift" = "Gift";
+"category.refund" = "Refund";
+"budget.name.placeholder" = "Name";
 "budget.remind" = "Remind";
-"budget.payment_day" = "Payment Day";
-"budget.limit" = "Limit";
-"budget.hint" = "The category indicates which spending category will reduce the budget. Swipe across the category to delete it.";
+"budget.payment_date" = "Payment Day";
+"budget.recurrence" = "Repeat";
+"budget.recurrence.once" = "Once";
+"budget.recurrence.weekly" = "Weekly";
+"budget.recurrence.monthly" = "Monthly";
+"budget.recurrence.quarterly" = "Quarterly";
+"budget.recurrence.yearly" = "Yearly";
+"budget.limit.placeholder" = "Limit";
+"budget.hint" = "The category indicates which spending category will reduce the budget. The payment day and repeat interval control reminders.";
 "budget.delete" = "Delete budget";
 
 /* Goals */
 "goals.title" = "Goals";
 "goals.left_format" = "%@ left";
+"goals.over_format" = "%@ over";
+"goals.saved_format" = "%1$@ of %2$@";
+"goals.problem.no_account" = "The linked account is unavailable";
 "goals.empty" = "No goals yet";
 "goals.empty.subtitle" = "Set an amount you are saving towards";
 "goals.add" = "Add Goal";
-"goals.name" = "Goal";
+"goals.edit" = "Edit Goal";
+"goals.name.placeholder" = "Name";
+"goals.current_savings" = "Current savings";
+"goals.target.placeholder" = "Goal";
 "goals.hint" = "Specify the account where incoming funds will be tracked towards achieving the goal. The currency will be the account's base currency.";
 "goals.delete" = "Delete goal";
 
@@ -101,6 +214,8 @@
 "profile.money" = "Money";
 "profile.main_currency" = "Main Currency";
 "profile.notifications" = "Notifications";
+"profile.notifications.monthly.hint" = "A reminder the day before each budgeted payment.";
+"reminder.body" = "Payment of %@ is due tomorrow.";
 "profile.notifications.monthly" = "Monthly Remind";
 "profile.notifications.promo_email" = "Promo Email";
 "profile.notifications.promo_push" = "Promo Push";
@@ -120,7 +235,8 @@
 "app_icon.empty" = "No alternate icons yet";
 "app_icon.empty.subtitle" = "Alternate icons will show up here once they are added to the app";
 "app_icon.unsupported" = "This device does not support alternate app icons.";
-"app_icon.default" = "Default";
+"app_icon.piggy" = "Piggy Bank";
+"app_icon.financium" = "Financium";
 
 /* Auth */
 "auth.greeting" = "Money, Sorted";

@@ -15,10 +15,8 @@ struct BudgetView: View {
                 VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
                     FinancePeriodRow()
 
-                    FICard {
-                        if store.budgets.isEmpty {
-                            FIEmptyState(title: "budget.empty", subtitle: "budget.empty.subtitle")
-                        } else {
+                    if !store.budgets.isEmpty {
+                        FICard {
                             ForEach(Array(store.budgets.enumerated()), id: \.element.id) { index, budget in
                                 if index > 0 {
                                     FIRowSeparator()
@@ -34,16 +32,17 @@ struct BudgetView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .fiPageBackground()
+            .overlay {
+                if store.budgets.isEmpty {
+                    FIEmptyState(title: "budget.empty", subtitle: "budget.empty.subtitle")
+                }
+            }
             .navigationTitle(Text("budget.title"))
             .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
+                    FIToolbarButton(systemImage: "plus", accessibilityLabel: "budget.add") {
                         editor = BudgetEditorTarget(budget: nil)
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.primary)
                     }
                 }
             }
@@ -51,6 +50,7 @@ struct BudgetView: View {
             .sheet(item: $editor) { target in
                 BudgetEditorView(budget: target.budget)
             }
+            .fiErrorAlert($store.errorMessage)
         }
     }
 
@@ -58,10 +58,13 @@ struct BudgetView: View {
         Button {
             editor = BudgetEditorTarget(budget: budget)
         } label: {
-            FIListRow(
-                title: Text(verbatim: budget.category),
-                subtitle: Text(verbatim: remainingText(budget)),
-                accessory: .valueChevron(Text("common.edit"))
+            FIProgressRow(
+                title: Text(verbatim: budget.title.isEmpty ? FinanceCategoryStore.displayName(for: budget.category) : budget.title),
+                subtitle: Text(verbatim: spentText(budget)),
+                trailing: Text(verbatim: statusText(budget)),
+                trailingColor: isOverspent(budget) ? FITheme.Palette.destructive : .secondary,
+                progress: progress(budget),
+                tint: isOverspent(budget) ? FITheme.Palette.destructive : FITheme.Palette.accent
             )
         }
         .buttonStyle(.plain)
@@ -69,23 +72,39 @@ struct BudgetView: View {
         // budget that used to sit in that slot.
         .id(budget.id)
         .fiRowContextMenu {
-            Button(role: .destructive) {
+            FIDestructiveMenuButton(titleKey: "budget.delete") {
                 Task { await store.deleteBudget(budget) }
-            } label: {
-                Label("budget.delete", systemImage: "trash")
             }
         }
     }
 
-    /// Clamped at zero: an overspent budget has nothing left, and a negative
-    /// "left" reads as though the app owed the user money.
-    private func remainingText(_ budget: Finance_Budget) -> String {
-        let remaining = max(0, budget.limit.decimalValue - budget.spent.decimalValue)
-        let money = Finance_Money(decimal: remaining, currencyCode: budget.limit.currencyCode)
-        return String(
-            format: NSLocalizedString("budget.left_format", comment: "Remaining budget"),
-            money.formatted
+    private func spentText(_ budget: Finance_Budget) -> String {
+        String(
+            format: NSLocalizedString("budget.spent_format", comment: "Spent of limit"),
+            budget.spent.formatted,
+            budget.limit.formatted
         )
+    }
+
+    private func isOverspent(_ budget: Finance_Budget) -> Bool {
+        budget.spent.decimalValue > budget.limit.decimalValue
+    }
+
+    /// "3 000 ₽ left", or "500 ₽ over" once the limit is passed.
+    ///
+    /// Overspend used to be clamped to "0 left", which hid exactly the case a
+    /// budget exists to catch.
+    private func statusText(_ budget: Finance_Budget) -> String {
+        let difference = budget.limit.decimalValue - budget.spent.decimalValue
+        let money = Finance_Money(decimal: abs(difference), currencyCode: budget.limit.currencyCode)
+        let key = difference >= 0 ? "budget.left_format" : "budget.over_format"
+        return String(format: NSLocalizedString(key, comment: "Budget progress"), money.formatted)
+    }
+
+    private func progress(_ budget: Finance_Budget) -> Double {
+        let limit = NSDecimalNumber(decimal: budget.limit.decimalValue).doubleValue
+        guard limit > 0 else { return 0 }
+        return NSDecimalNumber(decimal: budget.spent.decimalValue).doubleValue / limit
     }
 }
 

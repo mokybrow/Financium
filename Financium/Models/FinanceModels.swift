@@ -2,12 +2,14 @@ import Combine
 import Foundation
 import SwiftUI
 
-extension Finance_Account: Identifiable {}
-extension Finance_Transaction: Identifiable {}
-extension Finance_Budget: Identifiable {}
-extension Finance_Goal: Identifiable {}
+nonisolated extension Finance_Account: Identifiable {}
+nonisolated extension Finance_Transaction: Identifiable {}
+nonisolated extension Finance_Budget: Identifiable {}
+nonisolated extension Finance_Goal: Identifiable {}
 
-extension Finance_Money {
+// Not MainActor: the local backend is an actor and formats and builds money
+// away from the main thread.
+nonisolated extension Finance_Money {
     init(decimal: Decimal, currencyCode: String) {
         self.init()
         let scaled = decimal * 100
@@ -17,29 +19,20 @@ extension Finance_Money {
 
     var decimalValue: Decimal { Decimal(minorUnits) / 100 }
 
+    /// "360 000,00 ₽" — the number in the reader's local grouping, the sign in
+    /// the currency's own notation.
+    ///
+    /// A `.currency` formatter would write the sign the way the reader's locale
+    /// disambiguates it, so a Russian phone printed dollars as "US$" and an
+    /// English one printed roubles as "RUB". The row has already said which
+    /// account the money is in; it needs the sign, not a lesson in which
+    /// country's dollar this is.
     var formatted: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = currencyCode.isEmpty ? "RUB" : currencyCode
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSDecimalNumber(decimal: decimalValue))
-            ?? "\(decimalValue) \(currencyCode)"
-    }
-}
-
-extension Finance_Transaction {
-    var signedAmount: String {
-        let prefix = kind == .expense ? "−" : kind == .income ? "+" : ""
-        return prefix + amount.formatted
-    }
-
-    var symbolName: String {
-        switch kind {
-        case .expense: "arrow.up.right"
-        case .income: "arrow.down.left"
-        case .transfer: "arrow.left.arrow.right"
-        default: "circle"
-        }
+        let code = currencyCode.isEmpty ? "RUB" : currencyCode
+        let number = decimalValue.formatted(.number.precision(.fractionLength(2)))
+        // Non-breaking space: an amount must never wrap between its digits and
+        // its sign.
+        return number + "\u{00A0}" + FinanceCurrencies.symbol(for: code)
     }
 }
 
@@ -68,7 +61,7 @@ enum FinanceSection: String, CaseIterable, Identifiable {
     }
 }
 
-enum TransactionEditorKind: Identifiable, Equatable {
+nonisolated enum TransactionEditorKind: Identifiable, Equatable {
     case expense, income, transfer
     var id: Int {
         switch self { case .expense: 1; case .income: 2; case .transfer: 3 }

@@ -6,8 +6,31 @@
 "common.edit" = "Изменить";
 "common.clear" = "Очистить";
 "common.amount" = "Сумма";
+"common.add" = "Добавить";
 "common.ok" = "ОК";
 "common.error" = "Ошибка";
+"error.budget.duplicate_category" = "У этой категории уже есть бюджет на месяц. Выберите другую категорию или измените существующий бюджет.";
+"error.account.has_transactions" = "На счёте есть операции, поэтому удалить его нельзя.";
+"error.unreachable" = "Не удалось связаться с сервером. Проверьте соединение и попробуйте ещё раз.";
+"error.invalid" = "Не удалось сохранить. Проверьте поля и попробуйте ещё раз.";
+
+/* Работа без аккаунта */
+"auth.continue_locally" = "Продолжить без аккаунта";
+"profile.local.title" = "На этом устройстве";
+"profile.go_to_sign_in" = "Перейти ко входу";
+"profile.local.hint" = "Вход позволит держать записи на всех устройствах. Мы спросим, переносить ли то, что уже есть здесь.";
+"profile.local.reset" = "Удалить все локальные данные";
+"profile.local.reset.confirm" = "Удалить всё на этом устройстве?";
+"profile.local.reset.message" = "Счета, операции, бюджеты и цели, хранящиеся на устройстве, будут удалены. Отменить это нельзя.";
+
+/* Перенос локальных данных в аккаунт */
+"migration.offer.title" = "Перенести записи?";
+"migration.offer.message" = "На устройстве есть записи. Их можно перенести в аккаунт, чтобы они были доступны везде.";
+"migration.offer.move" = "Перенести";
+"migration.offer.keep" = "Не сейчас";
+"migration.done.title" = "Готово";
+"migration.done.message" = "Перенесено записей: %d.";
+"migration.done.partial" = "Перенесено записей: %1$d. Не удалось перенести: %2$d, они остались на устройстве.";
 
 /* Tabs */
 "tab.money" = "Деньги";
@@ -17,38 +40,81 @@
 
 /* Money */
 "money.title" = "Деньги";
+"money.currency" = "Валюта";
+"money.total_balance" = "Всего";
+"money.net" = "Разница";
+"money.rates.missing" = "Не учтено: %@ — курс недоступен.";
+"money.rates.unavailable" = "Курсы ещё не загружены — в сумму вошли только счета в этой валюте.";
+"money.rates.stale" = "Пересчитано по курсу на %@.";
+
+/* Period */
+"period.title" = "Период";
+"period.month" = "Месяц";
+"period.year" = "Год";
 "money.spended" = "Потрачено";
 "money.earned" = "Получено";
 "money.accounts" = "Счета";
 "money.accounts.empty" = "Счетов пока нет";
 "money.accounts.empty.subtitle" = "Добавьте счёт, чтобы начать вести учёт";
 "money.accounts.add" = "Добавить счёт";
-"money.activity" = "Операции по счетам";
-"money.activity.expenses" = "Расходы";
-"money.activity.incoming" = "Поступления";
-"money.add.incoming" = "Добавить поступление";
-"money.add.expense" = "Добавить расход";
-"money.add.transfer" = "Добавить перевод";
-"money.account.copy_balance" = "Скопировать баланс";
+"money.add.incoming" = "Поступление";
+"money.add.expense" = "Расход";
+"money.add.transfer" = "Перевод";
+"money.account.edit" = "Изменить счёт";
+"money.account.correct" = "Скорректировать остаток";
+
+/* Коррекция остатка */
+"correction.title" = "Коррекция остатка";
+"correction.current" = "Сейчас";
+"correction.direction" = "Изменение";
+"correction.add" = "Прибавить";
+"correction.subtract" = "Убавить";
+"correction.amount" = "Сумма";
+"correction.result" = "Станет";
+"correction.hint" = "Записывается операцией, поэтому остаток всегда сходится с движениями, которые его составили.";
+"correction.entry" = "Коррекция остатка";
 "money.account.delete" = "Удалить счёт";
 
 /* Transaction editors */
 "transaction.category" = "Категория";
 "transaction.name" = "Название";
-"transaction.currency" = "Валюта";
 "transaction.edit" = "Изменить операцию";
+"transaction.date" = "Дата";
 "transaction.account" = "Счёт";
 "transaction.from" = "Откуда";
 "transaction.to" = "Куда";
-"transaction.transfer.hint" = "Укажите счёт, с которого переводите средства, и счёт получателя. Если счёта в разных валютах, потребуется выбрать валюту.";
+"transaction.transfer.hint" = "Укажите счёт, с которого переводите средства, и счёт получателя. Сумма записывается в валюте своего счёта.";
 "transaction.delete" = "Удалить операцию";
+"transaction.transfer" = "Перевод";
+"transaction.untitled" = "Без названия";
+"transaction.transfer_to_format" = "Перевод на %@";
+"transaction.amount.sent" = "Списано";
+"transaction.amount.received" = "Зачислено";
+"transaction.rate_format" = "Курс: 1 %1$@ ≈ %2$@ %3$@";
 
 /* Account editor */
 "account.name" = "Название";
-"account.name.placeholder" = "Наличные";
+"account.name.placeholder" = "Название";
 "account.symbol" = "Значок";
 "account.currency" = "Валюта";
 "account.opening_balance" = "Начальный баланс";
+"account.icon.currencies" = "Валюты";
+"account.icon.card" = "Карта";
+"account.icon.cash" = "Наличные";
+"account.icon.bank" = "Банк";
+"account.icon.wallet" = "Кошелёк";
+"account.icon.investments" = "Инвестиции";
+"account.icon.savings" = "Накопления";
+"account.icon.ruble" = "Рубль";
+"account.icon.dollar" = "Доллар";
+"account.icon.euro" = "Евро";
+"account.icon.pound" = "Фунт";
+"account.icon.yen" = "Иена";
+"account.icon.tenge" = "Тенге";
+"account.icon.lira" = "Лира";
+"account.icon.bitcoin" = "Биткойн";
+"account.balance" = "Баланс";
+"account.edit" = "Изменить счёт";
 
 /* Activity */
 "activity.expenses.title" = "Расходы";
@@ -63,6 +129,7 @@
 "activity.filter.all" = "Все";
 "activity.filter.cash" = "Наличные";
 "activity.filter.banks" = "Банки";
+"activity.filter.account" = "Счёт";
 "activity.filter.currency" = "Валюта";
 "activity.empty" = "Операций пока нет";
 "activity.empty.subtitle" = "Добавленные расходы и поступления появятся здесь";
@@ -70,24 +137,70 @@
 /* Budget */
 "budget.title" = "Бюджет";
 "budget.left_format" = "осталось %@";
+"budget.over_format" = "превышен на %@";
+"budget.spent_format" = "%1$@ из %2$@";
 "budget.empty" = "Бюджетов пока нет";
 "budget.empty.subtitle" = "Задайте лимит для категории расходов";
 "budget.add" = "Добавить бюджет";
-"budget.add_category" = "Добавить категорию";
+"budget.edit" = "Изменить бюджет";
+"profile.categories" = "Категории";
+
+/* Categories */
+"categories.title" = "Категории";
+"categories.custom" = "Ваши категории";
+"categories.custom.hint" = "Добавленные категории появятся рядом со встроенными при записи операций и настройке бюджетов.";
+"categories.expense" = "Встроенные расходы";
+"categories.income" = "Встроенные поступления";
+"categories.add" = "Добавить категорию";
+"categories.name.placeholder" = "Название категории";
+"categories.kind" = "Тип";
+"categories.kind.expense" = "Расход";
+"categories.kind.income" = "Поступление";
+"categories.hint" = "Название сохраняется как введено и не переводится.";
+"categories.duplicate" = "Категория с таким названием уже есть.";
+"categories.delete" = "Удалить категорию";
+"categories.delete.confirm" = "Удалить эту категорию?";
+"categories.delete.message" = "У операций, уже записанных в неё, категория останется. Убирается только подсказка.";
+
+/* Built-in category names */
+"category.groceries" = "Продукты";
+"category.clothing" = "Одежда";
+"category.leisure" = "Досуг";
+"category.transport" = "Транспорт";
+"category.home" = "Дом";
+"category.health" = "Здоровье";
+"category.other" = "Другое";
+"category.salary" = "Зарплата";
+"category.bonus" = "Премия";
+"category.gift" = "Подарок";
+"category.refund" = "Возврат";
+"budget.name.placeholder" = "Название";
 "budget.remind" = "Напоминать";
-"budget.payment_day" = "День платежа";
-"budget.limit" = "Лимит";
-"budget.hint" = "Категория определяет, какие расходы будут уменьшать бюджет. Смахните категорию, чтобы удалить её.";
+"budget.payment_date" = "Дата платежа";
+"budget.recurrence" = "Повторять";
+"budget.recurrence.once" = "Один раз";
+"budget.recurrence.weekly" = "Еженедельно";
+"budget.recurrence.monthly" = "Ежемесячно";
+"budget.recurrence.quarterly" = "Ежеквартально";
+"budget.recurrence.yearly" = "Ежегодно";
+"budget.limit.placeholder" = "Лимит";
+"budget.hint" = "Категория указывает, какие расходы уменьшают бюджет. Дата платежа и период повтора управляют напоминаниями.";
 "budget.delete" = "Удалить бюджет";
 
 /* Goals */
 "goals.title" = "Цели";
 "goals.left_format" = "осталось %@";
+"goals.over_format" = "перевыполнено на %@";
+"goals.saved_format" = "%1$@ из %2$@";
+"goals.problem.no_account" = "Привязанный счёт недоступен";
 "goals.empty" = "Целей пока нет";
 "goals.empty.subtitle" = "Укажите сумму, к которой копите";
 "goals.add" = "Добавить цель";
-"goals.name" = "Цель";
-"goals.hint" = "Укажите счёт, поступления на который будут засчитываться в цель. Валютой станет базовая валюта счёта.";
+"goals.edit" = "Изменить цель";
+"goals.name.placeholder" = "Название";
+"goals.current_savings" = "Уже накоплено";
+"goals.target.placeholder" = "Цель";
+"goals.hint" = "Укажите счёт, на котором будут учитываться поступления в счёт цели. Валютой цели станет валюта этого счёта.";
 "goals.delete" = "Удалить цель";
 
 /* Profile */
@@ -101,6 +214,8 @@
 "profile.money" = "Деньги";
 "profile.main_currency" = "Основная валюта";
 "profile.notifications" = "Уведомления";
+"profile.notifications.monthly.hint" = "Напоминание за день до каждого запланированного платежа.";
+"reminder.body" = "Завтра платёж на %@.";
 "profile.notifications.monthly" = "Ежемесячное напоминание";
 "profile.notifications.promo_email" = "Промо на почту";
 "profile.notifications.promo_push" = "Промо пуши";
@@ -120,7 +235,8 @@
 "app_icon.empty" = "Альтернативных иконок пока нет";
 "app_icon.empty.subtitle" = "Иконки появятся здесь, когда их добавят в приложение";
 "app_icon.unsupported" = "Это устройство не поддерживает альтернативные иконки.";
-"app_icon.default" = "Основная";
+"app_icon.piggy" = "Копилка";
+"app_icon.financium" = "Financium";
 
 /* Auth */
 "auth.greeting" = "Деньги под контролем";

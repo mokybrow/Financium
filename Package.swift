@@ -22,7 +22,7 @@ let package = Package(
                 .product(name: "GRPCNIOTransportHTTP2Posix", package: "grpc-swift-nio-transport")
             ],
             path: "Financium",
-            exclude: ["Assets.xcassets", "Financium.entitlements"]
+            exclude: ["Assets.xcassets", "Financium.entitlements", "Piggy.icon", "Financium.icon"]
         )
     ]
 )

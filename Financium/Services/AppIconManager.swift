@@ -6,44 +6,48 @@ import UIKit
 
 /// Selectable app icons.
 ///
-/// Financium ships only its primary icon so far. The picker exists now so the
-/// settings screen is complete and so adding an icon later is a matter of one
-/// case here plus a preview imageset — not a new screen.
-///
 /// To add one:
 ///   1. Drop `<Name>.icon` (Icon Composer) into the app target.
 ///   2. Add its name to `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`.
 ///   3. Add an `AppIconPreview<Name>` imageset with a 1024×1024 render.
 ///   4. Add a case below.
 enum AppIconOption: String, CaseIterable, Identifiable {
-    /// `nil` alternate name means the primary icon.
-    case `default`
+    /// The piggy bank, which is what the app wears out of the box.
+    case piggy
+    case financium
 
     var id: String { rawValue }
 
     /// Alternate icon name as declared in the asset catalog build settings.
+    ///
+    /// `nil` for the primary icon: `setAlternateIconName(nil)` is how UIKit
+    /// spells "put the original back", and naming it explicitly would leave the
+    /// app carrying an alternate that happens to look identical.
     var alternateName: String? {
         switch self {
-        case .default: return nil
+        case .piggy: return nil
+        case .financium: return "Financium"
         }
     }
 
     /// Preview thumbnail imageset bundled for the picker.
     var previewImageName: String {
         switch self {
-        case .default: return "AppIconPreviewDefault"
+        case .piggy: return "AppIconPreviewPiggy"
+        case .financium: return "AppIconPreviewFinancium"
         }
     }
 
     var titleKey: LocalizedStringKey {
         switch self {
-        case .default: return "app_icon.default"
+        case .piggy: return "app_icon.piggy"
+        case .financium: return "app_icon.financium"
         }
     }
 
     static var current: AppIconOption {
         let name = UIApplication.shared.alternateIconName
-        return AppIconOption.allCases.first { $0.alternateName == name } ?? .default
+        return AppIconOption.allCases.first { $0.alternateName == name } ?? .piggy
     }
 
     /// True while the app has nothing to choose between. The picker shows an
@@ -110,18 +114,19 @@ struct AppIconPickerView: View {
                     if !manager.supportsAlternateIcons {
                         FIFootnote("app_icon.unsupported")
                     }
-                } else {
-                    FICard {
-                        FIEmptyState(
-                            title: "app_icon.empty",
-                            subtitle: "app_icon.empty.subtitle"
-                        )
-                    }
                 }
             }
             .fiCardInsets()
             .padding(.top, 12)
             .padding(.bottom, 28)
+        }
+        // Without this the scroll view takes the size of its content, so the
+        // overlaid placeholder gets no width to lay out in.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .overlay {
+            if !AppIconOption.hasAlternates {
+                FIEmptyState(title: "app_icon.empty", subtitle: "app_icon.empty.subtitle")
+            }
         }
         .fiPageBackground()
         .navigationTitle(Text("app_icon.title"))

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>FINANCIUM_AUTH_HOST</key>
+	<string>$(FINANCIUM_AUTH_HOST)</string>
+	<key>FINANCIUM_AUTH_PORT</key>
+	<string>$(FINANCIUM_AUTH_PORT)</string>
+	<key>FINANCIUM_AUTH_TLS</key>
+	<string>$(FINANCIUM_AUTH_TLS)</string>
+	<key>FINANCIUM_FINANCE_HOST</key>
+	<string>$(FINANCIUM_FINANCE_HOST)</string>
+	<key>FINANCIUM_FINANCE_PORT</key>
+	<string>$(FINANCIUM_FINANCE_PORT)</string>
+	<key>FINANCIUM_FINANCE_TLS</key>
+	<string>$(FINANCIUM_FINANCE_TLS)</string>
+	<key>FINANCIUM_USERS_HOST</key>
+	<string>$(FINANCIUM_USERS_HOST)</string>
+	<key>FINANCIUM_USERS_PORT</key>
+	<string>$(FINANCIUM_USERS_PORT)</string>
+	<key>FINANCIUM_USERS_TLS</key>
+	<string>$(FINANCIUM_USERS_TLS)</string>
+</dict>
+</plist>

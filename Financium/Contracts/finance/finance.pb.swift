@@ -100,6 +100,56 @@ public nonisolated enum Finance_WalletPlan: SwiftProtobuf.Enum, Swift.CaseIterab
 
 }
 
+public nonisolated enum Finance_BudgetRecurrence: SwiftProtobuf.Enum, Swift.CaseIterable {
+  public typealias RawValue = Int
+  case unspecified // = 0
+  case once // = 1
+  case weekly // = 2
+  case monthly // = 3
+  case quarterly // = 4
+  case yearly // = 5
+  case UNRECOGNIZED(Int)
+
+  public init() {
+    self = .unspecified
+  }
+
+  public init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .once
+    case 2: self = .weekly
+    case 3: self = .monthly
+    case 4: self = .quarterly
+    case 5: self = .yearly
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  public var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .once: return 1
+    case .weekly: return 2
+    case .monthly: return 3
+    case .quarterly: return 4
+    case .yearly: return 5
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  public static let allCases: [Finance_BudgetRecurrence] = [
+    .unspecified,
+    .once,
+    .weekly,
+    .monthly,
+    .quarterly,
+    .yearly,
+  ]
+
+}
+
 public nonisolated struct Finance_Money: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -284,8 +334,6 @@ public nonisolated struct Finance_Budget: Sendable {
 
   public var reminderEnabled: Bool = false
 
-  public var paymentDay: Int32 = 0
-
   public var createdAt: SwiftProtobuf.Google_Protobuf_Timestamp {
     get {_createdAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
     set {_createdAt = newValue}
@@ -303,6 +351,13 @@ public nonisolated struct Finance_Budget: Sendable {
   public var hasUpdatedAt: Bool {self._updatedAt != nil}
   /// Clears the value of `updatedAt`. Subsequent reads from it will return its default value.
   public mutating func clearUpdatedAt() {self._updatedAt = nil}
+
+  public var title: String = String()
+
+  /// YYYY-MM-DD, empty when reminders are disabled.
+  public var paymentDate: String = String()
+
+  public var recurrence: Finance_BudgetRecurrence = .unspecified
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -401,9 +456,33 @@ public nonisolated struct Finance_GetOverviewRequest: Sendable {
   /// YYYY-MM, empty means current month.
   public var month: String = String()
 
+  /// An explicit window, which takes precedence over `month` when both ends are
+  /// set. `to` is exclusive. Kept alongside `month` rather than replacing it so
+  /// older clients keep working.
+  public var from: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_from ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_from = newValue}
+  }
+  /// Returns true if `from` has been explicitly set.
+  public var hasFrom: Bool {self._from != nil}
+  /// Clears the value of `from`. Subsequent reads from it will return its default value.
+  public mutating func clearFrom() {self._from = nil}
+
+  public var to: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {_to ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_to = newValue}
+  }
+  /// Returns true if `to` has been explicitly set.
+  public var hasTo: Bool {self._to != nil}
+  /// Clears the value of `to`. Subsequent reads from it will return its default value.
+  public mutating func clearTo() {self._to = nil}
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
+
+  fileprivate var _from: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+  fileprivate var _to: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
 }
 
 public nonisolated struct Finance_GetOverviewResponse: Sendable {
@@ -441,6 +520,9 @@ public nonisolated struct Finance_GetOverviewResponse: Sendable {
   public var accounts: [Finance_Account] = []
 
   public var recentTransactions: [Finance_Transaction] = []
+
+  /// One entry per currency, main currency first.
+  public var currencies: [Finance_CurrencyTotal] = []
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -513,9 +595,21 @@ public nonisolated struct Finance_UpdateAccountRequest: Sendable {
 
   public var isArchived: Bool = false
 
+  /// Leave unset to keep the stored balance and currency untouched.
+  public var balance: Finance_Money {
+    get {_balance ?? Finance_Money()}
+    set {_balance = newValue}
+  }
+  /// Returns true if `balance` has been explicitly set.
+  public var hasBalance: Bool {self._balance != nil}
+  /// Clears the value of `balance`. Subsequent reads from it will return its default value.
+  public mutating func clearBalance() {self._balance = nil}
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
+
+  fileprivate var _balance: Finance_Money? = nil
 }
 
 public nonisolated struct Finance_AccountResponse: Sendable {
@@ -753,7 +847,12 @@ public nonisolated struct Finance_UpsertBudgetRequest: Sendable {
 
   public var reminderEnabled: Bool = false
 
-  public var paymentDay: Int32 = 0
+  public var title: String = String()
+
+  /// YYYY-MM-DD.
+  public var paymentDate: String = String()
+
+  public var recurrence: Finance_BudgetRecurrence = .unspecified
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -839,21 +938,11 @@ public nonisolated struct Finance_UpsertGoalRequest: Sendable {
   /// Clears the value of `target`. Subsequent reads from it will return its default value.
   public mutating func clearTarget() {self._target = nil}
 
-  public var saved: Finance_Money {
-    get {_saved ?? Finance_Money()}
-    set {_saved = newValue}
-  }
-  /// Returns true if `saved` has been explicitly set.
-  public var hasSaved: Bool {self._saved != nil}
-  /// Clears the value of `saved`. Subsequent reads from it will return its default value.
-  public mutating func clearSaved() {self._saved = nil}
-
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
 
   fileprivate var _target: Finance_Money? = nil
-  fileprivate var _saved: Finance_Money? = nil
 }
 
 public nonisolated struct Finance_GoalResponse: Sendable {
@@ -929,6 +1018,52 @@ public nonisolated struct Finance_MutationResponse: Sendable {
   public init() {}
 }
 
+/// One currency's balance and monthly flow, reported on its own terms.
+///
+/// Appended at the end of the file so existing message indices are untouched.
+public nonisolated struct Finance_CurrencyTotal: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var currencyCode: String = String()
+
+  public var balance: Finance_Money {
+    get {_balance ?? Finance_Money()}
+    set {_balance = newValue}
+  }
+  /// Returns true if `balance` has been explicitly set.
+  public var hasBalance: Bool {self._balance != nil}
+  /// Clears the value of `balance`. Subsequent reads from it will return its default value.
+  public mutating func clearBalance() {self._balance = nil}
+
+  public var spent: Finance_Money {
+    get {_spent ?? Finance_Money()}
+    set {_spent = newValue}
+  }
+  /// Returns true if `spent` has been explicitly set.
+  public var hasSpent: Bool {self._spent != nil}
+  /// Clears the value of `spent`. Subsequent reads from it will return its default value.
+  public mutating func clearSpent() {self._spent = nil}
+
+  public var earned: Finance_Money {
+    get {_earned ?? Finance_Money()}
+    set {_earned = newValue}
+  }
+  /// Returns true if `earned` has been explicitly set.
+  public var hasEarned: Bool {self._earned != nil}
+  /// Clears the value of `earned`. Subsequent reads from it will return its default value.
+  public mutating func clearEarned() {self._earned = nil}
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _balance: Finance_Money? = nil
+  fileprivate var _spent: Finance_Money? = nil
+  fileprivate var _earned: Finance_Money? = nil
+}
+
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate nonisolated let _protobuf_package = "finance"
@@ -939,6 +1074,10 @@ nonisolated extension Finance_TransactionKind: SwiftProtobuf._ProtoNameProviding
 
 nonisolated extension Finance_WalletPlan: SwiftProtobuf._ProtoNameProviding {
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0WALLET_PLAN_UNSPECIFIED\0\u{1}FREE\0\u{1}PREMIUM\0")
+}
+
+nonisolated extension Finance_BudgetRecurrence: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0BUDGET_RECURRENCE_UNSPECIFIED\0\u{1}BUDGET_RECURRENCE_ONCE\0\u{1}BUDGET_RECURRENCE_WEEKLY\0\u{1}BUDGET_RECURRENCE_MONTHLY\0\u{1}BUDGET_RECURRENCE_QUARTERLY\0\u{1}BUDGET_RECURRENCE_YEARLY\0")
 }
 
 nonisolated extension Finance_Money: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
@@ -1189,7 +1328,7 @@ nonisolated extension Finance_Transaction: SwiftProtobuf.Message, SwiftProtobuf.
 
 nonisolated extension Finance_Budget: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Budget"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}category\0\u{1}limit\0\u{1}spent\0\u{3}reminder_enabled\0\u{3}payment_day\0\u{3}created_at\0\u{3}updated_at\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}category\0\u{1}limit\0\u{1}spent\0\u{3}reminder_enabled\0\u{4}\u{2}created_at\0\u{3}updated_at\0\u{1}title\0\u{3}payment_date\0\u{1}recurrence\0\u{b}payment_day\0\u{c}\u{6}\u{1}")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1202,9 +1341,11 @@ nonisolated extension Finance_Budget: SwiftProtobuf.Message, SwiftProtobuf._Mess
       case 3: try { try decoder.decodeSingularMessageField(value: &self._limit) }()
       case 4: try { try decoder.decodeSingularMessageField(value: &self._spent) }()
       case 5: try { try decoder.decodeSingularBoolField(value: &self.reminderEnabled) }()
-      case 6: try { try decoder.decodeSingularInt32Field(value: &self.paymentDay) }()
       case 7: try { try decoder.decodeSingularMessageField(value: &self._createdAt) }()
       case 8: try { try decoder.decodeSingularMessageField(value: &self._updatedAt) }()
+      case 9: try { try decoder.decodeSingularStringField(value: &self.title) }()
+      case 10: try { try decoder.decodeSingularStringField(value: &self.paymentDate) }()
+      case 11: try { try decoder.decodeSingularEnumField(value: &self.recurrence) }()
       default: break
       }
     }
@@ -1230,15 +1371,21 @@ nonisolated extension Finance_Budget: SwiftProtobuf.Message, SwiftProtobuf._Mess
     if self.reminderEnabled != false {
       try visitor.visitSingularBoolField(value: self.reminderEnabled, fieldNumber: 5)
     }
-    if self.paymentDay != 0 {
-      try visitor.visitSingularInt32Field(value: self.paymentDay, fieldNumber: 6)
-    }
     try { if let v = self._createdAt {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 7)
     } }()
     try { if let v = self._updatedAt {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
     } }()
+    if !self.title.isEmpty {
+      try visitor.visitSingularStringField(value: self.title, fieldNumber: 9)
+    }
+    if !self.paymentDate.isEmpty {
+      try visitor.visitSingularStringField(value: self.paymentDate, fieldNumber: 10)
+    }
+    if self.recurrence != .unspecified {
+      try visitor.visitSingularEnumField(value: self.recurrence, fieldNumber: 11)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1248,9 +1395,11 @@ nonisolated extension Finance_Budget: SwiftProtobuf.Message, SwiftProtobuf._Mess
     if lhs._limit != rhs._limit {return false}
     if lhs._spent != rhs._spent {return false}
     if lhs.reminderEnabled != rhs.reminderEnabled {return false}
-    if lhs.paymentDay != rhs.paymentDay {return false}
     if lhs._createdAt != rhs._createdAt {return false}
     if lhs._updatedAt != rhs._updatedAt {return false}
+    if lhs.title != rhs.title {return false}
+    if lhs.paymentDate != rhs.paymentDate {return false}
+    if lhs.recurrence != rhs.recurrence {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1377,7 +1526,7 @@ nonisolated extension Finance_FinanceSettings: SwiftProtobuf.Message, SwiftProto
 
 nonisolated extension Finance_GetOverviewRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".GetOverviewRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}month\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}month\0\u{1}from\0\u{1}to\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1386,20 +1535,34 @@ nonisolated extension Finance_GetOverviewRequest: SwiftProtobuf.Message, SwiftPr
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.month) }()
+      case 2: try { try decoder.decodeSingularMessageField(value: &self._from) }()
+      case 3: try { try decoder.decodeSingularMessageField(value: &self._to) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if !self.month.isEmpty {
       try visitor.visitSingularStringField(value: self.month, fieldNumber: 1)
     }
+    try { if let v = self._from {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    } }()
+    try { if let v = self._to {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Finance_GetOverviewRequest, rhs: Finance_GetOverviewRequest) -> Bool {
     if lhs.month != rhs.month {return false}
+    if lhs._from != rhs._from {return false}
+    if lhs._to != rhs._to {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1407,7 +1570,7 @@ nonisolated extension Finance_GetOverviewRequest: SwiftProtobuf.Message, SwiftPr
 
 nonisolated extension Finance_GetOverviewResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".GetOverviewResponse"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}total_balance\0\u{1}spent\0\u{1}earned\0\u{1}accounts\0\u{3}recent_transactions\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}total_balance\0\u{1}spent\0\u{1}earned\0\u{1}accounts\0\u{3}recent_transactions\0\u{1}currencies\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1420,6 +1583,7 @@ nonisolated extension Finance_GetOverviewResponse: SwiftProtobuf.Message, SwiftP
       case 3: try { try decoder.decodeSingularMessageField(value: &self._earned) }()
       case 4: try { try decoder.decodeRepeatedMessageField(value: &self.accounts) }()
       case 5: try { try decoder.decodeRepeatedMessageField(value: &self.recentTransactions) }()
+      case 6: try { try decoder.decodeRepeatedMessageField(value: &self.currencies) }()
       default: break
       }
     }
@@ -1445,6 +1609,9 @@ nonisolated extension Finance_GetOverviewResponse: SwiftProtobuf.Message, SwiftP
     if !self.recentTransactions.isEmpty {
       try visitor.visitRepeatedMessageField(value: self.recentTransactions, fieldNumber: 5)
     }
+    if !self.currencies.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.currencies, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1454,6 +1621,7 @@ nonisolated extension Finance_GetOverviewResponse: SwiftProtobuf.Message, SwiftP
     if lhs._earned != rhs._earned {return false}
     if lhs.accounts != rhs.accounts {return false}
     if lhs.recentTransactions != rhs.recentTransactions {return false}
+    if lhs.currencies != rhs.currencies {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1565,7 +1733,7 @@ nonisolated extension Finance_CreateAccountRequest: SwiftProtobuf.Message, Swift
 
 nonisolated extension Finance_UpdateAccountRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpdateAccountRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{3}symbol_name\0\u{3}is_archived\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{3}symbol_name\0\u{3}is_archived\0\u{1}balance\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1577,12 +1745,17 @@ nonisolated extension Finance_UpdateAccountRequest: SwiftProtobuf.Message, Swift
       case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.symbolName) }()
       case 4: try { try decoder.decodeSingularBoolField(value: &self.isArchived) }()
+      case 5: try { try decoder.decodeSingularMessageField(value: &self._balance) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if !self.id.isEmpty {
       try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
     }
@@ -1595,6 +1768,9 @@ nonisolated extension Finance_UpdateAccountRequest: SwiftProtobuf.Message, Swift
     if self.isArchived != false {
       try visitor.visitSingularBoolField(value: self.isArchived, fieldNumber: 4)
     }
+    try { if let v = self._balance {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1603,6 +1779,7 @@ nonisolated extension Finance_UpdateAccountRequest: SwiftProtobuf.Message, Swift
     if lhs.name != rhs.name {return false}
     if lhs.symbolName != rhs.symbolName {return false}
     if lhs.isArchived != rhs.isArchived {return false}
+    if lhs._balance != rhs._balance {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1990,7 +2167,7 @@ nonisolated extension Finance_ListBudgetsResponse: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Finance_UpsertBudgetRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpsertBudgetRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}month\0\u{1}category\0\u{1}limit\0\u{3}reminder_enabled\0\u{3}payment_day\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}month\0\u{1}category\0\u{1}limit\0\u{3}reminder_enabled\0\u{2}\u{2}title\0\u{3}payment_date\0\u{1}recurrence\0\u{b}payment_day\0\u{c}\u{6}\u{1}")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2003,7 +2180,9 @@ nonisolated extension Finance_UpsertBudgetRequest: SwiftProtobuf.Message, SwiftP
       case 3: try { try decoder.decodeSingularStringField(value: &self.category) }()
       case 4: try { try decoder.decodeSingularMessageField(value: &self._limit) }()
       case 5: try { try decoder.decodeSingularBoolField(value: &self.reminderEnabled) }()
-      case 6: try { try decoder.decodeSingularInt32Field(value: &self.paymentDay) }()
+      case 7: try { try decoder.decodeSingularStringField(value: &self.title) }()
+      case 8: try { try decoder.decodeSingularStringField(value: &self.paymentDate) }()
+      case 9: try { try decoder.decodeSingularEnumField(value: &self.recurrence) }()
       default: break
       }
     }
@@ -2029,8 +2208,14 @@ nonisolated extension Finance_UpsertBudgetRequest: SwiftProtobuf.Message, SwiftP
     if self.reminderEnabled != false {
       try visitor.visitSingularBoolField(value: self.reminderEnabled, fieldNumber: 5)
     }
-    if self.paymentDay != 0 {
-      try visitor.visitSingularInt32Field(value: self.paymentDay, fieldNumber: 6)
+    if !self.title.isEmpty {
+      try visitor.visitSingularStringField(value: self.title, fieldNumber: 7)
+    }
+    if !self.paymentDate.isEmpty {
+      try visitor.visitSingularStringField(value: self.paymentDate, fieldNumber: 8)
+    }
+    if self.recurrence != .unspecified {
+      try visitor.visitSingularEnumField(value: self.recurrence, fieldNumber: 9)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -2041,7 +2226,9 @@ nonisolated extension Finance_UpsertBudgetRequest: SwiftProtobuf.Message, SwiftP
     if lhs.category != rhs.category {return false}
     if lhs._limit != rhs._limit {return false}
     if lhs.reminderEnabled != rhs.reminderEnabled {return false}
-    if lhs.paymentDay != rhs.paymentDay {return false}
+    if lhs.title != rhs.title {return false}
+    if lhs.paymentDate != rhs.paymentDate {return false}
+    if lhs.recurrence != rhs.recurrence {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2162,7 +2349,7 @@ nonisolated extension Finance_ListGoalsResponse: SwiftProtobuf.Message, SwiftPro
 
 nonisolated extension Finance_UpsertGoalRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpsertGoalRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}title\0\u{3}account_id\0\u{1}category\0\u{1}target\0\u{1}saved\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}title\0\u{3}account_id\0\u{1}category\0\u{1}target\0\u{b}saved\0\u{c}\u{6}\u{1}")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2175,7 +2362,6 @@ nonisolated extension Finance_UpsertGoalRequest: SwiftProtobuf.Message, SwiftPro
       case 3: try { try decoder.decodeSingularStringField(value: &self.accountID) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.category) }()
       case 5: try { try decoder.decodeSingularMessageField(value: &self._target) }()
-      case 6: try { try decoder.decodeSingularMessageField(value: &self._saved) }()
       default: break
       }
     }
@@ -2201,9 +2387,6 @@ nonisolated extension Finance_UpsertGoalRequest: SwiftProtobuf.Message, SwiftPro
     try { if let v = self._target {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
     } }()
-    try { if let v = self._saved {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
-    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2213,7 +2396,6 @@ nonisolated extension Finance_UpsertGoalRequest: SwiftProtobuf.Message, SwiftPro
     if lhs.accountID != rhs.accountID {return false}
     if lhs.category != rhs.category {return false}
     if lhs._target != rhs._target {return false}
-    if lhs._saved != rhs._saved {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2372,6 +2554,55 @@ nonisolated extension Finance_MutationResponse: SwiftProtobuf.Message, SwiftProt
 
   public static func ==(lhs: Finance_MutationResponse, rhs: Finance_MutationResponse) -> Bool {
     if lhs.success != rhs.success {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Finance_CurrencyTotal: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".CurrencyTotal"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}currency_code\0\u{1}balance\0\u{1}spent\0\u{1}earned\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.currencyCode) }()
+      case 2: try { try decoder.decodeSingularMessageField(value: &self._balance) }()
+      case 3: try { try decoder.decodeSingularMessageField(value: &self._spent) }()
+      case 4: try { try decoder.decodeSingularMessageField(value: &self._earned) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.currencyCode.isEmpty {
+      try visitor.visitSingularStringField(value: self.currencyCode, fieldNumber: 1)
+    }
+    try { if let v = self._balance {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+    } }()
+    try { if let v = self._spent {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
+    } }()
+    try { if let v = self._earned {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Finance_CurrencyTotal, rhs: Finance_CurrencyTotal) -> Bool {
+    if lhs.currencyCode != rhs.currencyCode {return false}
+    if lhs._balance != rhs._balance {return false}
+    if lhs._spent != rhs._spent {return false}
+    if lhs._earned != rhs._earned {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
