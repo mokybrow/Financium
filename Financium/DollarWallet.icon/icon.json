@@ -1,13 +1,17 @@
 {
   "fill" : {
-    "automatic-gradient" : "display-p3:0.99091,0.98480,0.93789,1.00000"
+    "automatic-gradient" : "display-p3:0.98682,0.98047,0.93408,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "image-name" : "Financium.png",
-          "name" : "Financium"
+          "image-name" : "LeatherWallet.png",
+          "name" : "LeatherWallet"
+        },
+        {
+          "image-name" : "WalletWithDollar 2.png",
+          "name" : "WalletWithDollar 2"
         }
       ],
       "shadow" : {

@@ -235,8 +235,10 @@
 "app_icon.empty" = "Альтернативных иконок пока нет";
 "app_icon.empty.subtitle" = "Иконки появятся здесь, когда их добавят в приложение";
 "app_icon.unsupported" = "Это устройство не поддерживает альтернативные иконки.";
-"app_icon.piggy" = "Копилка";
-"app_icon.financium" = "Financium";
+"app_icon.dollar_wallet" = "Финансиум";
+"app_icon.dollar_wallet_alt" = "Кошелёк с купюрой";
+"app_icon.big_lether_wallet" = "Кардхолдер";
+"app_icon.lether_wallet" = "Маленький кардхолдер";
 
 /* Auth */
 "auth.greeting" = "Деньги под контролем";

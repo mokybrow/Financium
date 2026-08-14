@@ -12,9 +12,11 @@ import UIKit
 ///   3. Add an `AppIconPreview<Name>` imageset with a 1024×1024 render.
 ///   4. Add a case below.
 enum AppIconOption: String, CaseIterable, Identifiable {
-    /// The piggy bank, which is what the app wears out of the box.
-    case piggy
-    case financium
+    /// The primary wallet icon, selected when no alternate is active.
+    case dollarWallet
+    case dollarWallet2
+    case bigLetherWallet
+    case letherWallet
 
     var id: String { rawValue }
 
@@ -25,29 +27,35 @@ enum AppIconOption: String, CaseIterable, Identifiable {
     /// app carrying an alternate that happens to look identical.
     var alternateName: String? {
         switch self {
-        case .piggy: return nil
-        case .financium: return "Financium"
+        case .dollarWallet: return nil
+        case .dollarWallet2: return "DollarWallet2"
+        case .bigLetherWallet: return "BigLetherWallet"
+        case .letherWallet: return "LetherWallet"
         }
     }
 
     /// Preview thumbnail imageset bundled for the picker.
     var previewImageName: String {
         switch self {
-        case .piggy: return "AppIconPreviewPiggy"
-        case .financium: return "AppIconPreviewFinancium"
+        case .dollarWallet: return "AppIconPreviewDollarWallet"
+        case .dollarWallet2: return "AppIconPreviewDollarWallet2"
+        case .bigLetherWallet: return "AppIconPreviewBigLetherWallet"
+        case .letherWallet: return "AppIconPreviewLetherWallet"
         }
     }
 
     var titleKey: LocalizedStringKey {
         switch self {
-        case .piggy: return "app_icon.piggy"
-        case .financium: return "app_icon.financium"
+        case .dollarWallet: return "app_icon.dollar_wallet"
+        case .dollarWallet2: return "app_icon.dollar_wallet_alt"
+        case .bigLetherWallet: return "app_icon.big_lether_wallet"
+        case .letherWallet: return "app_icon.lether_wallet"
         }
     }
 
     static var current: AppIconOption {
         let name = UIApplication.shared.alternateIconName
-        return AppIconOption.allCases.first { $0.alternateName == name } ?? .piggy
+        return AppIconOption.allCases.first { $0.alternateName == name } ?? .dollarWallet
     }
 
     /// True while the app has nothing to choose between. The picker shows an
@@ -91,6 +99,7 @@ final class AppIconManager: ObservableObject {
 
 struct AppIconPickerView: View {
     @StateObject private var manager = AppIconManager.shared
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -140,6 +149,7 @@ struct AppIconPickerView: View {
         return HStack(spacing: 14) {
             Image(option.previewImageName)
                 .resizable()
+                .id("\(option.id)-\(colorScheme == .dark ? "dark" : "light")")
                 .aspectRatio(contentMode: .fill)
                 .frame(width: 36, height: 36)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))

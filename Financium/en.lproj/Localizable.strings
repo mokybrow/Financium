@@ -235,8 +235,10 @@
 "app_icon.empty" = "No alternate icons yet";
 "app_icon.empty.subtitle" = "Alternate icons will show up here once they are added to the app";
 "app_icon.unsupported" = "This device does not support alternate app icons.";
-"app_icon.piggy" = "Piggy Bank";
-"app_icon.financium" = "Financium";
+"app_icon.dollar_wallet" = "Financium";
+"app_icon.dollar_wallet_alt" = "Wallet With Dollar";
+"app_icon.big_lether_wallet" = "Card Holder";
+"app_icon.lether_wallet" = "Small Card Holder";
 
 /* Auth */
 "auth.greeting" = "Money, Sorted";

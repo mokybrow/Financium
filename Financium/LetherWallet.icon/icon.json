@@ -1,18 +1,10 @@
 {
   "fill" : {
-    "automatic-gradient" : "display-p3:0.99072,0.98486,0.93799,1.00000"
+    "automatic-gradient" : "display-p3:0.99023,0.98389,0.93750,1.00000"
   },
   "groups" : [
     {
       "layers" : [
-        {
-          "image-name" : "Financium1.png",
-          "name" : "Financium1"
-        },
-        {
-          "image-name" : "Financium2.png",
-          "name" : "Financium2"
-        },
         {
           "image-name" : "Financium.png",
           "name" : "Financium"
