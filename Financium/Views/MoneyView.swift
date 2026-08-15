@@ -48,6 +48,8 @@ struct MoneyView: View {
                     AccountEditorView(account: account)
                 case .correction(let account):
                     BalanceCorrectionView(account: account)
+                case .share(let account):
+                    SharedAccountView(account: account)
                 }
             }
             .fiErrorAlert($store.errorMessage)
@@ -59,20 +61,34 @@ struct MoneyView: View {
             FISectionHeader("money.accounts")
 
             if store.accounts.isEmpty {
-                // "No accounts yet" is an answer, and it should only be given
-                // once one is known. Until the backend has spoken — a cold start
-                // with nothing cached, or the moment after signing in — the
-                // space is left blank rather than telling the reader something
-                // untrue about their money.
-                FIEmptyState(
-                    title: "money.accounts.empty",
-                    subtitle: "money.accounts.empty.subtitle"
-                )
-                .opacity(store.hasLoaded ? 1 : 0)
-                // Given height rather than measured against the screen: the
-                // card above it is a fixed four rows, so the slack below is
-                // predictable and a geometry reader would earn nothing.
-                .frame(minHeight: 260)
+                // Three different nothings, and they must not look alike.
+                //
+                // "No accounts yet" is an answer and is only true once the
+                // backend has said so. A failed load is not that answer — it is
+                // a fault, and saying "no accounts" would tell someone their
+                // money is gone. Anything else is still in flight, and stays
+                // blank until it settles.
+                if store.hasLoaded {
+                    accountsNotice(
+                        title: Text("money.accounts.empty"),
+                        detail: Text("money.accounts.empty.subtitle")
+                    ) {
+                        EmptyView()
+                    }
+                } else if let failure = store.loadFailure {
+                    accountsNotice(
+                        title: Text("money.accounts.failed"),
+                        detail: Text(verbatim: failure)
+                    ) {
+                        Button("common.retry") {
+                            Task { await store.refresh() }
+                        }
+                        .buttonStyle(.bordered)
+                        .padding(.top, 4)
+                    }
+                } else {
+                    Color.clear.frame(height: placeholderHeight)
+                }
             } else {
                 FICard {
                     ForEach(Array(store.accounts.enumerated()), id: \.element.id) { index, account in
@@ -84,12 +100,55 @@ struct MoneyView: View {
         }
     }
 
+    private var placeholderHeight: CGFloat { 200 }
+
+    /// What stands in for the accounts card when there is no card to draw.
+    ///
+    /// Not `FIEmptyState`, which is built to be laid over a scroll view with
+    /// `.overlay` and sizes itself to whatever it covers. Used as a sibling in
+    /// this stack — which is what it was — its `maxHeight: .infinity` measures
+    /// the viewport *plus* the rows already above it, so the text lands below
+    /// the fold and a reader with no accounts sees an empty screen and no
+    /// explanation. A stated height puts it directly under the header, where
+    /// the card would have been.
+    private func accountsNotice(
+        title: Text,
+        detail: Text,
+        @ViewBuilder action: () -> some View
+    ) -> some View {
+        VStack(spacing: 8) {
+            title
+                .font(.system(.title3, design: .default).weight(.bold))
+                .foregroundStyle(.secondary)
+
+            detail
+                .font(FITheme.Typography.footnote)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+
+            action()
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: placeholderHeight)
+        .padding(.horizontal, FITheme.Metrics.cardInset)
+    }
+
     private func accountRow(_ account: Finance_Account) -> some View {
         Button {
             accountActivity = account
         } label: {
             FIListRow(title: Text(verbatim: account.name), subtitle: Text(verbatim: account.balance.formatted)) {
                 HStack(spacing: 12) {
+                    // Two people, when there are two people. Ahead of the
+                    // account's own glyph because it says something about who
+                    // the money belongs to rather than what kind of account it
+                    // is, and that is the more surprising fact of the two.
+                    if FinanceStore.isShared(account) {
+                        Image(systemName: "person.2.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel(Text("money.account.shared"))
+                    }
                     accountGlyph(account)
                         .foregroundStyle(FITheme.Palette.accent)
                     FIChevron()
@@ -109,6 +168,27 @@ struct MoneyView: View {
             } label: {
                 Label("money.account.correct", systemImage: "plusminus")
             }
+
+            // Sharing is the owner's to start and stop. A member sees "leave"
+            // instead, because walking away from someone else's account is
+            // theirs to do and closing it is not.
+            if store.isOwner(of: account) {
+                Button {
+                    sheet = .share(account)
+                } label: {
+                    Label(
+                        FinanceStore.isShared(account) ? "money.account.shared.manage" : "money.account.share",
+                        systemImage: "person.2"
+                    )
+                }
+            } else {
+                // Not a trash can: leaving is walking away from someone else's
+                // account, not throwing it out.
+                FIDestructiveMenuButton(titleKey: "money.account.leave", systemImage: "person.fill.xmark") {
+                    Task { await store.stopSharingAccount(account, memberID: store.currentUserID) }
+                }
+            }
+
             FIDestructiveMenuButton(titleKey: "money.account.delete") {
                 Task { await store.deleteAccount(account) }
             }
@@ -307,12 +387,14 @@ enum MoneySheet: Identifiable {
     case transaction(TransactionEditorKind)
     case account(Finance_Account?)
     case correction(Finance_Account)
+    case share(Finance_Account)
 
     var id: String {
         switch self {
         case .transaction(let kind): "transaction.\(kind.id)"
         case .account(let account): "account.\(account?.id ?? "new")"
         case .correction(let account): "correction.\(account.id)"
+        case .share(let account): "share.\(account.id)"
         }
     }
 }

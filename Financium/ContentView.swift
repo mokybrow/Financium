@@ -6,6 +6,7 @@ struct ContentView: View {
     @EnvironmentObject private var finance: FinanceStore
     @EnvironmentObject private var rates: ExchangeRates
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection: FinanceSection? = .money
 
     /// Set once the reader chooses to work without an account. Not persisted as
@@ -17,6 +18,10 @@ struct ContentView: View {
     @State private var migrating = false
     @State private var migrationReport: String?
     @State private var isBooting = true
+
+    /// An invite code waiting to be redeemed, and what came of it.
+    @State private var pendingInvite: String?
+    @State private var joinedAccountName: String?
 
     var body: some View {
         ZStack {
@@ -66,6 +71,46 @@ struct ContentView: View {
         .onAppear {
             finance.adopt(mode: auth.isAuthenticated ? .account : .local)
         }
+        .onChange(of: scenePhase) { _, phase in
+            // Polling a shared account only while somebody is looking at it.
+            // In the background there is nothing to update and no reason to
+            // keep asking.
+            switch phase {
+            case .active:
+                Task {
+                    await finance.refresh()
+                    finance.startLiveUpdates()
+                }
+            default:
+                finance.stopLiveUpdates()
+            }
+        }
+        .onOpenURL { url in
+            // Held rather than acted on: an invite that arrives before the
+            // session is ready would be redeemed as nobody.
+            if let code = Self.inviteCode(from: url) { pendingInvite = code }
+        }
+        .task(id: pendingInvite) {
+            guard let code = pendingInvite, auth.isAuthenticated else { return }
+            pendingInvite = nil
+            if let account = await finance.joinAccount(code: code) {
+                joinedAccountName = account.name
+            }
+        }
+        .alert(
+            Text("shared.joined.title"),
+            isPresented: Binding(
+                get: { joinedAccountName != nil },
+                set: { if !$0 { joinedAccountName = nil } }
+            )
+        ) {
+            Button("common.ok", role: .cancel) { joinedAccountName = nil }
+        } message: {
+            Text(verbatim: String(
+                format: NSLocalizedString("shared.joined.message", comment: "Joined a shared account"),
+                joinedAccountName ?? ""
+            ))
+        }
         .alert(Text("migration.offer.title"), isPresented: $offerMigration) {
             Button("migration.offer.move") { migrate() }
             Button("migration.offer.keep", role: .cancel) {}
@@ -88,6 +133,18 @@ struct ContentView: View {
                 ProgressView().controlSize(.large)
             }
         }
+    }
+
+    /// The invite code in `financium://join/<code>`, if that is what this is.
+    ///
+    /// Read from the path rather than a query item because the link is meant to
+    /// be short enough to read out loud, and `?code=` doubles its length for
+    /// nothing.
+    private static func inviteCode(from url: URL) -> String? {
+        guard url.scheme?.lowercased() == "financium",
+              url.host?.lowercased() == "join" else { return nil }
+        let code = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return code.isEmpty ? nil : code
     }
 
     /// Uploads the local ledger and reports what landed.

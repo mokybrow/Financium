@@ -89,6 +89,33 @@ struct RemoteFinanceBackend: FinanceBackend {
         }
     }
 
+    // MARK: Sharing
+
+    func shareAccount(id: String) async throws -> AccountInvite {
+        let response = try await call { client, metadata in
+            var request = Finance_ShareAccountRequest(); request.accountID = id
+            return try await client.shareAccount(request, metadata: metadata)
+        }
+        return AccountInvite(code: response.inviteCode, url: URL(string: response.inviteURL))
+    }
+
+    func joinAccount(code: String) async throws -> Finance_Account {
+        let response = try await call { client, metadata in
+            var request = Finance_JoinAccountRequest(); request.inviteCode = code
+            return try await client.joinAccount(request, metadata: metadata)
+        }
+        return response.account
+    }
+
+    func stopSharingAccount(id: String, memberID: String) async throws {
+        _ = try await call { client, metadata in
+            var request = Finance_StopSharingAccountRequest()
+            request.accountID = id
+            request.memberUserID = memberID
+            return try await client.stopSharingAccount(request, metadata: metadata)
+        }
+    }
+
     // MARK: Transactions
 
     func saveTransaction(

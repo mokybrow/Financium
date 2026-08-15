@@ -6,6 +6,15 @@ import SwiftProtobuf
 /// The screens want a consistent picture — balances that agree with the
 /// transactions that produced them — so the backends hand one over rather than
 /// letting each screen assemble its own from separate calls.
+/// What the owner passes to whoever they are sharing with.
+nonisolated struct AccountInvite: Sendable, Equatable {
+    /// The code on its own, for reading out or pasting where a link would not
+    /// survive.
+    let code: String
+    /// The same code as something tappable.
+    let url: URL?
+}
+
 nonisolated struct FinanceSnapshot {
     var overview = Finance_GetOverviewResponse()
     var accounts: [Finance_Account] = []
@@ -29,6 +38,17 @@ nonisolated protocol FinanceBackend: Sendable {
         balance: Decimal?, currency: String, isArchived: Bool
     ) async throws
     func deleteAccount(id: String) async throws
+
+    /// Turns an account into a shared one and returns the invite to pass on.
+    ///
+    /// Idempotent: asking twice hands back the same invite rather than minting a
+    /// second link that also still works.
+    func shareAccount(id: String) async throws -> AccountInvite
+    /// Redeems an invite, returning the account that was joined.
+    func joinAccount(code: String) async throws -> Finance_Account
+    /// Empty `memberID` makes the account private again — the owner's to send.
+    /// A member id removes that person; a member may pass their own to leave.
+    func stopSharingAccount(id: String, memberID: String) async throws
 
     func saveTransaction(
         id: String, kind: TransactionEditorKind,
@@ -270,6 +290,25 @@ actor LocalFinanceBackend: FinanceBackend {
         }
         accounts.removeAll { $0.id == id }
         try persist()
+    }
+
+    // MARK: Sharing
+
+    /// Refused, not faked.
+    ///
+    /// A shared account is two people looking at one ledger, and the local mode
+    /// has no second person and nowhere to put them. Returning an invite that
+    /// could never be redeemed would be a worse answer than saying no.
+    func shareAccount(id: String) async throws -> AccountInvite {
+        throw FinanceLedger.Failure.invalidArgument
+    }
+
+    func joinAccount(code: String) async throws -> Finance_Account {
+        throw FinanceLedger.Failure.invalidArgument
+    }
+
+    func stopSharingAccount(id: String, memberID: String) async throws {
+        throw FinanceLedger.Failure.invalidArgument
     }
 
     // MARK: Transactions

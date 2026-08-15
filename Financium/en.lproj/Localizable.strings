@@ -9,10 +9,13 @@
 "common.add" = "Add";
 "common.ok" = "OK";
 "common.error" = "Error";
+"common.retry" = "Try again";
 "error.budget.duplicate_category" = "This category already has a budget this month. Pick another category, or edit the existing budget.";
 "error.account.has_transactions" = "This account still has transactions, so it cannot be deleted.";
 "error.unreachable" = "Could not reach the server. Check your connection and try again.";
 "error.invalid" = "That could not be saved. Check the fields and try again.";
+"error.unauthorized" = "Your session has expired. Please sign in again.";
+"error.generic" = "Something went wrong. Please try again.";
 
 /* Working without an account */
 "auth.continue_locally" = "Continue without an account";
@@ -56,6 +59,7 @@
 "money.accounts" = "Accounts";
 "money.accounts.empty" = "No accounts yet";
 "money.accounts.empty.subtitle" = "Add an account to start tracking your money";
+"money.accounts.failed" = "Could not load your accounts";
 "money.accounts.add" = "Add Account";
 "money.add.incoming" = "Incoming";
 "money.add.expense" = "Expense";
@@ -254,3 +258,26 @@
 "currency.all" = "All currencies";
 "currency.search" = "Search currency";
 "profile.logout.message" = "You will need to sign in again to keep using the app.";
+
+/* Shared accounts */
+"money.account.share" = "Share account";
+"money.account.shared" = "Shared account";
+"money.account.shared.manage" = "Sharing";
+"money.account.leave" = "Leave account";
+"shared.title" = "Shared account";
+"shared.members.private" = "Only you can see this account";
+"shared.members.count" = "Shared with %d people";
+"shared.start" = "Share";
+"shared.start.action" = "Create an invite";
+"shared.start.hint" = "Anyone with the invite can see this account and add to it. They cannot rename it, share it further or delete it.";
+"shared.invite" = "Invite";
+"shared.invite.code" = "Code";
+"shared.invite.send" = "Send the invite";
+"shared.invite.hint" = "The same invite every time — sending it again does not create a second one.";
+"shared.stop" = "Sharing";
+"shared.stop.action" = "Make private again";
+"shared.stop.hint" = "The invite stops working and everyone else loses sight of the account. What they added stays.";
+"shared.stop.confirm" = "Make this account private?";
+"shared.stop.message" = "Everyone else will lose access. Anything they added to the account stays where it is.";
+"shared.joined.title" = "Account joined";
+"shared.joined.message" = "“%@” is now on your accounts.";

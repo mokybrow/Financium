@@ -20,5 +20,16 @@
 	<string>$(FINANCIUM_USERS_PORT)</string>
 	<key>FINANCIUM_USERS_TLS</key>
 	<string>$(FINANCIUM_USERS_TLS)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.gofinancium.Financium</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>financium</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

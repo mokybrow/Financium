@@ -9,10 +9,13 @@
 "common.add" = "Добавить";
 "common.ok" = "ОК";
 "common.error" = "Ошибка";
+"common.retry" = "Повторить";
 "error.budget.duplicate_category" = "У этой категории уже есть бюджет на месяц. Выберите другую категорию или измените существующий бюджет.";
 "error.account.has_transactions" = "На счёте есть операции, поэтому удалить его нельзя.";
 "error.unreachable" = "Не удалось связаться с сервером. Проверьте соединение и попробуйте ещё раз.";
 "error.invalid" = "Не удалось сохранить. Проверьте поля и попробуйте ещё раз.";
+"error.unauthorized" = "Сессия истекла. Войдите заново.";
+"error.generic" = "Что-то пошло не так. Попробуйте ещё раз.";
 
 /* Работа без аккаунта */
 "auth.continue_locally" = "Продолжить без аккаунта";
@@ -56,6 +59,7 @@
 "money.accounts" = "Счета";
 "money.accounts.empty" = "Счетов пока нет";
 "money.accounts.empty.subtitle" = "Добавьте счёт, чтобы начать вести учёт";
+"money.accounts.failed" = "Не удалось загрузить счета";
 "money.accounts.add" = "Добавить счёт";
 "money.add.incoming" = "Поступление";
 "money.add.expense" = "Расход";
@@ -254,3 +258,26 @@
 "currency.all" = "Все валюты";
 "currency.search" = "Поиск валюты";
 "profile.logout.message" = "Чтобы продолжить пользоваться приложением, потребуется войти снова.";
+
+/* Shared accounts */
+"money.account.share" = "Совместный счёт";
+"money.account.shared" = "Совместный счёт";
+"money.account.shared.manage" = "Доступ к счёту";
+"money.account.leave" = "Покинуть счёт";
+"shared.title" = "Совместный счёт";
+"shared.members.private" = "Счёт видите только вы";
+"shared.members.count" = "Участников: %d";
+"shared.start" = "Доступ";
+"shared.start.action" = "Создать приглашение";
+"shared.start.hint" = "Тот, у кого есть приглашение, увидит счёт и сможет пополнять его и тратить с него. Переименовать, поделиться дальше или удалить — нет.";
+"shared.invite" = "Приглашение";
+"shared.invite.code" = "Код";
+"shared.invite.send" = "Отправить приглашение";
+"shared.invite.hint" = "Приглашение одно и то же — отправить его ещё раз не создаст второе.";
+"shared.stop" = "Доступ";
+"shared.stop.action" = "Сделать снова личным";
+"shared.stop.hint" = "Приглашение перестанет работать, остальные потеряют доступ. Всё, что они внесли, останется.";
+"shared.stop.confirm" = "Сделать счёт личным?";
+"shared.stop.message" = "Остальные потеряют доступ к счёту. Всё, что они внесли, останется на месте.";
+"shared.joined.title" = "Счёт добавлен";
+"shared.joined.message" = "«%@» теперь в ваших счетах.";

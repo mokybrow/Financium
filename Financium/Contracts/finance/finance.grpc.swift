@@ -85,6 +85,58 @@ public enum Finance_FinanceService: Sendable {
                 type: .unary
             )
         }
+        /// Namespace for "ShareAccount" metadata.
+        public enum ShareAccount: Sendable {
+            /// Request type for "ShareAccount".
+            public typealias Input = Finance_ShareAccountRequest
+            /// Response type for "ShareAccount".
+            public typealias Output = Finance_ShareAccountResponse
+            /// Descriptor for "ShareAccount".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "finance.FinanceService"),
+                method: "ShareAccount",
+                type: .unary
+            )
+        }
+        /// Namespace for "JoinAccount" metadata.
+        public enum JoinAccount: Sendable {
+            /// Request type for "JoinAccount".
+            public typealias Input = Finance_JoinAccountRequest
+            /// Response type for "JoinAccount".
+            public typealias Output = Finance_AccountResponse
+            /// Descriptor for "JoinAccount".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "finance.FinanceService"),
+                method: "JoinAccount",
+                type: .unary
+            )
+        }
+        /// Namespace for "StopSharingAccount" metadata.
+        public enum StopSharingAccount: Sendable {
+            /// Request type for "StopSharingAccount".
+            public typealias Input = Finance_StopSharingAccountRequest
+            /// Response type for "StopSharingAccount".
+            public typealias Output = Finance_AccountResponse
+            /// Descriptor for "StopSharingAccount".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "finance.FinanceService"),
+                method: "StopSharingAccount",
+                type: .unary
+            )
+        }
+        /// Namespace for "ListAccountMembers" metadata.
+        public enum ListAccountMembers: Sendable {
+            /// Request type for "ListAccountMembers".
+            public typealias Input = Finance_ListAccountMembersRequest
+            /// Response type for "ListAccountMembers".
+            public typealias Output = Finance_ListAccountMembersResponse
+            /// Descriptor for "ListAccountMembers".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "finance.FinanceService"),
+                method: "ListAccountMembers",
+                type: .unary
+            )
+        }
         /// Namespace for "ListTransactions" metadata.
         public enum ListTransactions: Sendable {
             /// Request type for "ListTransactions".
@@ -248,6 +300,10 @@ public enum Finance_FinanceService: Sendable {
             CreateAccount.descriptor,
             UpdateAccount.descriptor,
             DeleteAccount.descriptor,
+            ShareAccount.descriptor,
+            JoinAccount.descriptor,
+            StopSharingAccount.descriptor,
+            ListAccountMembers.descriptor,
             ListTransactions.descriptor,
             CreateTransaction.descriptor,
             UpdateTransaction.descriptor,
@@ -354,6 +410,67 @@ extension Finance_FinanceService {
             request: GRPCCore.StreamingServerRequest<Finance_DeleteAccountRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Finance_MutationResponse>
+
+        /// Handle the "ShareAccount" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Sharing. An invite is a code the owner passes to someone by whatever means
+        /// > they like; joining is the other person redeeming it.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Finance_ShareAccountRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Finance_ShareAccountResponse` messages.
+        func shareAccount(
+            request: GRPCCore.StreamingServerRequest<Finance_ShareAccountRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Finance_ShareAccountResponse>
+
+        /// Handle the "JoinAccount" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Finance_JoinAccountRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Finance_AccountResponse` messages.
+        func joinAccount(
+            request: GRPCCore.StreamingServerRequest<Finance_JoinAccountRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Finance_AccountResponse>
+
+        /// Handle the "StopSharingAccount" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Finance_StopSharingAccountRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Finance_AccountResponse` messages.
+        func stopSharingAccount(
+            request: GRPCCore.StreamingServerRequest<Finance_StopSharingAccountRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Finance_AccountResponse>
+
+        /// Handle the "ListAccountMembers" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Finance_ListAccountMembersRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Finance_ListAccountMembersResponse` messages.
+        func listAccountMembers(
+            request: GRPCCore.StreamingServerRequest<Finance_ListAccountMembersRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Finance_ListAccountMembersResponse>
 
         /// Handle the "ListTransactions" method.
         ///
@@ -602,6 +719,67 @@ extension Finance_FinanceService {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Finance_MutationResponse>
 
+        /// Handle the "ShareAccount" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Sharing. An invite is a code the owner passes to someone by whatever means
+        /// > they like; joining is the other person redeeming it.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_ShareAccountRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Finance_ShareAccountResponse` message.
+        func shareAccount(
+            request: GRPCCore.ServerRequest<Finance_ShareAccountRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Finance_ShareAccountResponse>
+
+        /// Handle the "JoinAccount" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_JoinAccountRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Finance_AccountResponse` message.
+        func joinAccount(
+            request: GRPCCore.ServerRequest<Finance_JoinAccountRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Finance_AccountResponse>
+
+        /// Handle the "StopSharingAccount" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_StopSharingAccountRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Finance_AccountResponse` message.
+        func stopSharingAccount(
+            request: GRPCCore.ServerRequest<Finance_StopSharingAccountRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Finance_AccountResponse>
+
+        /// Handle the "ListAccountMembers" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_ListAccountMembersRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Finance_ListAccountMembersResponse` message.
+        func listAccountMembers(
+            request: GRPCCore.ServerRequest<Finance_ListAccountMembersRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Finance_ListAccountMembersResponse>
+
         /// Handle the "ListTransactions" method.
         ///
         /// - Parameters:
@@ -847,6 +1025,67 @@ extension Finance_FinanceService {
             context: GRPCCore.ServerContext
         ) async throws -> Finance_MutationResponse
 
+        /// Handle the "ShareAccount" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Sharing. An invite is a code the owner passes to someone by whatever means
+        /// > they like; joining is the other person redeeming it.
+        ///
+        /// - Parameters:
+        ///   - request: A `Finance_ShareAccountRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Finance_ShareAccountResponse` to respond with.
+        func shareAccount(
+            request: Finance_ShareAccountRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Finance_ShareAccountResponse
+
+        /// Handle the "JoinAccount" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Finance_JoinAccountRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Finance_AccountResponse` to respond with.
+        func joinAccount(
+            request: Finance_JoinAccountRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Finance_AccountResponse
+
+        /// Handle the "StopSharingAccount" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Finance_StopSharingAccountRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Finance_AccountResponse` to respond with.
+        func stopSharingAccount(
+            request: Finance_StopSharingAccountRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Finance_AccountResponse
+
+        /// Handle the "ListAccountMembers" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Finance_ListAccountMembersRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Finance_ListAccountMembersResponse` to respond with.
+        func listAccountMembers(
+            request: Finance_ListAccountMembersRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Finance_ListAccountMembersResponse
+
         /// Handle the "ListTransactions" method.
         ///
         /// - Parameters:
@@ -1077,6 +1316,50 @@ extension Finance_FinanceService.StreamingServiceProtocol {
             }
         )
         router.registerHandler(
+            forMethod: Finance_FinanceService.Method.ShareAccount.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Finance_ShareAccountRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Finance_ShareAccountResponse>(),
+            handler: { request, context in
+                try await self.shareAccount(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Finance_FinanceService.Method.JoinAccount.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Finance_JoinAccountRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Finance_AccountResponse>(),
+            handler: { request, context in
+                try await self.joinAccount(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Finance_FinanceService.Method.StopSharingAccount.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Finance_StopSharingAccountRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Finance_AccountResponse>(),
+            handler: { request, context in
+                try await self.stopSharingAccount(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Finance_FinanceService.Method.ListAccountMembers.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Finance_ListAccountMembersRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Finance_ListAccountMembersResponse>(),
+            handler: { request, context in
+                try await self.listAccountMembers(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
             forMethod: Finance_FinanceService.Method.ListTransactions.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<Finance_ListTransactionsRequest>(),
             serializer: GRPCProtobuf.ProtobufSerializer<Finance_ListTransactionsResponse>(),
@@ -1263,6 +1546,50 @@ extension Finance_FinanceService.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<Finance_MutationResponse> {
         let response = try await self.deleteAccount(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func shareAccount(
+        request: GRPCCore.StreamingServerRequest<Finance_ShareAccountRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Finance_ShareAccountResponse> {
+        let response = try await self.shareAccount(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func joinAccount(
+        request: GRPCCore.StreamingServerRequest<Finance_JoinAccountRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Finance_AccountResponse> {
+        let response = try await self.joinAccount(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func stopSharingAccount(
+        request: GRPCCore.StreamingServerRequest<Finance_StopSharingAccountRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Finance_AccountResponse> {
+        let response = try await self.stopSharingAccount(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func listAccountMembers(
+        request: GRPCCore.StreamingServerRequest<Finance_ListAccountMembersRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Finance_ListAccountMembersResponse> {
+        let response = try await self.listAccountMembers(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -1463,6 +1790,58 @@ extension Finance_FinanceService.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Finance_MutationResponse> {
         return GRPCCore.ServerResponse<Finance_MutationResponse>(
             message: try await self.deleteAccount(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func shareAccount(
+        request: GRPCCore.ServerRequest<Finance_ShareAccountRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Finance_ShareAccountResponse> {
+        return GRPCCore.ServerResponse<Finance_ShareAccountResponse>(
+            message: try await self.shareAccount(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func joinAccount(
+        request: GRPCCore.ServerRequest<Finance_JoinAccountRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Finance_AccountResponse> {
+        return GRPCCore.ServerResponse<Finance_AccountResponse>(
+            message: try await self.joinAccount(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func stopSharingAccount(
+        request: GRPCCore.ServerRequest<Finance_StopSharingAccountRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Finance_AccountResponse> {
+        return GRPCCore.ServerResponse<Finance_AccountResponse>(
+            message: try await self.stopSharingAccount(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func listAccountMembers(
+        request: GRPCCore.ServerRequest<Finance_ListAccountMembersRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Finance_ListAccountMembersResponse> {
+        return GRPCCore.ServerResponse<Finance_ListAccountMembersResponse>(
+            message: try await self.listAccountMembers(
                 request: request.message,
                 context: context
             ),
@@ -1729,6 +2108,87 @@ extension Finance_FinanceService {
             deserializer: some GRPCCore.MessageDeserializer<Finance_MutationResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_MutationResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ShareAccount" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Sharing. An invite is a code the owner passes to someone by whatever means
+        /// > they like; joining is the other person redeeming it.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_ShareAccountRequest` message.
+        ///   - serializer: A serializer for `Finance_ShareAccountRequest` messages.
+        ///   - deserializer: A deserializer for `Finance_ShareAccountResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func shareAccount<Result>(
+            request: GRPCCore.ClientRequest<Finance_ShareAccountRequest>,
+            serializer: some GRPCCore.MessageSerializer<Finance_ShareAccountRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Finance_ShareAccountResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_ShareAccountResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "JoinAccount" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_JoinAccountRequest` message.
+        ///   - serializer: A serializer for `Finance_JoinAccountRequest` messages.
+        ///   - deserializer: A deserializer for `Finance_AccountResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func joinAccount<Result>(
+            request: GRPCCore.ClientRequest<Finance_JoinAccountRequest>,
+            serializer: some GRPCCore.MessageSerializer<Finance_JoinAccountRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Finance_AccountResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_AccountResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "StopSharingAccount" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_StopSharingAccountRequest` message.
+        ///   - serializer: A serializer for `Finance_StopSharingAccountRequest` messages.
+        ///   - deserializer: A deserializer for `Finance_AccountResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func stopSharingAccount<Result>(
+            request: GRPCCore.ClientRequest<Finance_StopSharingAccountRequest>,
+            serializer: some GRPCCore.MessageSerializer<Finance_StopSharingAccountRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Finance_AccountResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_AccountResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ListAccountMembers" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_ListAccountMembersRequest` message.
+        ///   - serializer: A serializer for `Finance_ListAccountMembersRequest` messages.
+        ///   - deserializer: A deserializer for `Finance_ListAccountMembersResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listAccountMembers<Result>(
+            request: GRPCCore.ClientRequest<Finance_ListAccountMembersRequest>,
+            serializer: some GRPCCore.MessageSerializer<Finance_ListAccountMembersRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Finance_ListAccountMembersResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_ListAccountMembersResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "ListTransactions" method.
@@ -2119,6 +2579,131 @@ extension Finance_FinanceService {
             try await self.client.unary(
                 request: request,
                 descriptor: Finance_FinanceService.Method.DeleteAccount.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ShareAccount" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Sharing. An invite is a code the owner passes to someone by whatever means
+        /// > they like; joining is the other person redeeming it.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_ShareAccountRequest` message.
+        ///   - serializer: A serializer for `Finance_ShareAccountRequest` messages.
+        ///   - deserializer: A deserializer for `Finance_ShareAccountResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func shareAccount<Result>(
+            request: GRPCCore.ClientRequest<Finance_ShareAccountRequest>,
+            serializer: some GRPCCore.MessageSerializer<Finance_ShareAccountRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Finance_ShareAccountResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_ShareAccountResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Finance_FinanceService.Method.ShareAccount.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "JoinAccount" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_JoinAccountRequest` message.
+        ///   - serializer: A serializer for `Finance_JoinAccountRequest` messages.
+        ///   - deserializer: A deserializer for `Finance_AccountResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func joinAccount<Result>(
+            request: GRPCCore.ClientRequest<Finance_JoinAccountRequest>,
+            serializer: some GRPCCore.MessageSerializer<Finance_JoinAccountRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Finance_AccountResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_AccountResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Finance_FinanceService.Method.JoinAccount.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "StopSharingAccount" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_StopSharingAccountRequest` message.
+        ///   - serializer: A serializer for `Finance_StopSharingAccountRequest` messages.
+        ///   - deserializer: A deserializer for `Finance_AccountResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func stopSharingAccount<Result>(
+            request: GRPCCore.ClientRequest<Finance_StopSharingAccountRequest>,
+            serializer: some GRPCCore.MessageSerializer<Finance_StopSharingAccountRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Finance_AccountResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_AccountResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Finance_FinanceService.Method.StopSharingAccount.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ListAccountMembers" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Finance_ListAccountMembersRequest` message.
+        ///   - serializer: A serializer for `Finance_ListAccountMembersRequest` messages.
+        ///   - deserializer: A deserializer for `Finance_ListAccountMembersResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func listAccountMembers<Result>(
+            request: GRPCCore.ClientRequest<Finance_ListAccountMembersRequest>,
+            serializer: some GRPCCore.MessageSerializer<Finance_ListAccountMembersRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Finance_ListAccountMembersResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_ListAccountMembersResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Finance_FinanceService.Method.ListAccountMembers.descriptor,
                 serializer: serializer,
                 deserializer: deserializer,
                 options: options,
@@ -2616,6 +3201,111 @@ extension Finance_FinanceService.ClientProtocol {
         )
     }
 
+    /// Call the "ShareAccount" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Sharing. An invite is a code the owner passes to someone by whatever means
+    /// > they like; joining is the other person redeeming it.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Finance_ShareAccountRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func shareAccount<Result>(
+        request: GRPCCore.ClientRequest<Finance_ShareAccountRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_ShareAccountResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.shareAccount(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Finance_ShareAccountRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Finance_ShareAccountResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "JoinAccount" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Finance_JoinAccountRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func joinAccount<Result>(
+        request: GRPCCore.ClientRequest<Finance_JoinAccountRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_AccountResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.joinAccount(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Finance_JoinAccountRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Finance_AccountResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "StopSharingAccount" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Finance_StopSharingAccountRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func stopSharingAccount<Result>(
+        request: GRPCCore.ClientRequest<Finance_StopSharingAccountRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_AccountResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.stopSharingAccount(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Finance_StopSharingAccountRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Finance_AccountResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListAccountMembers" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Finance_ListAccountMembersRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func listAccountMembers<Result>(
+        request: GRPCCore.ClientRequest<Finance_ListAccountMembersRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_ListAccountMembersResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listAccountMembers(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Finance_ListAccountMembersRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Finance_ListAccountMembersResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
     /// Call the "ListTransactions" method.
     ///
     /// - Parameters:
@@ -3059,6 +3749,127 @@ extension Finance_FinanceService.ClientProtocol {
             metadata: metadata
         )
         return try await self.deleteAccount(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ShareAccount" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Sharing. An invite is a code the owner passes to someone by whatever means
+    /// > they like; joining is the other person redeeming it.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func shareAccount<Result>(
+        _ message: Finance_ShareAccountRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_ShareAccountResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Finance_ShareAccountRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.shareAccount(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "JoinAccount" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func joinAccount<Result>(
+        _ message: Finance_JoinAccountRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_AccountResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Finance_JoinAccountRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.joinAccount(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "StopSharingAccount" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func stopSharingAccount<Result>(
+        _ message: Finance_StopSharingAccountRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_AccountResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Finance_StopSharingAccountRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.stopSharingAccount(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ListAccountMembers" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func listAccountMembers<Result>(
+        _ message: Finance_ListAccountMembersRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Finance_ListAccountMembersResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Finance_ListAccountMembersRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listAccountMembers(
             request: request,
             options: options,
             onResponse: handleResponse

@@ -36,6 +36,14 @@ final class FinanceStore: ObservableObject {
     @Published private(set) var hasLoaded = false
     @Published var errorMessage: String?
 
+    /// Why the last load failed, or nil.
+    ///
+    /// Separate from `errorMessage` because that one belongs to the alert and
+    /// is cleared the moment it is dismissed. A screen that has nothing to show
+    /// still needs to know why after the alert has gone, or it goes back to
+    /// looking like an empty account.
+    @Published private(set) var loadFailure: String?
+
     /// The window every screen is looking at.
     ///
     /// A period rather than a month, because the picker offers an arbitrary
@@ -124,6 +132,7 @@ final class FinanceStore: ObservableObject {
             cache.clear()
         }
         hasLoaded = false
+        loadFailure = nil
     }
 
     /// The local ledger, for the sign-in migration to read and clear.
@@ -196,6 +205,7 @@ final class FinanceStore: ObservableObject {
             apply(snapshot)
             hasLoaded = true
             errorMessage = nil
+            loadFailure = nil
 
             // Only the account mode is cached: local mode's file is the ledger
             // itself, so a copy of it would be a copy of the original. And only
@@ -224,7 +234,9 @@ final class FinanceStore: ObservableObject {
                 enabled: snapshot.settings.monthlyRemindersEnabled
             )
         } catch {
-            errorMessage = Self.message(for: error)
+            let message = Self.message(for: error)
+            errorMessage = message
+            loadFailure = message
         }
     }
 
@@ -335,6 +347,93 @@ final class FinanceStore: ObservableObject {
 
     // MARK: - Plumbing
 
+    // MARK: - Live updates
+
+    /// How often a shared account is re-read while the app is in front.
+    ///
+    /// A poll, not a subscription. Financium has no push registration and no
+    /// streaming RPC, and inventing either for this would be a larger change
+    /// than the feature. Fifteen seconds is short enough that a partner's
+    /// spending appears while you are still looking at the screen, and long
+    /// enough to be unnoticeable on a phone bill.
+    private static let liveRefreshInterval = Duration.seconds(15)
+
+    private var liveUpdates: Task<Void, Never>?
+
+    /// True when anything on screen belongs to more than one person.
+    ///
+    /// Polling a ledger only you can write to would be asking the server to
+    /// confirm what this device already knows.
+    var hasSharedAccounts: Bool {
+        accounts.contains { Self.isShared($0) }
+    }
+
+    /// Starts re-reading while the app is in front and something is shared.
+    func startLiveUpdates() {
+        stopLiveUpdates()
+        guard mode == .account, hasSharedAccounts else { return }
+
+        liveUpdates = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.liveRefreshInterval)
+                guard !Task.isCancelled else { return }
+                await self?.refresh()
+            }
+        }
+    }
+
+    func stopLiveUpdates() {
+        liveUpdates?.cancel()
+        liveUpdates = nil
+    }
+
+    // MARK: - Sharing
+
+    /// Whether an account is shared with anyone, for the badge on its row.
+    nonisolated static func isShared(_ account: Finance_Account) -> Bool {
+        account.memberCount > 1
+    }
+
+    /// Who is looking, for the calls that need to name them — leaving a shared
+    /// account is "remove me", and the server needs the id to know who that is.
+    var currentUserID: String { auth.user?.userID ?? "" }
+
+    /// Whether this reader may invite others or make the account private again.
+    func isOwner(of account: Finance_Account) -> Bool {
+        // An account with no owner recorded is one from before sharing existed,
+        // and it belongs to whoever is looking at it.
+        account.ownerUserID.isEmpty || account.ownerUserID == auth.user?.userID
+    }
+
+    /// Shares an account and returns the invite to pass on.
+    func shareAccount(_ account: Finance_Account) async -> AccountInvite? {
+        do {
+            let invite = try await backend.shareAccount(id: account.id)
+            await refresh()
+            return invite
+        } catch {
+            errorMessage = Self.message(for: error)
+            return nil
+        }
+    }
+
+    /// Redeems an invite. Returns the account joined, so the screen can say which.
+    func joinAccount(code: String) async -> Finance_Account? {
+        do {
+            let account = try await backend.joinAccount(code: code)
+            await refresh()
+            return account
+        } catch {
+            errorMessage = Self.message(for: error)
+            return nil
+        }
+    }
+
+    /// Makes an account private again, or removes one member from it.
+    func stopSharingAccount(_ account: Finance_Account, memberID: String = "") async -> Bool {
+        await mutation { try await $0.stopSharingAccount(id: account.id, memberID: memberID) }
+    }
+
     private func mutation(_ operation: (any FinanceBackend) async throws -> Void) async -> Bool {
         do {
             try await operation(backend)
@@ -362,16 +461,26 @@ final class FinanceStore: ObservableObject {
                 return NSLocalizedString("error.invalid", comment: "Write refused")
             }
         }
-        guard let rpc = error as? RPCError else { return error.localizedDescription }
+        guard let rpc = error as? RPCError else {
+            return NSLocalizedString("error.generic", comment: "Something went wrong")
+        }
         switch rpc.code {
         case .alreadyExists:
             return NSLocalizedString("error.budget.duplicate_category", comment: "Category already budgeted")
         case .failedPrecondition:
             return NSLocalizedString("error.account.has_transactions", comment: "Account still has transactions")
-        case .unavailable, .deadlineExceeded:
+        case .unavailable, .deadlineExceeded, .cancelled:
             return NSLocalizedString("error.unreachable", comment: "Server unreachable")
+        case .unauthenticated, .permissionDenied:
+            return NSLocalizedString("error.unauthorized", comment: "Session no longer valid")
+        case .invalidArgument, .notFound, .outOfRange:
+            return NSLocalizedString("error.invalid", comment: "Write refused")
         default:
-            return error.localizedDescription
+            // Never `localizedDescription`. On an error that is not a
+            // `LocalizedError` — which `RPCError` is not — Foundation falls
+            // back to the numeric form, and the reader is told their accounts
+            // could not be loaded because of "runtime error 1".
+            return NSLocalizedString("error.generic", comment: "Something went wrong")
         }
     }
 }
