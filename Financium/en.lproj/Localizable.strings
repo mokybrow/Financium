@@ -15,6 +15,7 @@
 "error.unreachable" = "Could not reach the server. Check your connection and try again.";
 "error.invalid" = "That could not be saved. Check the fields and try again.";
 "error.unauthorized" = "Your session has expired. Please sign in again.";
+"error.forbidden" = "The server refused that request. The app may be newer than the server — try again later.";
 "error.generic" = "Something went wrong. Please try again.";
 
 /* Working without an account */

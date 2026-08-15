@@ -308,13 +308,16 @@ final class AuthSession: ObservableObject {
     /// Anything else — no network, a timeout, a service that is down — leaves
     /// the tokens alone. They may well still be good, and the reader can try
     /// again when there is a connection.
+    ///
+    /// `permissionDenied` used to count and no longer does. The two codes say
+    /// different things: `unauthenticated` is "I do not know who you are",
+    /// which a stored token cannot answer, while `permissionDenied` is "I know
+    /// who you are and the answer is no". Signing out over the second throws
+    /// away a session that was working — and the gateway returns exactly that
+    /// for any RPC missing from its role table, so a new endpoint could log
+    /// people out of an app that was otherwise fine.
     private static func endsSession(_ error: RPCError) -> Bool {
-        switch error.code {
-        case .unauthenticated, .permissionDenied:
-            return true
-        default:
-            return false
-        }
+        error.code == .unauthenticated
     }
 
     private func authMutation(

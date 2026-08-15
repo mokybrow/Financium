@@ -18,10 +18,45 @@ struct ContentView: View {
     @State private var migrating = false
     @State private var migrationReport: String?
     @State private var isBooting = true
+    @State private var firstLoadTimedOut = false
+
+    /// Whether the launch screen should stay up for the first read of the
+    /// ledger.
+    ///
+    /// The session check finishes long before the ledger does, so releasing the
+    /// splash on that alone handed the reader a Money screen with a heading and
+    /// a blank space under it — the emptiest possible answer to "how much money
+    /// do I have", given before anything had been asked. Held until the first
+    /// load settles either way.
+    ///
+    /// Cached figures end the wait too: they are last night's numbers rather
+    /// than this second's, but they are the reader's own and are worth more
+    /// than a logo. Signed out, there is nothing to wait for.
+    private var isLoadingFirstContent: Bool {
+        guard auth.isAuthenticated, !firstLoadTimedOut else { return false }
+        return !finance.hasLoaded && finance.loadFailure == nil && finance.accounts.isEmpty
+    }
 
     /// An invite code waiting to be redeemed, and what came of it.
     @State private var pendingInvite: String?
     @State private var joinedAccountName: String?
+
+    /// What the invite task watches.
+    ///
+    /// The session belongs in here as well as the code. A link tapped by
+    /// somebody not yet signed in — which on a second device is the usual
+    /// case — has to wait, and watching the code alone meant it waited
+    /// forever: the guard returned, the code never changed, and nothing ever
+    /// asked again. Signing in now moves this value and the held invite is
+    /// redeemed.
+    private struct InviteAttempt: Equatable {
+        let code: String?
+        let signedIn: Bool
+    }
+
+    private var inviteAttempt: InviteAttempt {
+        InviteAttempt(code: pendingInvite, signedIn: auth.isAuthenticated)
+    }
 
     var body: some View {
         ZStack {
@@ -39,15 +74,24 @@ struct ContentView: View {
             }
 
             // One screen for every wait that happens before there is anything to
-            // look at: the cold start, and the round trip to Apple after the
-            // sign-in button is pressed.
-            if isBooting || auth.isWorking {
+            // look at: the cold start, the round trip to Apple after the
+            // sign-in button is pressed, and the first read of the ledger.
+            if isBooting || auth.isWorking || isLoadingFirstContent {
                 LaunchScreen()
                     .transition(.opacity)
                     .zIndex(1)
             }
         }
         .animation(.easeOut(duration: 0.25), value: auth.isWorking)
+        .animation(.easeOut(duration: 0.25), value: isLoadingFirstContent)
+        // Insurance, not a schedule. Every path through `refresh()` ends in
+        // either `hasLoaded` or `loadFailure`, so this should never fire — but
+        // "should never" is a poor reason to let a splash screen be the last
+        // thing somebody sees.
+        .task {
+            try? await Task.sleep(for: .seconds(8))
+            firstLoadTimedOut = true
+        }
         .task {
             // Held until the stored session has been checked, so the first thing
             // drawn is the screen the reader belongs on — rather than the
@@ -60,6 +104,9 @@ struct ContentView: View {
             withAnimation(.easeOut(duration: 0.25)) { isBooting = false }
         }
         .onChange(of: auth.isAuthenticated) { _, signedIn in
+            // Signing in starts a fresh wait, so the escape hatch from the last
+            // one must not still be latched open.
+            firstLoadTimedOut = false
             finance.adopt(mode: signedIn ? .account : .local)
             Task {
                 await finance.refresh()
@@ -90,10 +137,16 @@ struct ContentView: View {
             // session is ready would be redeemed as nobody.
             if let code = Self.inviteCode(from: url) { pendingInvite = code }
         }
-        .task(id: pendingInvite) {
+        .task(id: inviteAttempt) {
             guard let code = pendingInvite, auth.isAuthenticated else { return }
+            // Cleared after the call, not before. `id:` is what keeps this task
+            // alive, so writing to `pendingInvite` first changed the id and
+            // cancelled the very task making the request — the join was called
+            // off mid-flight and the reader was told something had gone wrong,
+            // by the app that had gone and done it.
+            let account = await finance.joinAccount(code: code)
             pendingInvite = nil
-            if let account = await finance.joinAccount(code: code) {
+            if let account {
                 joinedAccountName = account.name
             }
         }

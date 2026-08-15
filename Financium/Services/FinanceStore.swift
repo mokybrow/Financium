@@ -471,8 +471,13 @@ final class FinanceStore: ObservableObject {
             return NSLocalizedString("error.account.has_transactions", comment: "Account still has transactions")
         case .unavailable, .deadlineExceeded, .cancelled:
             return NSLocalizedString("error.unreachable", comment: "Server unreachable")
-        case .unauthenticated, .permissionDenied:
+        case .unauthenticated:
             return NSLocalizedString("error.unauthorized", comment: "Session no longer valid")
+        case .permissionDenied:
+            // Not the same thing as an expired session, and saying so sent
+            // readers to sign in again over a call the server was never going
+            // to allow — which signing in again does not change.
+            return NSLocalizedString("error.forbidden", comment: "Call refused")
         case .invalidArgument, .notFound, .outOfRange:
             return NSLocalizedString("error.invalid", comment: "Write refused")
         default:
