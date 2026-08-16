@@ -138,7 +138,17 @@ struct ProfileView: View {
             .sheet(isPresented: $nameEditor) { NameEditorView() }
             .sheet(isPresented: $emailEditor) { EmailChangeView() }
             .alert(Text("profile.logout.confirm"), isPresented: $showLogout) {
-                Button("profile.logout", role: .destructive) { auth.logout() }
+                Button("profile.logout", role: .destructive) {
+                    Task {
+                        // Detached before the session ends, because the call
+                        // needs the token that signing out is about to discard.
+                        // Left registered, this phone would keep receiving one
+                        // person's shared-account notifications after somebody
+                        // else signed in on it.
+                        await PushNotifications.shared.unregisterCurrentDevice(auth: auth)
+                        auth.logout()
+                    }
+                }
                 Button("common.cancel", role: .cancel) {}
             } message: {
                 Text("profile.logout.message")

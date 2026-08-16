@@ -5,6 +5,7 @@ struct ContentView: View {
     @EnvironmentObject private var auth: AuthSession
     @EnvironmentObject private var finance: FinanceStore
     @EnvironmentObject private var rates: ExchangeRates
+    @StateObject private var push = PushNotifications.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: FinanceSection? = .money
@@ -67,6 +68,11 @@ struct ContentView: View {
                             if auth.isAuthenticated { await auth.loadUser() }
                             await rates.refresh()
                             await finance.refresh()
+                            // After the ledger, not before: the permission
+                            // sheet should not be the first thing on screen,
+                            // and the token has nowhere to go until there is a
+                            // session to attach it to.
+                            if auth.isAuthenticated { await push.activate(auth: auth) }
                         }
                 } else {
                     AuthView { localMode = true }
@@ -109,6 +115,10 @@ struct ContentView: View {
             firstLoadTimedOut = false
             finance.adopt(mode: signedIn ? .account : .local)
             Task {
+                // A token issued before anyone signed in has been sitting
+                // unattached; this is the moment it can be filed under a
+                // person. On a second device that is the usual order.
+                if signedIn { await push.activate(auth: auth) }
                 await finance.refresh()
                 // Asked, not assumed: uploading someone's ledger is not a thing
                 // to do quietly because they happened to sign in.
@@ -116,7 +126,15 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            finance.adopt(mode: auth.isAuthenticated ? .account : .local)
+            // Deferred by one turn of the run loop rather than run inline.
+            //
+            // `adopt` clears nine published properties at once, and `onAppear`
+            // fires while SwiftUI is still assembling this view — which is what
+            // "Publishing changes from within view updates is not allowed" was
+            // reporting, eight times, once per property. A hop puts the writes
+            // after the update they were interrupting.
+            let mode: FinanceMode = auth.isAuthenticated ? .account : .local
+            Task { @MainActor in finance.adopt(mode: mode) }
         }
         .onChange(of: scenePhase) { _, phase in
             // Polling a shared account only while somebody is looking at it.
@@ -136,6 +154,16 @@ struct ContentView: View {
             // Held rather than acted on: an invite that arrives before the
             // session is ready would be redeemed as nobody.
             if let code = Self.inviteCode(from: url) { pendingInvite = code }
+        }
+        .onChange(of: push.pendingDeepLink) { _, link in
+            guard let link else { return }
+            // A tapped notification means somebody else has just moved money on
+            // a shared account, so the figures on screen are already out of
+            // date. Re-reading is the whole point of the notification; the
+            // link itself carries no destination the app has a screen for yet.
+            if let code = Self.inviteCode(from: link) { pendingInvite = code }
+            push.consumePendingDeepLink(link)
+            Task { await finance.refresh() }
         }
         .task(id: inviteAttempt) {
             guard let code = pendingInvite, auth.isAuthenticated else { return }

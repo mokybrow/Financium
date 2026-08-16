@@ -248,6 +248,22 @@ final class AuthSession: ObservableObject {
         }
     }
 
+    /// A valid access token for a plain HTTP call, renewed first if it has
+    /// expired.
+    ///
+    /// The push endpoints live on sso-service's REST side rather than gRPC, so
+    /// they cannot go through `withAuthorizedMetadata` and need the token
+    /// itself. Everything else about it is the same: an expired one is
+    /// refreshed, and a refused refresh returns nothing rather than a token
+    /// that will only be rejected.
+    func currentAccessToken() async -> String? {
+        if let access = SecureTokens.read(Self.accessKey), !tokenExpired(access) {
+            return access
+        }
+        guard await refreshOutcome() == .renewed else { return nil }
+        return SecureTokens.read(Self.accessKey)
+    }
+
     private var bearerMetadata: Metadata? {
         guard let access = SecureTokens.read(Self.accessKey) else { return nil }
         var metadata: Metadata = [:]

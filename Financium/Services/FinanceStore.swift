@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import os
 import GRPCCore
 import SwiftProtobuf
 
@@ -67,6 +68,9 @@ final class FinanceStore: ObservableObject {
     private let reminders = BudgetReminders()
     private let cache: FinanceCache
     private var cacheWrite: Task<Void, Never>?
+
+    /// The read currently in flight, so overlapping callers share it.
+    private var refreshTask: Task<Void, Never>?
 
     init(
         auth: AuthSession,
@@ -191,7 +195,27 @@ final class FinanceStore: ObservableObject {
 
     // MARK: - Reading
 
+    /// Re-reads everything, one refresh at a time.
+    ///
+    /// Four separate things ask for this — the screen appearing, the scene
+    /// becoming active, the shared-account poll, and the end of every write —
+    /// and they routinely overlap. Overlapping was not merely wasteful: when
+    /// one of those callers went away its task was cancelled, `withGRPCClient`
+    /// tore its connection down, and the request in flight came back
+    /// `clientIsStopped`. Joining the one already running answers every caller
+    /// from a single read and removes the overlap that produced it.
     func refresh() async {
+        if let inFlight = refreshTask {
+            await inFlight.value
+            return
+        }
+        let task = Task { await performRefresh() }
+        refreshTask = task
+        await task.value
+        refreshTask = nil
+    }
+
+    private func performRefresh() async {
         if mode == .account, !auth.isAuthenticated { return }
         isLoading = true
         defer { isLoading = false }
@@ -234,10 +258,41 @@ final class FinanceStore: ObservableObject {
                 enabled: snapshot.settings.monthlyRemindersEnabled
             )
         } catch {
+            // Logged before it is translated. What the reader is shown is a
+            // sentence they can act on; what is kept here is the thing that
+            // says why, including the cases the mapping collapses into
+            // "something went wrong".
+            let detail = FinanceLog.describe(error)
+
+            // A refresh that was called off is not a refresh that failed.
+            // Cancellation happens constantly and by design — leaving a screen,
+            // backgrounding the app, stopping the shared-account poll — and the
+            // gRPC client reports it as `clientIsStopped`, which reads like a
+            // fault and was being shown as one. Nothing is wrong, and the state
+            // from the last real answer stays as it was.
+            guard !Self.wasCancelled(error) else {
+                FinanceLog.store.debug("refresh cancelled: \(detail, privacy: .public)")
+                return
+            }
+
+            FinanceLog.store.error("refresh failed: \(detail, privacy: .public)")
             let message = Self.message(for: error)
             errorMessage = message
             loadFailure = message
         }
+    }
+
+    /// Whether an error means "nobody is waiting for this any more".
+    ///
+    /// `clientIsStopped` is matched on its text because grpc-swift reports a
+    /// cancelled call that way: the surrounding task is cancelled, the client
+    /// it was using shuts down, and the request that was in flight is told the
+    /// client is gone. There is no typed case to check for, and mistaking it
+    /// for a real failure is what put "something went wrong" on screen after
+    /// an ordinary screen change.
+    private static func wasCancelled(_ error: Error) -> Bool {
+        if Task.isCancelled || error is CancellationError { return true }
+        return String(reflecting: error).contains("clientIsStopped")
     }
 
     // MARK: - Writing
@@ -412,6 +467,7 @@ final class FinanceStore: ObservableObject {
             await refresh()
             return invite
         } catch {
+            guard !Self.wasCancelled(error) else { return nil }
             errorMessage = Self.message(for: error)
             return nil
         }
@@ -424,6 +480,12 @@ final class FinanceStore: ObservableObject {
             await refresh()
             return account
         } catch {
+            let detail = FinanceLog.describe(error)
+            guard !Self.wasCancelled(error) else {
+                FinanceLog.store.debug("joinAccount cancelled: \(detail, privacy: .public)")
+                return nil
+            }
+            FinanceLog.store.error("joinAccount failed: \(detail, privacy: .public)")
             errorMessage = Self.message(for: error)
             return nil
         }
@@ -440,6 +502,12 @@ final class FinanceStore: ObservableObject {
             await refresh()
             return true
         } catch {
+            let detail = FinanceLog.describe(error)
+            guard !Self.wasCancelled(error) else {
+                FinanceLog.store.debug("write cancelled: \(detail, privacy: .public)")
+                return false
+            }
+            FinanceLog.store.error("write failed: \(detail, privacy: .public)")
             errorMessage = Self.message(for: error)
             return false
         }

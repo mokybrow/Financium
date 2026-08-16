@@ -2,6 +2,7 @@ import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
 import GRPCProtobuf
+import os
 import SwiftProtobuf
 
 /// Money kept by `money-service`, reached over gRPC.
@@ -15,42 +16,80 @@ struct RemoteFinanceBackend: FinanceBackend {
 
     // MARK: Reading
 
+    /// Everything the screens need, in one connection and one round trip's worth
+    /// of waiting.
+    ///
+    /// This used to be five separate `call`s. Each one stands up its own
+    /// transport — DNS, TCP, TLS handshake — runs a single request and tears it
+    /// down again, so a refresh paid that price five times over, in series. On
+    /// a phone that is most of the wait; it is also most of the wait after
+    /// every save, because a write ends with a refresh.
+    ///
+    /// Now one connection carries all five, one after another. Four fewer
+    /// handshakes is where nearly all of the saving was.
+    ///
+    /// They were briefly issued concurrently with `async let`, which is faster
+    /// still on paper and did not work: every request came back
+    /// `clientIsStopped`. `withGRPCClient` shuts its client down as soon as the
+    /// closure it was given returns, and child tasks spawned inside that
+    /// closure are not part of what it waits for — so the connection was being
+    /// torn down underneath requests that had only just been issued. Sequential
+    /// calls are inside the closure's own execution and cannot lose that race.
     func load(period: FinancePeriod, monthKey: String) async throws -> FinanceSnapshot {
-        var snapshot = FinanceSnapshot()
         let interval = period.interval
         let explicitRange = period.explicitRange
 
-        snapshot.overview = try await call { client, metadata in
-            var request = Finance_GetOverviewRequest()
-            request.month = monthKey
-            // Only a real range travels; a month is left to the server so its
-            // boundaries match the ones budgets are read with.
-            if let explicitRange {
-                request.from = Google_Protobuf_Timestamp(date: explicitRange.start)
-                request.to = Google_Protobuf_Timestamp(date: explicitRange.end)
-            }
-            return try await client.getOverview(request, metadata: metadata)
-        }
-        snapshot.accounts = snapshot.overview.accounts
+        return try await call { client, metadata in
+            // Built first and then left alone, so the requests are plain `let`s
+            // rather than mutable state read further down.
+            let overviewRequest: Finance_GetOverviewRequest = {
+                var request = Finance_GetOverviewRequest()
+                request.month = monthKey
+                // Only a real range travels; a month is left to the server so
+                // its boundaries match the ones budgets are read with.
+                if let explicitRange {
+                    request.from = Google_Protobuf_Timestamp(date: explicitRange.start)
+                    request.to = Google_Protobuf_Timestamp(date: explicitRange.end)
+                }
+                return request
+            }()
 
-        snapshot.transactions = try await call { client, metadata in
-            var request = Finance_ListTransactionsRequest()
-            request.from = Google_Protobuf_Timestamp(date: interval.start)
-            request.to = Google_Protobuf_Timestamp(date: interval.end)
-            request.limit = 200
-            return try await client.listTransactions(request, metadata: metadata).transactions
+            let transactionsRequest: Finance_ListTransactionsRequest = {
+                var request = Finance_ListTransactionsRequest()
+                request.from = Google_Protobuf_Timestamp(date: interval.start)
+                request.to = Google_Protobuf_Timestamp(date: interval.end)
+                request.limit = 200
+                return request
+            }()
+
+            let budgetsRequest: Finance_ListBudgetsRequest = {
+                var request = Finance_ListBudgetsRequest()
+                request.month = monthKey
+                return request
+            }()
+
+            // Each one named, because they share a single `call` whose
+            // `#function` label would only ever say "load". When a refresh
+            // fails, which of the five refused is the entire question.
+            var snapshot = FinanceSnapshot()
+            snapshot.overview = try await Self.traced("getOverview") {
+                try await client.getOverview(overviewRequest, metadata: metadata)
+            }
+            snapshot.accounts = snapshot.overview.accounts
+            snapshot.transactions = try await Self.traced("listTransactions") {
+                try await client.listTransactions(transactionsRequest, metadata: metadata).transactions
+            }
+            snapshot.budgets = try await Self.traced("listBudgets") {
+                try await client.listBudgets(budgetsRequest, metadata: metadata).budgets
+            }
+            snapshot.goals = try await Self.traced("listGoals") {
+                try await client.listGoals(Finance_ListGoalsRequest(), metadata: metadata).goals
+            }
+            snapshot.settings = try await Self.traced("getSettings") {
+                try await client.getSettings(Finance_GetSettingsRequest(), metadata: metadata)
+            }
+            return snapshot
         }
-        snapshot.budgets = try await call { client, metadata in
-            var request = Finance_ListBudgetsRequest(); request.month = monthKey
-            return try await client.listBudgets(request, metadata: metadata).budgets
-        }
-        snapshot.goals = try await call { client, metadata in
-            try await client.listGoals(Finance_ListGoalsRequest(), metadata: metadata).goals
-        }
-        snapshot.settings = try await call { client, metadata in
-            try await client.getSettings(Finance_GetSettingsRequest(), metadata: metadata)
-        }
-        return snapshot
     }
 
     // MARK: Accounts
@@ -242,7 +281,53 @@ struct RemoteFinanceBackend: FinanceBackend {
         return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
     }
 
+    /// Runs one request against a fresh connection, and says so if it fails.
+    ///
+    /// `label` defaults to the calling method, so every site names itself
+    /// without being told to. What is logged is the code and the server's own
+    /// message — the half that `localizedDescription` discards and the only
+    /// half that ever explains anything, since a refusal like "RPC method is
+    /// not registered in RBAC" reaches the app as a bare status code.
     private func call<T: Sendable>(
+        label: String = #function,
+        _ action: (Finance_FinanceService.Client<HTTP2ClientTransport.Posix>, Metadata) async throws -> T
+    ) async throws -> T {
+        let started = ContinuousClock.now
+        do {
+            let value = try await connect(action)
+            let elapsed = FinanceLog.milliseconds(since: started)
+            FinanceLog.network.debug("\(label, privacy: .public) ok in \(elapsed, privacy: .public) ms")
+            return value
+        } catch {
+            // `.public` on every part, deliberately. os.Logger redacts
+            // interpolated values by default, and a diagnostic that prints
+            // `<private> failed: <private>` is worse than none — it looks like
+            // it is telling you something. None of this is anybody's data:
+            // it is a method name, a duration and a status code.
+            let elapsed = FinanceLog.milliseconds(since: started)
+            let detail = FinanceLog.describe(error)
+            FinanceLog.network.error(
+                "\(label, privacy: .public) failed after \(elapsed, privacy: .public) ms: \(detail, privacy: .public)"
+            )
+            throw error
+        }
+    }
+
+    /// Names a single request inside a shared connection.
+    private static func traced<T: Sendable>(
+        _ label: String,
+        _ body: () async throws -> T
+    ) async throws -> T {
+        do {
+            return try await body()
+        } catch {
+            let detail = FinanceLog.describe(error)
+            FinanceLog.network.error("\(label, privacy: .public) failed: \(detail, privacy: .public)")
+            throw error
+        }
+    }
+
+    private func connect<T: Sendable>(
         _ action: (Finance_FinanceService.Client<HTTP2ClientTransport.Posix>, Metadata) async throws -> T
     ) async throws -> T {
         try await auth.withAuthorizedMetadata { metadata in

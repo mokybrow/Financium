@@ -15,7 +15,7 @@ nonisolated struct AccountInvite: Sendable, Equatable {
     let url: URL?
 }
 
-nonisolated struct FinanceSnapshot {
+nonisolated struct FinanceSnapshot: Sendable {
     var overview = Finance_GetOverviewResponse()
     var accounts: [Finance_Account] = []
     var transactions: [Finance_Transaction] = []
