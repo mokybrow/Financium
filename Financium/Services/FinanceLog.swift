@@ -13,7 +13,15 @@ import os
 /// `os.Logger` rather than `print`: the lines survive into Console.app and
 /// `log stream` from a device that is not attached to Xcode, which is where
 /// these failures actually happen.
-enum FinanceLog {
+/// `nonisolated` because logging belongs to no actor.
+///
+/// The target's default isolation is the main actor, which would have put this
+/// there too — and then a failure inside a network call, which happens off the
+/// main actor by definition, could not report itself without hopping back. A
+/// logger that can only be reached from one thread is a logger that is absent
+/// exactly where things go wrong. `os.Logger` is `Sendable` and safe from
+/// anywhere, so nothing is given up by saying so.
+nonisolated enum FinanceLog {
     static let network = Logger(subsystem: subsystem, category: "network")
     static let store = Logger(subsystem: subsystem, category: "store")
     static let push = Logger(subsystem: subsystem, category: "push")

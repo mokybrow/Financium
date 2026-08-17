@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import os
 import UIKit
 import UserNotifications
 
@@ -103,7 +104,7 @@ final class PushNotifications: NSObject, ObservableObject {
             // A refusal is not an error worth surfacing: the app works without
             // notifications, and there is nothing for the reader to do about it
             // from here.
-            NSLog("Financium: push authorization failed: \(error.localizedDescription)")
+            FinanceLog.push.error("authorization failed: \(FinanceLog.describe(error), privacy: .public)")
         }
     }
 
@@ -123,7 +124,7 @@ final class PushNotifications: NSObject, ObservableObject {
     }
 
     nonisolated func didFailToRegister(error: Error) {
-        NSLog("Financium: APNs registration failed: \(error.localizedDescription)")
+        FinanceLog.push.error("APNs registration failed: \(FinanceLog.describe(error), privacy: .public)")
     }
 
     /// Sends the stored token to the backend, if there is one and somebody to
@@ -138,7 +139,7 @@ final class PushNotifications: NSObject, ObservableObject {
                 app_version: Self.appVersion
             ), auth: auth)
         } catch {
-            NSLog("Financium: push token registration failed: \(error.localizedDescription)")
+            FinanceLog.push.error("token registration failed: \(FinanceLog.describe(error), privacy: .public)")
         }
     }
 
@@ -153,7 +154,7 @@ final class PushNotifications: NSObject, ObservableObject {
         do {
             try await send(path: "/push/unregister", body: UnregisterRequest(token: token), auth: auth)
         } catch {
-            NSLog("Financium: push token unregistration failed: \(error.localizedDescription)")
+            FinanceLog.push.error("token unregistration failed: \(FinanceLog.describe(error), privacy: .public)")
         }
     }
 
