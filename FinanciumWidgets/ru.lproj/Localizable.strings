@@ -1,0 +1,17 @@
+"widget.quick_add.title" = "Быстрая запись";
+"widget.quick_add.description" = "Добавить расход или доход одним касанием.";
+"widget.quick_add.expense" = "Расход";
+"widget.quick_add.income" = "Доход";
+"widget.summary.title" = "Итоги";
+"widget.summary.description" = "Баланс, траты и поступления за период.";
+"widget.summary.total" = "Всего";
+"widget.summary.spent" = "Потрачено";
+"widget.summary.earned" = "Получено";
+"widget.summary.difference" = "Разница";
+"widget.budget.title" = "Бюджет";
+"widget.budget.description" = "Насколько израсходован ближайший к лимиту бюджет.";
+"widget.budget.empty" = "Добавьте бюджет, чтобы следить за ним отсюда";
+"widget.budget.entity" = "Бюджет";
+"unit.thousand" = "тыс.";
+"unit.million" = "млн";
+"unit.billion" = "млрд";

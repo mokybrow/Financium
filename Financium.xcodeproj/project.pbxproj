@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0BDDBC573032F4AC0017578D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BDDBC563032F4AC0017578D /* WidgetKit.framework */; };
+		0BDDBC593032F4AC0017578D /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BDDBC583032F4AC0017578D /* SwiftUI.framework */; };
+		0BDDBC6A3032F4AE0017578D /* FinanciumWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0BDDBC543032F4AC0017578D /* FinanciumWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		FC0000013020589B00F7510A /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = FC0001013020589B00F7510A /* SwiftProtobuf */; };
 		FC0000023020589B00F7510A /* GRPCCore in Frameworks */ = {isa = PBXBuildFile; productRef = FC0001023020589B00F7510A /* GRPCCore */; };
 		FC0000033020589B00F7510A /* GRPCProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = FC0001033020589B00F7510A /* GRPCProtobuf */; };
@@ -14,11 +17,45 @@
 		FC0000053020589B00F7510A /* GRPCNIOTransportHTTP2Posix in Frameworks */ = {isa = PBXBuildFile; productRef = FC0001053020589B00F7510A /* GRPCNIOTransportHTTP2Posix */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		0BDDBC683032F4AE0017578D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0B79BA983020589B00F7510A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0BDDBC533032F4AC0017578D;
+			remoteInfo = FinanciumWidgetsExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		0BDDBC6F3032F4AE0017578D /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				0BDDBC6A3032F4AE0017578D /* FinanciumWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		0B79BAA03020589B00F7510A /* Financium.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Financium.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0BDDBC543032F4AC0017578D /* FinanciumWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FinanciumWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		0BDDBC563032F4AC0017578D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		0BDDBC583032F4AC0017578D /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0BDDBC6E3032F4AE0017578D /* Exceptions for "FinanciumWidgets" folder in "FinanciumWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0BDDBC533032F4AC0017578D /* FinanciumWidgetsExtension */;
+		};
 		FC0003013020589B00F7510A /* Exceptions for "Financium" folder in "Financium" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -37,6 +74,14 @@
 			path = Financium;
 			sourceTree = "<group>";
 		};
+		0BDDBC5A3032F4AC0017578D /* FinanciumWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0BDDBC6E3032F4AE0017578D /* Exceptions for "FinanciumWidgets" folder in "FinanciumWidgetsExtension" target */,
+			);
+			path = FinanciumWidgets;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,6 +97,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0BDDBC513032F4AC0017578D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0BDDBC593032F4AC0017578D /* SwiftUI.framework in Frameworks */,
+				0BDDBC573032F4AC0017578D /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -59,6 +113,8 @@
 			isa = PBXGroup;
 			children = (
 				0B79BAA23020589B00F7510A /* Financium */,
+				0BDDBC5A3032F4AC0017578D /* FinanciumWidgets */,
+				0BDDBC553032F4AC0017578D /* Frameworks */,
 				0B79BAA13020589B00F7510A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -67,8 +123,18 @@
 			isa = PBXGroup;
 			children = (
 				0B79BAA03020589B00F7510A /* Financium.app */,
+				0BDDBC543032F4AC0017578D /* FinanciumWidgetsExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0BDDBC553032F4AC0017578D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				0BDDBC563032F4AC0017578D /* WidgetKit.framework */,
+				0BDDBC583032F4AC0017578D /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -81,10 +147,12 @@
 				0B79BA9C3020589B00F7510A /* Sources */,
 				0B79BA9D3020589B00F7510A /* Frameworks */,
 				0B79BA9E3020589B00F7510A /* Resources */,
+				0BDDBC6F3032F4AE0017578D /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				0BDDBC693032F4AE0017578D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0B79BAA23020589B00F7510A /* Financium */,
@@ -101,6 +169,28 @@
 			productReference = 0B79BAA03020589B00F7510A /* Financium.app */;
 			productType = "com.apple.product-type.application";
 		};
+		0BDDBC533032F4AC0017578D /* FinanciumWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0BDDBC6B3032F4AE0017578D /* Build configuration list for PBXNativeTarget "FinanciumWidgetsExtension" */;
+			buildPhases = (
+				0BDDBC503032F4AC0017578D /* Sources */,
+				0BDDBC513032F4AC0017578D /* Frameworks */,
+				0BDDBC523032F4AC0017578D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				0BDDBC5A3032F4AC0017578D /* FinanciumWidgets */,
+			);
+			name = FinanciumWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = FinanciumWidgetsExtension;
+			productReference = 0BDDBC543032F4AC0017578D /* FinanciumWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -112,6 +202,9 @@
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					0B79BA9F3020589B00F7510A = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					0BDDBC533032F4AC0017578D = {
 						CreatedOnToolsVersion = 26.6;
 					};
 				};
@@ -138,12 +231,20 @@
 			projectRoot = "";
 			targets = (
 				0B79BA9F3020589B00F7510A /* Financium */,
+				0BDDBC533032F4AC0017578D /* FinanciumWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		0B79BA9E3020589B00F7510A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0BDDBC523032F4AC0017578D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -160,7 +261,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0BDDBC503032F4AC0017578D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0BDDBC693032F4AE0017578D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0BDDBC533032F4AC0017578D /* FinanciumWidgetsExtension */;
+			targetProxy = 0BDDBC683032F4AE0017578D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0B79BAA93020589C00F7510A /* Debug */ = {
@@ -288,7 +404,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Financium/Financium.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = XVGJW3U9VA;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -317,6 +433,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Financium/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Financium;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -327,7 +444,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 1.0.2;
@@ -355,7 +472,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Financium/Financium.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = XVGJW3U9VA;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -384,6 +501,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Financium/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Financium;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -394,7 +512,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 1.0.2;
@@ -410,6 +528,73 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		0BDDBC6C3032F4AE0017578D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = FinanciumWidgets/FinanciumWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 7;
+				DEVELOPMENT_TEAM = XVGJW3U9VA;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FinanciumWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FinanciumWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gofinancium.Financium.FinanciumWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		0BDDBC6D3032F4AE0017578D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = FinanciumWidgets/FinanciumWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 7;
+				DEVELOPMENT_TEAM = XVGJW3U9VA;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FinanciumWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FinanciumWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gofinancium.Financium.FinanciumWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -430,6 +615,15 @@
 			buildConfigurations = (
 				0B79BAAC3020589C00F7510A /* Debug */,
 				0B79BAAD3020589C00F7510A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0BDDBC6B3032F4AE0017578D /* Build configuration list for PBXNativeTarget "FinanciumWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0BDDBC6C3032F4AE0017578D /* Debug */,
+				0BDDBC6D3032F4AE0017578D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

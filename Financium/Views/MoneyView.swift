@@ -7,6 +7,9 @@ struct MoneyView: View {
     @State private var sheet: MoneySheet?
     @State private var activityKind: ActivityKind?
     @State private var accountActivity: Finance_Account?
+    /// Waiting on a confirmation. Deleting is one tap in a menu that opens on
+    /// a long press, and none of it can be undone.
+    @State private var pendingAccountDeletion: Finance_Account?
 
     var body: some View {
         NavigationStack {
@@ -29,7 +32,9 @@ struct MoneyView: View {
             }
             .refreshable {
                 await rates.refresh()
-                await store.refresh()
+                // A pull is a request for the truth now, so it does not settle
+                // for an answer that was already on its way.
+                await store.refresh(force: true)
             }
             .navigationDestination(item: $activityKind) { kind in
                 AccountActivityView(kind: kind)
@@ -53,6 +58,36 @@ struct MoneyView: View {
                 }
             }
             .fiErrorAlert($store.errorMessage)
+            .fiConfirmDelete($pendingAccountDeletion) { account in
+                Task { await store.deleteAccount(account) }
+            }
+            .onChange(of: store.pendingQuickAdd) { _, kind in
+                guard kind != nil else { return }
+                presentPendingQuickAdd()
+            }
+            .task {
+                // A tile tapped from a cold start sets this before this screen
+                // exists, so the change above never fires. Checked once on
+                // appearance for that case.
+                presentPendingQuickAdd()
+            }
+        }
+    }
+
+    /// Opens the editor a widget asked for, once there is something to open it
+    /// from.
+    ///
+    /// Deferred by one turn of the run loop. A tile tapped from a cold start
+    /// sets this while the tab bar is still being assembled, and presenting a
+    /// sheet from a `TabHostingController` that is not yet in the view
+    /// hierarchy is what produced "Presenting view controller from detached
+    /// view controller" — a warning today, a crash in a future release, and in
+    /// the meantime a sheet with the wrong safe-area insets.
+    private func presentPendingQuickAdd() {
+        guard let kind = store.pendingQuickAdd else { return }
+        store.pendingQuickAdd = nil
+        Task { @MainActor in
+            sheet = .transaction(kind)
         }
     }
 
@@ -190,7 +225,7 @@ struct MoneyView: View {
             }
 
             FIDestructiveMenuButton(titleKey: "money.account.delete") {
-                Task { await store.deleteAccount(account) }
+                pendingAccountDeletion = account
             }
         }
     }
@@ -457,6 +492,7 @@ struct AccountActivityView: View {
     /// total opens the transactions that add up to it rather than all of them.
     @State private var currencyFilter = ""
     @State private var editingTransaction: Finance_Transaction?
+    @State private var pendingTransactionDeletion: Finance_Transaction?
 
     init(kind: ActivityKind) {
         self.kind = kind
@@ -532,6 +568,9 @@ struct AccountActivityView: View {
             }
         }
         .sheet(item: $editingTransaction) { TransactionEditorView(transaction: $0) }
+        .fiConfirmDelete($pendingTransactionDeletion) { transaction in
+            Task { await store.deleteTransaction(transaction) }
+        }
     }
 
     /// Account scope and currency, both as named rows.
@@ -609,7 +648,7 @@ struct AccountActivityView: View {
                 Label("common.edit", systemImage: "pencil")
             }
             FIDestructiveMenuButton(titleKey: "transaction.delete") {
-                Task { await store.deleteTransaction(transaction) }
+                pendingTransactionDeletion = transaction
             }
         }
     }

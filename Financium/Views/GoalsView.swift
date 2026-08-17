@@ -6,6 +6,9 @@ import SwiftUI
 struct GoalsView: View {
     @EnvironmentObject private var store: FinanceStore
     @State private var editor: GoalEditorTarget?
+    /// The goal being read, and the one waiting on a confirmation.
+    @State private var viewing: Finance_Goal?
+    @State private var pendingDeletion: Finance_Goal?
 
     var body: some View {
         NavigationStack {
@@ -44,23 +47,41 @@ struct GoalsView: View {
                     }
                 }
             }
-            .refreshable { await store.refresh() }
+            .refreshable { await store.refresh(force: true) }
             .sheet(item: $editor) { target in
                 GoalEditorView(goal: target.goal)
             }
             .fiErrorAlert($store.errorMessage)
+            .fiConfirmDelete($pendingDeletion) { goal in
+                Task { await store.deleteGoal(goal) }
+            }
+            .sheet(item: $viewing) { goal in
+                GoalDetailView(goal: goal)
+                    // Three rows of figures do not need a full screen, and a
+                    // sheet the size of its contents leaves the list visible
+                    // behind it — which is where the reader came from and is
+                    // going back to.
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+            }
         }
     }
 
     private func row(_ goal: Finance_Goal) -> some View {
+        // A tap reads the goal in full; editing moved to the context menu, so
+        // the exact figures have somewhere to be seen that is not the form
+        // that changes them.
         Button {
-            editor = GoalEditorTarget(goal: goal)
+            viewing = goal
         } label: {
             if let problem = problem(with: goal) {
+                // A chevron, not "Edit ›". Tapping opens the goal to be read,
+                // and offering the word for what the long press does would
+                // promise the wrong screen.
                 FIListRow(
                     title: Text(verbatim: name(of: goal)),
                     subtitle: Text(problem),
-                    accessory: .valueChevron(Text("common.edit"))
+                    accessory: .chevron
                 )
             } else {
                 FIProgressRow(
@@ -76,8 +97,14 @@ struct GoalsView: View {
         .buttonStyle(.plain)
         .id(goal.id)
         .fiRowContextMenu {
+            Button {
+                editor = GoalEditorTarget(goal: goal)
+            } label: {
+                Label("common.edit", systemImage: "pencil")
+            }
+
             FIDestructiveMenuButton(titleKey: "goals.delete") {
-                Task { await store.deleteGoal(goal) }
+                pendingDeletion = goal
             }
         }
     }
@@ -107,8 +134,8 @@ struct GoalsView: View {
     private func savedText(_ goal: Finance_Goal) -> String {
         String(
             format: NSLocalizedString("goals.saved_format", comment: "Saved of target"),
-            goal.saved.formatted,
-            goal.target.formatted
+            goal.saved.abbreviated,
+            goal.target.abbreviated
         )
     }
 
@@ -125,7 +152,7 @@ struct GoalsView: View {
         let difference = goal.target.decimalValue - goal.saved.decimalValue
         let money = Finance_Money(decimal: abs(difference), currencyCode: goal.target.currencyCode)
         let key = difference >= 0 ? "goals.left_format" : "goals.over_format"
-        return String(format: NSLocalizedString(key, comment: "Goal progress"), money.formatted)
+        return String(format: NSLocalizedString(key, comment: "Goal progress"), money.abbreviated)
     }
 
     private func progress(_ goal: Finance_Goal) -> Double {
@@ -138,4 +165,63 @@ struct GoalsView: View {
 struct GoalEditorTarget: Identifiable {
     let goal: Finance_Goal?
     var id: String { goal?.id ?? "new" }
+}
+
+/// A goal in full, with nothing shortened.
+private struct GoalDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let goal: Finance_Goal
+
+    private var difference: Decimal { goal.target.decimalValue - goal.saved.decimalValue }
+    private var isMet: Bool { difference <= 0 }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
+                    FICard {
+                        FIListRow(
+                            title: Text("goal.view.target"),
+                            accessory: .value(Text(verbatim: goal.target.formatted))
+                        )
+                        FIRowSeparator()
+                        FIListRow(
+                            title: Text("goal.view.saved"),
+                            accessory: .value(Text(verbatim: goal.saved.formatted))
+                        )
+                        FIRowSeparator()
+                        FIListRow(
+                            title: Text(isMet ? "goal.over_title" : "goal.view.left"),
+                            accessory: .value(
+                                Text(verbatim: Finance_Money(
+                                    decimal: abs(difference),
+                                    currencyCode: goal.target.currencyCode
+                                ).formatted)
+                            )
+                        )
+                    }
+                }
+                .fiCardInsets()
+                .padding(.top, 12)
+                .padding(.bottom, 28)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .fiPageBackground()
+            .navigationTitle(Text(verbatim: goal.title.isEmpty
+                ? FinanceCategoryStore.displayName(for: goal.category)
+                : goal.title))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    // The label colour, not the accent: `eoSheetChrome` tints
+                    // every other sheet's close button this way, and a blue
+                    // cross on one screen and a black one on the next reads as
+                    // two different controls.
+                    Button(role: .close) { dismiss() }
+                        .tint(.primary)
+                }
+            }
+        }
+    }
 }

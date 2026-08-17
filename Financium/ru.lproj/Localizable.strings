@@ -141,8 +141,8 @@
 
 /* Budget */
 "budget.title" = "Бюджет";
-"budget.left_format" = "осталось %@";
-"budget.over_format" = "превышен на %@";
+"budget.left_format" = "ещё %@";
+"budget.over_format" = "сверх %@";
 "budget.spent_format" = "%1$@ из %2$@";
 "budget.empty" = "Бюджетов пока нет";
 "budget.empty.subtitle" = "Задайте лимит для категории расходов";
@@ -282,3 +282,32 @@
 "shared.stop.message" = "Остальные потеряют доступ к счёту. Всё, что они внесли, останется на месте.";
 "shared.joined.title" = "Счёт добавлен";
 "shared.joined.message" = "«%@» теперь в ваших счетах.";
+"widget.quick_add.title" = "Быстрая запись";
+"widget.quick_add.description" = "Добавить расход или доход одним касанием.";
+"widget.quick_add.expense" = "Расход";
+"widget.quick_add.income" = "Доход";
+"widget.summary.title" = "Итоги";
+"widget.summary.description" = "Баланс, траты и поступления за период.";
+"widget.summary.total" = "Всего";
+"widget.summary.spent" = "Потрачено";
+"widget.summary.earned" = "Получено";
+"widget.summary.difference" = "Разница";
+"widget.budget.title" = "Бюджет";
+"widget.budget.description" = "Насколько израсходован ближайший к лимиту бюджет.";
+"widget.budget.empty" = "Добавьте бюджет, чтобы следить за ним отсюда";
+"unit.thousand" = "тыс.";
+"unit.million" = "млн";
+"unit.billion" = "млрд";
+"common.delete.confirm" = "Удалить?";
+"common.delete.message" = "Это действие нельзя отменить.";
+"budget.view.title" = "Бюджет";
+"budget.view.limit" = "Лимит";
+"budget.view.spent" = "Потрачено";
+"budget.view.left" = "Остаток";
+"goal.view.title" = "Цель";
+"goal.view.target" = "Цель";
+"goal.view.saved" = "Накоплено";
+"goal.view.left" = "Осталось";
+"budget.over_title" = "Превышение";
+"goal.over_title" = "Сверх цели";
+"widget.budget.entity" = "Бюджет";

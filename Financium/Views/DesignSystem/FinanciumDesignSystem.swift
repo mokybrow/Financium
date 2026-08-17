@@ -307,29 +307,23 @@ struct FIProgressRow: View {
     let progress: Double
     var tint: Color = FITheme.Palette.accent
 
+    /// Title above, bar in the middle, figures below.
+    ///
+    /// The title and the status used to share one line, and neither fitted: a
+    /// budget called "Мобильный интернет" shrank until it was unreadable so
+    /// that "превышен на 500 ₽" could sit beside it, and the status was
+    /// truncated anyway. They are two different things — what this is, and how
+    /// it is going — and each now has the width of the row to say it in. The
+    /// title may run to two lines rather than shrink, because a name is read,
+    /// not measured.
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    title
-                        .font(FITheme.Typography.rowTitle)
-                        .foregroundStyle(.primary)
-
-                    if let subtitle {
-                        subtitle
-                            .font(FITheme.Typography.rowSubtitle)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+            title
+                .font(FITheme.Typography.rowTitle)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-                if let trailing {
-                    trailing
-                        .font(FITheme.Typography.rowValue)
-                        .foregroundStyle(trailingColor)
-                        .lineLimit(1)
-                }
-            }
 
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
@@ -343,6 +337,27 @@ struct FIProgressRow: View {
             }
             .frame(height: 6)
             .accessibilityHidden(true)
+
+            if subtitle != nil || trailing != nil {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    if let subtitle {
+                        subtitle
+                            .font(FITheme.Typography.rowSubtitle)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if let trailing {
+                        trailing
+                            .font(FITheme.Typography.rowSubtitle)
+                            .foregroundStyle(trailingColor)
+                            .lineLimit(1)
+                    }
+                }
+            }
         }
         .padding(.horizontal, FITheme.Metrics.cardInset)
         .padding(.vertical, FITheme.Metrics.rowVerticalPadding)
@@ -752,9 +767,26 @@ extension View {
     func fiErrorAlert(_ message: Binding<String?>) -> some View {
         alert(Text("common.error"), isPresented: Binding(
             get: { message.wrappedValue != nil },
-            set: { if !$0 { message.wrappedValue = nil } }
+            // Cleared on the next turn of the run loop, not inside the setter.
+            //
+            // SwiftUI calls this while it is deciding what the alert should be,
+            // which is part of the view update — and the value being written is
+            // `@Published` on the store, so writing it there is a change
+            // published from within an update. That is what the warning said,
+            // and it is undefined rather than merely untidy: the update is
+            // reading the same object it is being asked to change.
+            set: { presented in
+                guard !presented else { return }
+                Task { @MainActor in message.wrappedValue = nil }
+            }
         )) {
-            Button("common.ok", role: .cancel) { message.wrappedValue = nil }
+            Button("common.ok", role: .cancel) {
+                // The button's action runs after the update, so this one is
+                // free to write straight away — and it is what normally clears
+                // the message; the setter above is the path taken when the
+                // alert is dismissed some other way.
+                message.wrappedValue = nil
+            }
         } message: {
             Text(message.wrappedValue ?? "")
         }
@@ -842,6 +874,58 @@ struct FIDestructiveMenuButton: View {
             Label(titleKey, systemImage: systemImage)
         }
         .tint(FITheme.Palette.destructive)
+    }
+}
+
+/// A destructive action that asks first.
+///
+/// Deleting an account, a budget or a transaction is one tap in a context menu
+/// — a menu that opens on a long press, which is easy to trigger by accident
+/// while scrolling — and none of it can be undone. The alert is the only thing
+/// standing between a slipped thumb and somebody's records.
+///
+/// A modifier rather than four alerts written four times: the wording, the
+/// role and the cancel button are the same everywhere, and the only thing that
+/// differs is what gets deleted.
+struct FIDeleteConfirmation<Item: Identifiable>: ViewModifier {
+    @Binding var item: Item?
+    let title: LocalizedStringKey
+    let perform: (Item) -> Void
+
+    func body(content: Content) -> some View {
+        content.alert(
+            Text(title),
+            isPresented: Binding(
+                get: { item != nil },
+                // Cleared on the next turn of the run loop: SwiftUI calls this
+                // while deciding what the alert should be, and writing state
+                // from inside a view update is undefined.
+                set: { presented in
+                    guard !presented else { return }
+                    Task { @MainActor in item = nil }
+                }
+            ),
+            presenting: item
+        ) { target in
+            Button("common.delete", role: .destructive) {
+                perform(target)
+                item = nil
+            }
+            Button("common.cancel", role: .cancel) { item = nil }
+        } message: { _ in
+            Text("common.delete.message")
+        }
+    }
+}
+
+extension View {
+    /// Asks before deleting `item`, then hands it to `perform`.
+    func fiConfirmDelete<Item: Identifiable>(
+        _ item: Binding<Item?>,
+        title: LocalizedStringKey = "common.delete.confirm",
+        perform: @escaping (Item) -> Void
+    ) -> some View {
+        modifier(FIDeleteConfirmation(item: item, title: title, perform: perform))
     }
 }
 

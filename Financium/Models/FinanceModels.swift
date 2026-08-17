@@ -34,6 +34,43 @@ nonisolated extension Finance_Money {
         // its sign.
         return number + "\u{00A0}" + FinanceCurrencies.symbol(for: code)
     }
+
+    /// The same amount, shortened for a place that has no room for it.
+    ///
+    /// "1,5 млн ₽" instead of "1 500 000,00 ₽". A row is a glance: the reader
+    /// is looking for the order of magnitude and whether it went up, and the
+    /// last two decimal places of a seven-figure sum answer neither question
+    /// while making the whole thing shrink until none of it can be read.
+    ///
+    /// Only where it is needed. Below ten thousand nothing is abbreviated,
+    /// because "9,4 тыс." is longer to *read* than "9 400" even though it is
+    /// shorter to print, and the exact figure is worth having when it fits.
+    /// Anywhere the number is the subject rather than a label — the detail
+    /// screens, the editors — keeps `formatted`.
+    var abbreviated: String {
+        let code = currencyCode.isEmpty ? "RUB" : currencyCode
+        let symbol = FinanceCurrencies.symbol(for: code)
+        let value = NSDecimalNumber(decimal: decimalValue).doubleValue
+        let magnitude = abs(value)
+
+        guard magnitude >= 10_000 else { return formatted }
+
+        let sign = value < 0 ? "−" : ""
+        let (scaled, unitKey): (Double, String) = if magnitude >= 1_000_000_000 {
+            (magnitude / 1_000_000_000, "unit.billion")
+        } else if magnitude >= 1_000_000 {
+            (magnitude / 1_000_000, "unit.million")
+        } else {
+            (magnitude / 1_000, "unit.thousand")
+        }
+
+        // One decimal, and not even that once the integer part is three digits:
+        // "847 тыс." says as much as "846,9 тыс." in less space.
+        let fractionDigits = scaled >= 100 ? 0 : 1
+        let number = scaled.formatted(.number.precision(.fractionLength(fractionDigits)))
+        let unit = NSLocalizedString(unitKey, comment: "Abbreviated magnitude")
+        return sign + number + "\u{00A0}" + unit + "\u{00A0}" + symbol
+    }
 }
 
 enum FinanceSection: String, CaseIterable, Identifiable {

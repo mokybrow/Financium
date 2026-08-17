@@ -153,7 +153,11 @@ struct ContentView: View {
         .onOpenURL { url in
             // Held rather than acted on: an invite that arrives before the
             // session is ready would be redeemed as nobody.
-            if let code = Self.inviteCode(from: url) { pendingInvite = code }
+            if let code = Self.inviteCode(from: url) {
+                pendingInvite = code
+                return
+            }
+            handleWidgetLink(url)
         }
         .onChange(of: push.pendingDeepLink) { _, link in
             guard let link else { return }
@@ -221,6 +225,31 @@ struct ContentView: View {
     /// Read from the path rather than a query item because the link is meant to
     /// be short enough to read out loud, and `?code=` doubles its length for
     /// nothing.
+    /// Where the Home Screen tiles point.
+    ///
+    /// A widget cannot open a sheet; all it can do is name a place. The tile
+    /// says which one and the app decides what that means, which also keeps the
+    /// destinations in one list rather than spread across three widgets.
+    private func handleWidgetLink(_ url: URL) {
+        guard url.scheme?.lowercased() == "financium" else { return }
+
+        switch url.host?.lowercased() {
+        case "new":
+            selection = .money
+            let kind = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "kind" }?.value
+            finance.pendingQuickAdd = kind?.lowercased() == "income" ? .income : .expense
+        case "money":
+            selection = .money
+        case "budgets", "budget":
+            selection = .budget
+        case "goals":
+            selection = .goals
+        default:
+            break
+        }
+    }
+
     private static func inviteCode(from url: URL) -> String? {
         guard url.scheme?.lowercased() == "financium",
               url.host?.lowercased() == "join" else { return nil }

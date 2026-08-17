@@ -53,7 +53,9 @@ struct FinancePeriodRow: View {
         .sheet(isPresented: $choosingPeriod) {
             PeriodPickerView(period: store.period) { period in
                 store.period = period
-                Task { await store.refresh() }
+                // Forced: a read already in flight was issued for the previous
+                // window and would answer with the wrong month.
+                Task { await store.refresh(force: true) }
             }
         }
     }

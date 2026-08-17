@@ -8,6 +8,9 @@ import SwiftUI
 struct BudgetView: View {
     @EnvironmentObject private var store: FinanceStore
     @State private var editor: BudgetEditorTarget?
+    /// The budget being read, and the one waiting on a confirmation.
+    @State private var viewing: Finance_Budget?
+    @State private var pendingDeletion: Finance_Budget?
 
     var body: some View {
         NavigationStack {
@@ -46,17 +49,34 @@ struct BudgetView: View {
                     }
                 }
             }
-            .refreshable { await store.refresh() }
+            .refreshable { await store.refresh(force: true) }
             .sheet(item: $editor) { target in
                 BudgetEditorView(budget: target.budget)
             }
             .fiErrorAlert($store.errorMessage)
+            .fiConfirmDelete($pendingDeletion) { budget in
+                Task { await store.deleteBudget(budget) }
+            }
+            .sheet(item: $viewing) { budget in
+                BudgetDetailView(budget: budget)
+                    // Three rows of figures do not need a full screen, and a
+                    // sheet the size of its contents leaves the list visible
+                    // behind it — which is where the reader came from and is
+                    // going back to.
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+            }
         }
     }
 
     private func row(_ budget: Finance_Budget) -> some View {
+        // A tap looks, a long press acts.
+        //
+        // Tapping straight into the editor meant the only way to read a budget
+        // in full was to open the form that changes it — and the row shows
+        // shortened figures, so the exact numbers had nowhere else to be seen.
         Button {
-            editor = BudgetEditorTarget(budget: budget)
+            viewing = budget
         } label: {
             FIProgressRow(
                 title: Text(verbatim: budget.title.isEmpty ? FinanceCategoryStore.displayName(for: budget.category) : budget.title),
@@ -72,8 +92,14 @@ struct BudgetView: View {
         // budget that used to sit in that slot.
         .id(budget.id)
         .fiRowContextMenu {
+            Button {
+                editor = BudgetEditorTarget(budget: budget)
+            } label: {
+                Label("common.edit", systemImage: "pencil")
+            }
+
             FIDestructiveMenuButton(titleKey: "budget.delete") {
-                Task { await store.deleteBudget(budget) }
+                pendingDeletion = budget
             }
         }
     }
@@ -81,8 +107,8 @@ struct BudgetView: View {
     private func spentText(_ budget: Finance_Budget) -> String {
         String(
             format: NSLocalizedString("budget.spent_format", comment: "Spent of limit"),
-            budget.spent.formatted,
-            budget.limit.formatted
+            budget.spent.abbreviated,
+            budget.limit.abbreviated
         )
     }
 
@@ -98,7 +124,7 @@ struct BudgetView: View {
         let difference = budget.limit.decimalValue - budget.spent.decimalValue
         let money = Finance_Money(decimal: abs(difference), currencyCode: budget.limit.currencyCode)
         let key = difference >= 0 ? "budget.left_format" : "budget.over_format"
-        return String(format: NSLocalizedString(key, comment: "Budget progress"), money.formatted)
+        return String(format: NSLocalizedString(key, comment: "Budget progress"), money.abbreviated)
     }
 
     private func progress(_ budget: Finance_Budget) -> Double {
@@ -113,4 +139,73 @@ struct BudgetView: View {
 struct BudgetEditorTarget: Identifiable {
     let budget: Finance_Budget?
     var id: String { budget?.id ?? "new" }
+}
+
+/// A budget in full, with nothing shortened.
+///
+/// The row abbreviates — "1,5 млн ₽" — because a list is a glance. This is
+/// where the reader comes when the glance was not enough, so every figure is
+/// printed exactly as it is stored.
+private struct BudgetDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let budget: Finance_Budget
+
+    private var remaining: Finance_Money {
+        Finance_Money(
+            decimal: budget.limit.decimalValue - budget.spent.decimalValue,
+            currencyCode: budget.limit.currencyCode
+        )
+    }
+
+    private var isOverspent: Bool { budget.spent.decimalValue > budget.limit.decimalValue }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
+                    FICard {
+                        FIListRow(
+                            title: Text("budget.view.limit"),
+                            accessory: .value(Text(verbatim: budget.limit.formatted))
+                        )
+                        FIRowSeparator()
+                        FIListRow(
+                            title: Text("budget.view.spent"),
+                            accessory: .value(Text(verbatim: budget.spent.formatted))
+                        )
+                        FIRowSeparator()
+                        FIListRow(
+                            title: Text(isOverspent ? "budget.over_title" : "budget.view.left"),
+                            accessory: .value(
+                                Text(verbatim: Finance_Money(
+                                    decimal: abs(remaining.decimalValue),
+                                    currencyCode: budget.limit.currencyCode
+                                ).formatted)
+                            )
+                        )
+                    }
+                }
+                .fiCardInsets()
+                .padding(.top, 12)
+                .padding(.bottom, 28)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .fiPageBackground()
+            .navigationTitle(Text(verbatim: budget.title.isEmpty
+                ? FinanceCategoryStore.displayName(for: budget.category)
+                : budget.title))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    // The label colour, not the accent: `eoSheetChrome` tints
+                    // every other sheet's close button this way, and a blue
+                    // cross on one screen and a black one on the next reads as
+                    // two different controls.
+                    Button(role: .close) { dismiss() }
+                        .tint(.primary)
+                }
+            }
+        }
+    }
 }

@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import WidgetKit
 import os
 import GRPCCore
 import SwiftProtobuf
@@ -44,6 +45,14 @@ final class FinanceStore: ObservableObject {
     /// still needs to know why after the alert has gone, or it goes back to
     /// looking like an empty account.
     @Published private(set) var loadFailure: String?
+
+    /// A transaction editor a widget asked for.
+    ///
+    /// Parked here rather than passed down: the tile is tapped before the Money
+    /// screen exists, and the screen that must open the editor is two levels
+    /// below the view that receives the link. A published value both can see is
+    /// shorter than threading a binding through the middle.
+    @Published var pendingQuickAdd: TransactionEditorKind?
 
     /// The window every screen is looking at.
     ///
@@ -109,6 +118,128 @@ final class FinanceStore: ObservableObject {
         budgets = snapshot.budgets
         goals = snapshot.goals
         settings = snapshot.settings
+        publishWidgetSnapshot()
+    }
+
+    /// Leaves the figures the Home Screen tiles draw in the shared container.
+    ///
+    /// Written here rather than after every write, because this is the one
+    /// place every path ends: a refresh, a restored cache, a mode change. The
+    /// widgets have no session of their own and cannot ask the backend
+    /// anything, so what the app last saw is all they will ever have.
+    ///
+    /// Budgets are sorted by how used they are, most first, and all of them
+    /// travel. The order is the tile's default — the one about to be overspent
+    /// is the one worth a place on the Home Screen — but the widget also lets
+    /// the reader pick, and it can only offer what was sent. Capping the list
+    /// at four made the other budgets unpickable.
+    private func publishWidgetSnapshot() {
+        guard mode == .account, Self.sharedContainerIsAvailable else { return }
+
+        let ranked = budgets
+            .filter { $0.limit.minorUnits > 0 }
+            .sorted { lhs, rhs in
+                let left = Double(lhs.spent.minorUnits) / Double(lhs.limit.minorUnits)
+                let right = Double(rhs.spent.minorUnits) / Double(rhs.limit.minorUnits)
+                return left > right
+            }
+            .map { budget in
+                WidgetBudget(
+                    id: budget.id,
+                    title: budget.title.isEmpty ? budget.category : budget.title,
+                    spentMinor: budget.spent.minorUnits,
+                    limitMinor: budget.limit.minorUnits,
+                    currencyCode: budget.limit.currencyCode
+                )
+            }
+
+        let snapshot = WidgetSnapshot(
+            totalBalanceMinor: overview.totalBalance.minorUnits,
+            spentMinor: overview.spent.minorUnits,
+            earnedMinor: overview.earned.minorUnits,
+            currencyCode: mainCurrencyCode,
+            budgets: Array(ranked),
+            updatedAt: Date()
+        )
+
+        guard let defaults = Self.sharedDefaults,
+              let data = try? JSONEncoder().encode(snapshot) else { return }
+        // Only when it changed. `reloadAllTimelines` is a request the system
+        // keeps count of, and an app that asks after every refresh — several of
+        // which happen on one launch — has its later requests ignored,
+        // including the one that mattered.
+        guard defaults.data(forKey: Self.widgetSnapshotKey) != data else { return }
+        defaults.set(data, forKey: Self.widgetSnapshotKey)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /// Removes it, so the next person to pick up the phone does not read the
+    /// last one's balances off the Home Screen.
+    private func clearWidgetSnapshot() {
+        guard Self.sharedContainerIsAvailable else { return }
+        Self.sharedDefaults?.removeObject(forKey: Self.widgetSnapshotKey)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    private static let widgetAppGroupID = "group.com.gofinancium.Financium.shared"
+    private static let widgetSnapshotKey = "Financium.widget.snapshot"
+
+    private static var sharedDefaults: UserDefaults? {
+        UserDefaults(suiteName: widgetAppGroupID)
+    }
+
+    /// Whether the shared container is actually usable, checked once.
+    ///
+    /// `UserDefaults(suiteName:)` hands back an object whether or not the app
+    /// is entitled to that group, and then quietly fails to read or write —
+    /// the only sign being a line from `cfprefsd` about "kCFPreferencesAnyUser
+    /// with a container", which says nothing about which app group or why.
+    /// Writing a value and reading it back is the only reliable test, and it
+    /// turns a silent misconfiguration into one sentence naming the group.
+    ///
+    /// The usual cause is not code: the group has to exist in the developer
+    /// account and be ticked for both targets, and until it is, the container
+    /// is never created.
+    private static let sharedContainerIsAvailable: Bool = {
+        guard let defaults = sharedDefaults else {
+            FinanceLog.store.error("app group \(widgetAppGroupID, privacy: .public) is unavailable")
+            return false
+        }
+        let probe = "Financium.widget.probe"
+        defaults.set(true, forKey: probe)
+        let readable = defaults.bool(forKey: probe)
+        defaults.removeObject(forKey: probe)
+        if !readable {
+            FinanceLog.store.error(
+                """
+                app group \(widgetAppGroupID, privacy: .public) is not writable —                 widgets will stay empty. Check that the group exists in the                 developer account and is enabled for both targets.
+                """
+            )
+        }
+        return readable
+    }()
+
+    /// The app's half of the contract in `FinanciumWidgets/WidgetSnapshot.swift`.
+    ///
+    /// Mirrored rather than shared: the widget folder is synchronised into the
+    /// extension target alone, so one declaration cannot serve both without
+    /// editing target membership by hand. The field names are what hold the two
+    /// together — rename one here and the tile silently loses that figure.
+    private struct WidgetSnapshot: Encodable {
+        let totalBalanceMinor: Int64
+        let spentMinor: Int64
+        let earnedMinor: Int64
+        let currencyCode: String
+        let budgets: [WidgetBudget]
+        let updatedAt: Date
+    }
+
+    private struct WidgetBudget: Encodable {
+        let id: String
+        let title: String
+        let spentMinor: Int64
+        let limitMinor: Int64
+        let currencyCode: String
     }
 
     /// Points the store at the backend the session now calls for, and clears
@@ -134,6 +265,9 @@ final class FinanceStore: ObservableObject {
             cacheWrite?.cancel()
             cacheWrite = nil
             cache.clear()
+            // Otherwise the next person to pick up the phone reads the last
+            // one's balances off the Home Screen.
+            clearWidgetSnapshot()
         }
         hasLoaded = false
         loadFailure = nil
@@ -204,7 +338,18 @@ final class FinanceStore: ObservableObject {
     /// tore its connection down, and the request in flight came back
     /// `clientIsStopped`. Joining the one already running answers every caller
     /// from a single read and removes the overlap that produced it.
-    func refresh() async {
+    /// - Parameter force: start a new read even if one is already running.
+    ///   Required after a write: a read that was issued *before* the write
+    ///   cannot contain it. Joining one made a deletion look as though it had
+    ///   not happened — the row was gone from the database and still on screen,
+    ///   because the answer that redrew the screen had been asked for a moment
+    ///   too early. Trying again only repeated it.
+    func refresh(force: Bool = false) async {
+        if let inFlight = refreshTask {
+            await inFlight.value
+            guard force else { return }
+        }
+        // Another caller may have started one while the line above was waiting.
         if let inFlight = refreshTask {
             await inFlight.value
             return
@@ -338,8 +483,33 @@ final class FinanceStore: ObservableObject {
         }
     }
 
+    /// Removes a transaction, including one the server has never heard of.
+    ///
+    /// A row can be on screen without being in the database: the cache is
+    /// restored at launch and is whatever was true when the app last closed, so
+    /// anything deleted on another device in between is drawn from a snapshot
+    /// that no longer matches. Deleting it asked the server to remove something
+    /// it did not have, and `notFound` came back as a failure — the one row
+    /// nobody could get rid of, because it was already gone.
+    ///
+    /// So `notFound` counts as success here. The purpose of the tap was for the
+    /// row to stop existing, and it does not exist; the refresh that follows is
+    /// what takes it off the screen.
     func deleteTransaction(_ transaction: Finance_Transaction) async {
-        _ = await mutation { try await $0.deleteTransaction(id: transaction.id) }
+        do {
+            try await backend.deleteTransaction(id: transaction.id)
+        } catch let error as RPCError where error.code == .notFound {
+            FinanceLog.store.debug("delete: transaction was already gone")
+        } catch {
+            let detail = FinanceLog.describe(error)
+            guard !Self.wasCancelled(error) else {
+                FinanceLog.store.debug("delete cancelled: \(detail, privacy: .public)")
+                return
+            }
+            FinanceLog.store.error("delete failed: \(detail, privacy: .public)")
+            errorMessage = Self.message(for: error)
+        }
+        await refresh(force: true)
     }
 
     func upsertBudget(
@@ -464,7 +634,7 @@ final class FinanceStore: ObservableObject {
     func shareAccount(_ account: Finance_Account) async -> AccountInvite? {
         do {
             let invite = try await backend.shareAccount(id: account.id)
-            await refresh()
+            await refresh(force: true)
             return invite
         } catch {
             guard !Self.wasCancelled(error) else { return nil }
@@ -477,7 +647,7 @@ final class FinanceStore: ObservableObject {
     func joinAccount(code: String) async -> Finance_Account? {
         do {
             let account = try await backend.joinAccount(code: code)
-            await refresh()
+            await refresh(force: true)
             return account
         } catch {
             let detail = FinanceLog.describe(error)
@@ -499,7 +669,7 @@ final class FinanceStore: ObservableObject {
     private func mutation(_ operation: (any FinanceBackend) async throws -> Void) async -> Bool {
         do {
             try await operation(backend)
-            await refresh()
+            await refresh(force: true)
             return true
         } catch {
             let detail = FinanceLog.describe(error)
@@ -509,6 +679,14 @@ final class FinanceStore: ObservableObject {
             }
             FinanceLog.store.error("write failed: \(detail, privacy: .public)")
             errorMessage = Self.message(for: error)
+            // Re-read even though the write failed.
+            //
+            // A refused write means what is on screen and what is in the
+            // database disagree, and the database is the one that is right —
+            // which is exactly the moment a refresh is most worth doing.
+            // Skipping it left a row the reader had just deleted sitting in the
+            // list under an error saying it could not be found.
+            await refresh(force: true)
             return false
         }
     }

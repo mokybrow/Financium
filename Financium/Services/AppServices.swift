@@ -215,10 +215,20 @@ final class AuthSession: ObservableObject {
         }
     }
 
+    /// Runs a call with credentials, renewing them once if that is what was
+    /// wrong.
+    ///
+    /// Only if that is what was wrong. This used to retry on *any* error, which
+    /// is both useless and unsafe: a second attempt cannot change the server's
+    /// mind about a transaction it cannot find, and for a write that did land
+    /// before the error reached us, sending it again is a duplicate. It also
+    /// doubled every failure in the log, which is why a single delete appeared
+    /// there twice.
     func withAuthorizedMetadata<T: Sendable>(_ action: (Metadata) async throws -> T) async throws -> T {
         let metadata = try await authorizedMetadata()
-        do { return try await action(metadata) }
-        catch {
+        do {
+            return try await action(metadata)
+        } catch let error as RPCError where error.code == .unauthenticated {
             guard await refresh(), let retry = bearerMetadata else { throw error }
             return try await action(retry)
         }

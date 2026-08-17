@@ -1,0 +1,17 @@
+"widget.quick_add.title" = "Quick entry";
+"widget.quick_add.description" = "Add an expense or income in one tap.";
+"widget.quick_add.expense" = "Expense";
+"widget.quick_add.income" = "Income";
+"widget.summary.title" = "Summary";
+"widget.summary.description" = "Balance, spending and income for the period.";
+"widget.summary.total" = "Total";
+"widget.summary.spent" = "Spent";
+"widget.summary.earned" = "Earned";
+"widget.summary.difference" = "Difference";
+"widget.budget.title" = "Budget";
+"widget.budget.description" = "How much of your closest budget is used.";
+"widget.budget.empty" = "Add a budget to follow it from here";
+"widget.budget.entity" = "Budget";
+"unit.thousand" = "K";
+"unit.million" = "M";
+"unit.billion" = "B";
