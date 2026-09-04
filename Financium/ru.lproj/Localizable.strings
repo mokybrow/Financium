@@ -23,6 +23,13 @@
 "profile.local.title" = "На этом устройстве";
 "profile.go_to_sign_in" = "Перейти ко входу";
 "profile.local.hint" = "Вход позволит держать записи на всех устройствах. Мы спросим, переносить ли то, что уже есть здесь.";
+"profile.sync" = "Синхронизация";
+"profile.sync.on" = "iCloud";
+"profile.sync.off" = "Это устройство";
+"profile.sync.hint.on" = "Записи хранятся на устройстве и синхронизируются через ваш аккаунт iCloud. Общие счета тоже синхронизируются.";
+"profile.sync.hint.off" = "Записи хранятся только на этом устройстве.";
+"profile.sync.hint.no_account" = "Войдите в iCloud в Настройках, чтобы синхронизировать записи между устройствами и делиться счетами.";
+"error.icloud.quota" = "В iCloud закончилось место. Освободите его и попробуйте снова.";
 "profile.local.reset" = "Удалить все локальные данные";
 "profile.local.reset.confirm" = "Удалить всё на этом устройстве?";
 "profile.local.reset.message" = "Счета, операции, бюджеты и цели, хранящиеся на устройстве, будут удалены. Отменить это нельзя.";
@@ -79,6 +86,9 @@
 "correction.hint" = "Записывается операцией, поэтому остаток всегда сходится с движениями, которые его составили.";
 "correction.entry" = "Коррекция остатка";
 "money.account.delete" = "Удалить счёт";
+"money.account.delete.has_transactions.title" = "В счёте ещё есть операции";
+"money.account.delete.has_transactions.message" = "Удалить счёт вместе со всеми операциями по нему? Отменить это будет нельзя.";
+"money.account.delete.force" = "Удалить всё";
 
 /* Transaction editors */
 "transaction.category" = "Категория";
@@ -137,6 +147,10 @@
 "activity.filter.account" = "Счёт";
 "activity.filter.currency" = "Валюта";
 "activity.empty" = "Операций пока нет";
+"activity.today" = "Сегодня";
+"activity.yesterday" = "Вчера";
+"activity.group.collapse" = "Свернуть день";
+"activity.group.expand" = "Развернуть день";
 "activity.empty.subtitle" = "Добавленные расходы и поступления появятся здесь";
 
 /* Budget */
@@ -169,16 +183,24 @@
 
 /* Built-in category names */
 "category.groceries" = "Продукты";
+"category.restaurants" = "Рестораны";
 "category.clothing" = "Одежда";
 "category.leisure" = "Досуг";
 "category.transport" = "Транспорт";
 "category.home" = "Дом";
+"category.utilities" = "Коммуналка";
 "category.health" = "Здоровье";
+"category.education" = "Образование";
+"category.travel" = "Путешествия";
+"category.subscriptions" = "Подписки";
+"category.pets" = "Питомцы";
 "category.other" = "Другое";
 "category.salary" = "Зарплата";
 "category.bonus" = "Премия";
 "category.gift" = "Подарок";
 "category.refund" = "Возврат";
+"category.investment" = "Инвестиции";
+"category.freelance" = "Фриланс";
 "budget.name.placeholder" = "Название";
 "budget.remind" = "Напоминать";
 "budget.payment_date" = "Дата платежа";
@@ -212,6 +234,44 @@
 "profile.title" = "Профиль";
 "profile.general" = "Основное";
 "profile.name" = "Имя";
+"profile.name.not_set" = "Укажите имя";
+"profile.photo.remove" = "Убрать фото";
+"profile.photo.edit" = "Изменить фото";
+"profile.photo.editor" = "Фото";
+"profile.photo.crop_hint" = "Перетаскивайте и масштабируйте. Сохранится только то, что попадает в круг.";
+"profile.photo.rotate_left" = "Повернуть влево";
+"profile.photo.rotate_right" = "Повернуть вправо";
+"profile.photo.replace" = "Заменить фото";
+"profile.photo.choose" = "Выбрать фото";
+"profile.photo.set" = "Установить фото";
+"profile.name.edit" = "Редактировать";
+"profile.section.general" = "Основные";
+"profile.appearance.avatar" = "Аватар";
+"profile.appearance.emoji" = "Эмодзи";
+"profile.appearance.choose" = "Выбрать";
+"profile.appearance.background" = "Фон";
+"profile.appearance.emoji_clear" = "Убрать эмодзи";
+"profile.appearance.monogram" = "Монограмма";
+"profile.monogram.classic" = "Классическая";
+"profile.monogram.rounded" = "Скруглённая";
+"profile.monogram.serif" = "С засечками";
+"profile.monogram.mono" = "Моноширинная";
+"profile.section.app" = "Приложение";
+"profile.section.information" = "Информация";
+"profile.section.legal" = "Юридическая информация";
+"profile.section.support" = "Поддержка";
+"profile.privacy" = "Политика конфиденциальности";
+"profile.terms" = "Условия и положения";
+"profile.support.contact" = "Написать обращение";
+"profile.support.share" = "Поделиться приложением";
+"profile.support.rate" = "Оценить приложение";
+"profile.section.management" = "Управление";
+"profile.support" = "Поддержка";
+"profile.legal" = "Юридическая информация";
+"profile.account.delete" = "Удалить аккаунт";
+"profile.account.delete.confirm" = "Удалить аккаунт?";
+"profile.account.delete.message" = "Счета, операции, бюджеты, цели и профиль будут удалены с этого устройства и из iCloud, вы выйдете из аккаунта. Отменить это нельзя.";
+"common.done" = "Готово";
 "profile.security" = "Безопасность";
 "profile.email" = "Почта";
 "profile.email.verified" = "Подтверждена";
@@ -265,6 +325,9 @@
 "money.account.shared" = "Совместный счёт";
 "money.account.shared.manage" = "Доступ к счёту";
 "money.account.leave" = "Покинуть счёт";
+"money.account.make_private" = "Сделать приватным";
+"money.account.share.again" = "Отправить ссылку снова";
+"share.invite.message" = "Вас приглашают присоединиться к счёту «%@»";
 "shared.title" = "Совместный счёт";
 "shared.members.private" = "Счёт видите только вы";
 "shared.members.count" = "Участников: %d";

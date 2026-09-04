@@ -46,6 +46,7 @@ struct GoalsView: View {
                         editor = GoalEditorTarget(goal: nil)
                     }
                 }
+                ToolbarItem(placement: .topBarTrailing) { ProfileToolbarButton() }
             }
             .refreshable { await store.refresh(force: true) }
             .sheet(item: $editor) { target in

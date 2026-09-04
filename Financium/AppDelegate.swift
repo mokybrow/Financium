@@ -1,34 +1,32 @@
+import CloudKit
 import UIKit
 
-/// Exists for two callbacks.
-///
-/// APNs hands the device token to the application delegate and nowhere else —
-/// SwiftUI has no equivalent — so a delegate is required however little else it
-/// does. Everything it receives is passed straight to `PushNotifications`.
+/// Handles the callbacks SwiftUI has no hook for: launch, remote notifications
+/// (CloudKit's silent pushes), and the tap on a shared-account link.
 @MainActor
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        // Set here rather than on first use: a notification tapped to launch
-        // the app is delivered to the delegate before any view exists, and a
-        // centre with no delegate drops it.
         PushNotifications.shared.configure()
+        application.registerForRemoteNotifications()
         return true
     }
 
     func application(
         _ application: UIApplication,
-        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
-    ) {
-        PushNotifications.shared.didRegister(deviceToken: deviceToken)
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any]
+    ) async -> UIBackgroundFetchResult {
+        guard let coordinator = FinanceStore.current?.syncCoordinator else { return .noData }
+        await coordinator.handlePush()
+        return .newData
     }
 
     func application(
         _ application: UIApplication,
-        didFailToRegisterForRemoteNotificationsWithError error: Error
+        userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
     ) {
-        PushNotifications.shared.didFailToRegister(error: error)
+        Task { await FinanceStore.current?.syncCoordinator?.acceptShare(cloudKitShareMetadata) }
     }
 }

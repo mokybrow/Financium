@@ -1,4 +1,5 @@
 import Foundation
+import os
 import SwiftProtobuf
 
 /// Everything the app reads in one go.
@@ -37,7 +38,10 @@ nonisolated protocol FinanceBackend: Sendable {
         id: String, name: String, symbol: String,
         balance: Decimal?, currency: String, isArchived: Bool
     ) async throws
-    func deleteAccount(id: String) async throws
+    /// `cascade` also removes every transaction touching the account instead of
+    /// refusing the delete — for an account whose history nobody needs kept,
+    /// chiefly one left behind by the retired backend.
+    func deleteAccount(id: String, cascade: Bool) async throws
 
     /// Turns an account into a shared one and returns the invite to pass on.
     ///
@@ -104,6 +108,17 @@ private nonisolated struct StoredBudget: Codable {
     var payload: Data
 }
 
+/// Every entity in the ledger, unfiltered, for the CloudKit sync engine to
+/// mirror and merge. Unlike `FinanceSnapshot` this is not scoped to a period
+/// and keeps budgets paired with their months.
+nonisolated struct RawLedger: Sendable {
+    var accounts: [Finance_Account] = []
+    var transactions: [Finance_Transaction] = []
+    var budgets: [(month: String, budget: Finance_Budget)] = []
+    var goals: [Finance_Goal] = []
+    var settings = Finance_FinanceSettings()
+}
+
 /// The whole local ledger, handed out for migration.
 nonisolated struct LocalExport {
     nonisolated struct Budget {
@@ -167,6 +182,80 @@ actor LocalFinanceBackend: FinanceBackend {
         return export
     }
 
+    // MARK: CloudKit sync bridge
+
+    /// Every entity as it sits in the file, for the sync engine to turn into
+    /// records.
+    func rawLedger() async -> RawLedger {
+        await ensureLoaded()
+        var raw = RawLedger()
+        raw.accounts = accounts
+        raw.transactions = transactions
+        raw.budgets = budgets
+        raw.goals = goals
+        raw.settings = settings
+        return raw
+    }
+
+    /// Merges what CloudKit fetched into the file.
+    ///
+    /// Entities are replaced whole by id — the record from the server is
+    /// authoritative, balances included, so nothing is recomputed here. Ids in
+    /// `deleted` are removed. This never enqueues anything back to the sync
+    /// engine; the caller reconciles after applying.
+    func applyRemote(
+        accounts remoteAccounts: [Finance_Account],
+        transactions remoteTransactions: [Finance_Transaction],
+        budgets remoteBudgets: [(month: String, budget: Finance_Budget)],
+        goals remoteGoals: [Finance_Goal],
+        settings remoteSettings: Finance_FinanceSettings?,
+        deleted: Set<String>
+    ) async {
+        await ensureLoaded()
+
+        func upsert<T>(_ list: inout [T], _ incoming: [T], id: (T) -> String) {
+            for item in incoming {
+                if let index = list.firstIndex(where: { id($0) == id(item) }) {
+                    list[index] = item
+                } else {
+                    list.append(item)
+                }
+            }
+        }
+
+        upsert(&accounts, remoteAccounts) { $0.id }
+        upsert(&transactions, remoteTransactions) { $0.id }
+        upsert(&goals, remoteGoals) { $0.id }
+        for incoming in remoteBudgets {
+            if let index = budgets.firstIndex(where: { $0.budget.id == incoming.budget.id }) {
+                budgets[index] = incoming
+            } else {
+                budgets.append(incoming)
+            }
+        }
+        if let remoteSettings { settings = remoteSettings }
+
+        if !deleted.isEmpty {
+            accounts.removeAll { deleted.contains($0.id) }
+            transactions.removeAll { deleted.contains($0.id) }
+            budgets.removeAll { deleted.contains($0.budget.id) }
+            goals.removeAll { deleted.contains($0.id) }
+        }
+
+        try? persist()
+    }
+
+    /// Stamps sharing state onto an account record so the existing badge and
+    /// owner checks keep working. Set by the sync coordinator when a `CKShare`
+    /// is created, accepted, or removed — not something a screen calls.
+    func setSharing(accountID: String, ownerUserID: String, memberCount: Int32) async {
+        await ensureLoaded()
+        guard let index = accounts.firstIndex(where: { $0.id == accountID }) else { return }
+        accounts[index].ownerUserID = ownerUserID
+        accounts[index].memberCount = memberCount
+        try? persist()
+    }
+
     func removeAll() {
         accounts = []
         transactions = []
@@ -183,60 +272,15 @@ actor LocalFinanceBackend: FinanceBackend {
 
     func load(period: FinancePeriod, monthKey: String) async throws -> FinanceSnapshot {
         await ensureLoaded()
-
-        let interval = period.interval
-        var snapshot = FinanceSnapshot()
-        snapshot.accounts = accounts.filter { !$0.isArchived }
-        snapshot.settings = settings
-        snapshot.transactions = transactions
-            .filter { transaction in
-                guard transaction.hasOccurredAt else { return false }
-                let date = transaction.occurredAt.date
-                return date >= interval.start && date < interval.end
-            }
-            .sorted { lhs, rhs in
-                lhs.occurredAt.date > rhs.occurredAt.date
-            }
-
-        let month = period.anchorMonth
-        snapshot.budgets = budgets
-            .filter { $0.month == monthKey }
-            .map { stored in
-                let budget = stored.budget
-                var filled = budget
-                filled.spent = Finance_Money(
-                    minorUnits: FinanceLedger.spent(
-                        onCategory: budget.category,
-                        month: month,
-                        currency: budget.limit.currencyCode,
-                        transactions: transactions
-                    ),
-                    currencyCode: budget.limit.currencyCode
-                )
-                return filled
-            }
-
-        var progressed = goals
-        FinanceLedger.applyGoalProgress(to: &progressed, accounts: accounts)
-        snapshot.goals = progressed
-
-        let totals = FinanceLedger.currencyTotals(
-            mainCurrency: mainCurrency,
-            accounts: snapshot.accounts,
+        return FinanceLedger.snapshot(
+            period: period,
+            monthKey: monthKey,
+            accounts: accounts,
             transactions: transactions,
-            interval: interval
+            budgets: budgets,
+            goals: goals,
+            settings: settings
         )
-        var overview = Finance_GetOverviewResponse()
-        overview.accounts = snapshot.accounts
-        overview.recentTransactions = Array(snapshot.transactions.prefix(50))
-        overview.currencies = totals
-        if let main = totals.first(where: { $0.currencyCode == mainCurrency }) {
-            overview.totalBalance = main.balance
-            overview.spent = main.spent
-            overview.earned = main.earned
-        }
-        snapshot.overview = overview
-        return snapshot
     }
 
     // MARK: Accounts
@@ -282,12 +326,20 @@ actor LocalFinanceBackend: FinanceBackend {
         try persist()
     }
 
-    func deleteAccount(id: String) async throws {
+    func deleteAccount(id: String, cascade: Bool) async throws {
         await ensureLoaded()
         guard accounts.contains(where: { $0.id == id }) else { throw FinanceLedger.Failure.notFound }
-        guard !transactions.contains(where: { $0.fromAccountID == id || $0.toAccountID == id }) else {
-            throw FinanceLedger.Failure.accountHasTransactions
+        let touching = transactions.filter { $0.fromAccountID == id || $0.toAccountID == id }
+        guard touching.isEmpty || cascade else { throw FinanceLedger.Failure.accountHasTransactions }
+
+        // Reverse each transaction's effect before dropping it — a transfer out
+        // of this account also touches whatever it went to, and that other
+        // account's balance must not be left holding money that arrived from a
+        // transaction which no longer exists.
+        for transaction in touching {
+            FinanceLedger.applyBalance(of: transaction, direction: -1, to: &accounts)
         }
+        transactions.removeAll { $0.fromAccountID == id || $0.toAccountID == id }
         accounts.removeAll { $0.id == id }
         try persist()
     }
@@ -468,10 +520,6 @@ actor LocalFinanceBackend: FinanceBackend {
 
     // MARK: Persistence
 
-    private var mainCurrency: String {
-        settings.mainCurrencyCode.isEmpty ? "RUB" : settings.mainCurrencyCode
-    }
-
     private static func dateKey(_ date: Date) -> String {
         let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
@@ -483,7 +531,15 @@ actor LocalFinanceBackend: FinanceBackend {
 
         guard let data = try? Data(contentsOf: url),
               let file = try? JSONDecoder().decode(LocalFinanceFile.self, from: data) else {
-            settings.mainCurrencyCode = Self.deviceCurrency()
+            // Nothing in the on-device ledger. Before falling back to a fresh
+            // start, look for the snapshot the old account mode left behind and
+            // adopt it — this is what a person whose backend went away still
+            // has of their data.
+            if recoverFromLegacyAccountCache() {
+                try? persist()
+            } else {
+                settings.mainCurrencyCode = Self.deviceCurrency()
+            }
             return
         }
         accounts = file.accounts.compactMap { try? Finance_Account(serializedBytes: $0) }
@@ -499,6 +555,54 @@ actor LocalFinanceBackend: FinanceBackend {
         if settings.mainCurrencyCode.isEmpty {
             settings.mainCurrencyCode = Self.deviceCurrency()
         }
+    }
+
+    /// The last snapshot the pre-CloudKit account mode kept on disk.
+    ///
+    /// When the gRPC backend went away it took the live data with it, but the
+    /// app had been caching the last answer it got in `finance-cache-v1.json` —
+    /// accounts, settings, goals, and the transactions for the month last
+    /// viewed. This reads that file into the ledger so the migration to iCloud
+    /// starts from the user's real data rather than an empty screen. Runs once:
+    /// after this the on-device file exists and this path is never taken again.
+    private nonisolated struct LegacyCache: Decodable {
+        var monthKey: String = ""
+        var accounts: [Data] = []
+        var transactions: [Data] = []
+        var budgets: [Data] = []
+        var goals: [Data] = []
+        var settings: Data?
+    }
+
+    private func recoverFromLegacyAccountCache() -> Bool {
+        let cacheURL = url.deletingLastPathComponent().appendingPathComponent("finance-cache-v1.json")
+        guard let data = try? Data(contentsOf: cacheURL),
+              let cache = try? JSONDecoder().decode(LegacyCache.self, from: data) else {
+            return false
+        }
+
+        let recoveredAccounts = cache.accounts.compactMap { try? Finance_Account(serializedBytes: $0) }
+        let recoveredTransactions = cache.transactions.compactMap { try? Finance_Transaction(serializedBytes: $0) }
+        let recoveredGoals = cache.goals.compactMap { try? Finance_Goal(serializedBytes: $0) }
+        let recoveredBudgets = cache.budgets.compactMap { try? Finance_Budget(serializedBytes: $0) }
+
+        guard !recoveredAccounts.isEmpty || !recoveredTransactions.isEmpty
+            || !recoveredGoals.isEmpty || !recoveredBudgets.isEmpty else { return false }
+
+        accounts = recoveredAccounts
+        transactions = recoveredTransactions
+        goals = recoveredGoals
+        // The cache never recorded a month per budget — the whole snapshot is
+        // for `monthKey`, so that is the month they belong to.
+        budgets = recoveredBudgets.map { (month: cache.monthKey, budget: $0) }
+        if let raw = cache.settings, let stored = try? Finance_FinanceSettings(serializedBytes: raw) {
+            settings = stored
+        }
+        if settings.mainCurrencyCode.isEmpty {
+            settings.mainCurrencyCode = Self.deviceCurrency()
+        }
+        FinanceLog.store.notice("recovered \(recoveredAccounts.count, privacy: .public) accounts and \(recoveredTransactions.count, privacy: .public) transactions from the legacy account cache")
+        return true
     }
 
     /// A first-run default worth having: the phone's own currency beats making

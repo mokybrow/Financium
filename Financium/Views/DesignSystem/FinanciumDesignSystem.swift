@@ -227,22 +227,35 @@ struct FIListRow<Trailing: View>: View {
     private let title: Text
     private let subtitle: Text?
     private let titleColor: Color
+    private let icon: String?
+    private let iconColor: Color
     private let trailing: Trailing
 
     init(
         title: Text,
         subtitle: Text? = nil,
         titleColor: Color = .primary,
+        icon: String? = nil,
+        iconColor: Color = FITheme.Palette.accent,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.title = title
         self.subtitle = subtitle
         self.titleColor = titleColor
+        self.icon = icon
+        self.iconColor = iconColor
         self.trailing = trailing()
     }
 
     var body: some View {
         HStack(spacing: 12) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 26, alignment: .center)
+            }
+
             VStack(alignment: .leading, spacing: 2) {
                 title
                     .font(FITheme.Typography.rowTitle)
@@ -270,9 +283,11 @@ extension FIListRow where Trailing == FIRowAccessoryView {
         title: Text,
         subtitle: Text? = nil,
         titleColor: Color = .primary,
+        icon: String? = nil,
+        iconColor: Color = FITheme.Palette.accent,
         accessory: FIRowAccessory = .none
     ) {
-        self.init(title: title, subtitle: subtitle, titleColor: titleColor) {
+        self.init(title: title, subtitle: subtitle, titleColor: titleColor, icon: icon, iconColor: iconColor) {
             FIRowAccessoryView(accessory: accessory)
         }
     }
@@ -281,12 +296,16 @@ extension FIListRow where Trailing == FIRowAccessoryView {
         _ titleKey: LocalizedStringKey,
         subtitle: LocalizedStringKey? = nil,
         titleColor: Color = .primary,
+        icon: String? = nil,
+        iconColor: Color = FITheme.Palette.accent,
         accessory: FIRowAccessory = .none
     ) {
         self.init(
             title: Text(titleKey),
             subtitle: subtitle.map { Text($0) },
             titleColor: titleColor,
+            icon: icon,
+            iconColor: iconColor,
             accessory: accessory
         )
     }
@@ -662,7 +681,8 @@ struct FIAmountRow: View {
                 .monospacedDigit()
                 .keyboardType(.decimalPad)
                 .onChange(of: text) { _, newValue in
-                    text = Self.sanitize(newValue)
+                    let formatted = Self.sanitize(newValue)
+                    if formatted != newValue { text = formatted }
                 }
 
             if !text.isEmpty {
@@ -689,19 +709,67 @@ struct FIAmountRow: View {
     /// The decimal pad still lets a user paste letters or a second separator,
     /// and the field must never show a number different from the one that will
     /// be saved.
-    static func sanitize(_ raw: String, fractionDigits: Int = 2) -> String {
-        let separator = Locale.current.decimalSeparator ?? "."
-        // Accept either separator on input — a paste or a hardware keyboard can
-        // produce the other one — and normalise to the locale's.
-        var value = raw.replacingOccurrences(of: separator == "." ? "," : ".", with: separator)
-        value = value.filter { $0.isNumber || String($0) == separator }
+    static func sanitize(
+        _ raw: String,
+        fractionDigits: Int = 2,
+        locale: Locale = .current
+    ) -> String {
+        let decimalSeparator = locale.decimalSeparator ?? "."
+        let groupingSeparator = locale.groupingSeparator ?? "\u{00A0}"
+        let decimalCharacter = decimalSeparator.first ?? "."
+        let groupingCharacter = groupingSeparator.first ?? "\u{00A0}"
 
-        let parts = value.components(separatedBy: separator)
-        guard parts.count > 1 else { return value }
+        let negative = raw.first == "-" || raw.first == "−"
+        let characters = raw.filter { $0.isNumber || $0 == "." || $0 == "," }
+        let punctuation = characters.enumerated().filter { $0.element == "." || $0.element == "," }
 
-        let whole = parts[0]
-        let fraction = String(parts.dropFirst().joined().prefix(fractionDigits))
-        return whole + separator + fraction
+        let decimalIndex: Int? = {
+            let kinds = Set(punctuation.map(\.element))
+            if kinds.count > 1 { return punctuation.last?.offset }
+            guard let mark = punctuation.first?.element else { return nil }
+
+            let positions = punctuation.map(\.offset)
+            if positions.count > 1 {
+                let pieces = characters.split(separator: mark, omittingEmptySubsequences: false)
+                let looksGrouped = pieces.dropFirst().allSatisfy { $0.count == 3 }
+                return looksGrouped ? nil : positions.last
+            }
+
+            if mark == decimalCharacter { return positions[0] }
+            let digitsAfter = characters.count - positions[0] - 1
+            // A lone locale grouping mark followed by three digits is the one
+            // already inserted by this field. Otherwise treat the other mark
+            // as a pasted decimal separator.
+            if mark == groupingCharacter, digitsAfter == 3 { return nil }
+            return positions[0]
+        }()
+
+        let wholeDigits: String
+        let fraction: String
+        if let decimalIndex {
+            wholeDigits = String(characters.prefix(decimalIndex).filter(\.isNumber))
+            fraction = String(characters.dropFirst(decimalIndex + 1).filter(\.isNumber).prefix(fractionDigits))
+        } else {
+            wholeDigits = String(characters.filter(\.isNumber))
+            fraction = ""
+        }
+
+        guard !wholeDigits.isEmpty || decimalIndex != nil else { return negative ? "-" : "" }
+        let grouped = group(wholeDigits.isEmpty ? "0" : wholeDigits, separator: groupingSeparator)
+        let sign = negative ? "-" : ""
+        guard decimalIndex != nil else { return sign + grouped }
+        return sign + grouped + decimalSeparator + fraction
+    }
+
+    private static func group(_ digits: String, separator: String) -> String {
+        var end = digits.endIndex
+        var groups: [Substring] = []
+        while end > digits.startIndex {
+            let start = digits.index(end, offsetBy: -3, limitedBy: digits.startIndex) ?? digits.startIndex
+            groups.append(digits[start..<end])
+            end = start
+        }
+        return groups.reversed().map(String.init).joined(separator: separator)
     }
 }
 

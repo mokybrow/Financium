@@ -1,8 +1,8 @@
+import CloudKit
 import Combine
 import Foundation
 import WidgetKit
 import os
-import GRPCCore
 import SwiftProtobuf
 
 /// How the app is being used.
@@ -11,7 +11,11 @@ import SwiftProtobuf
 /// the device and computed there. The distinction the app cares about is which
 /// backend to talk to and what Profile should offer.
 enum FinanceMode: Equatable {
-    case account
+    /// Kept on the device and synced to the user's private iCloud database;
+    /// shared accounts live in the shared database. Chosen when the device has
+    /// an iCloud account.
+    case icloud
+    /// Kept on the device alone. Chosen when there is no iCloud account.
     case local
 }
 
@@ -71,44 +75,66 @@ final class FinanceStore: ObservableObject {
 
     @Published private(set) var mode: FinanceMode = .local
 
-    private let auth: AuthSession
+    private let account: iCloudAccount
     private let local: LocalFinanceBackend
     private var backend: any FinanceBackend
     private let reminders = BudgetReminders()
-    private let cache: FinanceCache
-    private var cacheWrite: Task<Void, Never>?
+
+    /// The CloudKit-backed store and the engine behind it, once sync is on.
+    ///
+    /// Nil until `enableCloudSync()` is called. While it is nil the app runs in
+    /// `.local` mode whatever the iCloud account status is — there is nowhere
+    /// for `.icloud` mode to read or write.
+    private var cloud: (any FinanceBackend)?
+    private var coordinator: CloudKitSyncCoordinator?
+
+    /// Accounts shared *with* this device by someone else. Anything not in here
+    /// is the local user's to make private again.
+    @Published private(set) var participantAccountIDs: Set<String> = []
+
+    /// Saved CloudKit shares ready for the system collaboration UI. Keeping the
+    /// actual share, not merely its URL, makes repeat taps fully synchronous.
+    @Published private(set) var accountShares: [String: CKShare] = [:]
+
 
     /// The read currently in flight, so overlapping callers share it.
     private var refreshTask: Task<Void, Never>?
 
-    init(
-        auth: AuthSession,
-        local: LocalFinanceBackend = LocalFinanceBackend(),
-        cache: FinanceCache = FinanceCache()
-    ) {
-        self.auth = auth
-        self.local = local
-        self.cache = cache
-        self.mode = auth.isAuthenticated ? .account : .local
-        self.backend = auth.isAuthenticated
-            ? RemoteFinanceBackend(auth: auth)
-            : local
+    /// The live store, for the app delegate — which SwiftUI does not inject
+    /// environment objects into — to reach the sync coordinator.
+    static weak var current: FinanceStore?
 
-        // Read here rather than in a task, so the first frame the reader sees
-        // already has their accounts on it instead of an empty screen that
-        // fills in a moment later.
-        if auth.isAuthenticated { restoreCache() }
+    init(
+        account: iCloudAccount,
+        local: LocalFinanceBackend = LocalFinanceBackend()
+    ) {
+        self.account = account
+        self.local = local
+        self.backend = local
+        Self.current = self
     }
 
-    /// Puts the last known figures on screen while the real ones are fetched.
-    ///
-    /// Whole months only. `monthKey` collapses any window to the month it starts
-    /// in, so a snapshot taken while the reader had narrowed the period to 3–17
-    /// April would be restored as though it were the whole of April — real
-    /// figures answering a question nobody asked.
-    private func restoreCache() {
-        guard case .month = period, let snapshot = cache.load(monthKey: monthKey) else { return }
-        apply(snapshot)
+    /// Stands up the CloudKit sync engine and switches to it when the device
+    /// has an iCloud account. Safe to call more than once — the second call is
+    /// a no-op.
+    func enableCloudSync() {
+        guard coordinator == nil else { return }
+        let coordinator = CloudKitSyncCoordinator(local: local) { [weak self] in
+            await self?.refresh()
+        }
+        self.coordinator = coordinator
+        self.cloud = coordinator.backend
+        adopt(mode: resolvedMode())
+        Task { await coordinator.start() }
+    }
+
+    /// The sync coordinator, for the app delegate to forward CloudKit pushes
+    /// and share-acceptance to.
+    var syncCoordinator: CloudKitSyncCoordinator? { coordinator }
+
+    /// Which mode the current iCloud account status and wiring imply.
+    func resolvedMode() -> FinanceMode {
+        (cloud != nil && account.isAvailable) ? .icloud : .local
     }
 
     private func apply(_ snapshot: FinanceSnapshot) {
@@ -134,7 +160,7 @@ final class FinanceStore: ObservableObject {
     /// the reader pick, and it can only offer what was sent. Capping the list
     /// at four made the other budgets unpickable.
     private func publishWidgetSnapshot() {
-        guard mode == .account, Self.sharedContainerIsAvailable else { return }
+        guard Self.sharedContainerIsAvailable else { return }
 
         let ranked = budgets
             .filter { $0.limit.minorUnits > 0 }
@@ -170,14 +196,6 @@ final class FinanceStore: ObservableObject {
         // including the one that mattered.
         guard defaults.data(forKey: Self.widgetSnapshotKey) != data else { return }
         defaults.set(data, forKey: Self.widgetSnapshotKey)
-        WidgetCenter.shared.reloadAllTimelines()
-    }
-
-    /// Removes it, so the next person to pick up the phone does not read the
-    /// last one's balances off the Home Screen.
-    private func clearWidgetSnapshot() {
-        guard Self.sharedContainerIsAvailable else { return }
-        Self.sharedDefaults?.removeObject(forKey: Self.widgetSnapshotKey)
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -242,39 +260,33 @@ final class FinanceStore: ObservableObject {
         let currencyCode: String
     }
 
-    /// Points the store at the backend the session now calls for, and clears
-    /// what the previous one had loaded so no figure from the old mode survives
-    /// into the new one.
+    /// Points the store at the backend the session now writes through.
+    ///
+    /// The on-device ledger is the same file in both modes — `.icloud` just
+    /// adds a sync engine that mirrors it to CloudKit and pulls shared
+    /// accounts in — so nothing on screen is cleared here. A refresh follows to
+    /// pick up anything the newly attached backend can see.
     func adopt(mode: FinanceMode) {
         guard mode != self.mode else { return }
         self.mode = mode
-        backend = mode == .account ? RemoteFinanceBackend(auth: auth) : local
-
-        overview = Finance_GetOverviewResponse()
-        accounts = []
-        transactions = []
-        budgets = []
-        goals = []
-        settings = Finance_FinanceSettings()
-        displayCurrency = ""
-
-        // Leaving the account's balances on disk would put them back on screen
-        // for whoever opens the app next. The in-flight write goes first, or it
-        // would land after the file was removed and write them out again.
-        if mode == .local {
-            cacheWrite?.cancel()
-            cacheWrite = nil
-            cache.clear()
-            // Otherwise the next person to pick up the phone reads the last
-            // one's balances off the Home Screen.
-            clearWidgetSnapshot()
-        }
+        backend = (mode == .icloud ? cloud : nil) ?? local
         hasLoaded = false
         loadFailure = nil
     }
 
-    /// The local ledger, for the sign-in migration to read and clear.
+    /// The on-device ledger, for the "reset" action in Profile.
     var localBackend: LocalFinanceBackend { local }
+
+    /// Wipes the ledger everywhere — the device file and, if sync is on, every
+    /// zone this device owns in iCloud. For "delete account".
+    func deleteEverything() async {
+        await coordinator?.deleteAllData()
+        await local.removeAll()
+        adopt(mode: .local)
+        cloud = nil
+        coordinator = nil
+        await refresh(force: true)
+    }
 
     // MARK: - Derived state
 
@@ -361,14 +373,12 @@ final class FinanceStore: ObservableObject {
     }
 
     private func performRefresh() async {
-        if mode == .account, !auth.isAuthenticated { return }
         isLoading = true
         defer { isLoading = false }
         do {
             // Both read before the await, so a period changed mid-flight cannot
             // file the answer under the wrong window.
             let key = monthKey
-            let isWholeMonth: Bool = if case .month = period { true } else { false }
 
             let snapshot = try await backend.load(period: period, monthKey: key)
             apply(snapshot)
@@ -376,24 +386,14 @@ final class FinanceStore: ObservableObject {
             errorMessage = nil
             loadFailure = nil
 
-            // Only the account mode is cached: local mode's file is the ledger
-            // itself, so a copy of it would be a copy of the original. And only
-            // whole months, because that is all the key can describe.
-            //
-            // Off the main actor: serialising a month of transactions and
-            // writing them is a synchronous stretch of work, and `refresh()` is
-            // what every edit ends with — so on the main actor it would be a
-            // hitch after every add, edit and delete.
-            if mode == .account, isWholeMonth {
-                let cache = cache
-                // Held so signing out can cancel it. Without that, a write still
-                // queued when the session ends puts the previous account's
-                // balances back on disk after they were cleared.
-                cacheWrite?.cancel()
-                cacheWrite = Task.detached(priority: .utility) {
-                    guard !Task.isCancelled else { return }
-                    cache.save(snapshot, monthKey: key)
-                }
+            if let coordinator {
+                participantAccountIDs = await coordinator.participantAccountIDs()
+                sharedAccountIDs = await coordinator.sharedAccountIDs()
+                accountShares = await coordinator.cachedShares()
+            } else {
+                participantAccountIDs = []
+                sharedAccountIDs = []
+                accountShares = [:]
             }
 
             // Rescheduled from whatever was just loaded, so a budget edited on
@@ -429,15 +429,12 @@ final class FinanceStore: ObservableObject {
 
     /// Whether an error means "nobody is waiting for this any more".
     ///
-    /// `clientIsStopped` is matched on its text because grpc-swift reports a
-    /// cancelled call that way: the surrounding task is cancelled, the client
-    /// it was using shuts down, and the request that was in flight is told the
-    /// client is gone. There is no typed case to check for, and mistaking it
-    /// for a real failure is what put "something went wrong" on screen after
-    /// an ordinary screen change.
+    /// A `CKError.operationCancelled` is reported when the enclosing task is
+    /// cancelled, which happens constantly and by design — leaving a screen,
+    /// backgrounding the app.
     private static func wasCancelled(_ error: Error) -> Bool {
         if Task.isCancelled || error is CancellationError { return true }
-        return String(reflecting: error).contains("clientIsStopped")
+        return (error as? CKError)?.code == .operationCancelled
     }
 
     // MARK: - Writing
@@ -463,8 +460,33 @@ final class FinanceStore: ObservableObject {
         }
     }
 
-    func deleteAccount(_ account: Finance_Account) async {
-        _ = await mutation { try await $0.deleteAccount(id: account.id) }
+    enum AccountDeletionOutcome: Equatable {
+        case deleted
+        /// Refused: the account still has transactions. Ask whether to delete
+        /// it with them (`deleteAccount(_:cascade: true)`) before giving up.
+        case hasTransactions
+        case failed
+    }
+
+    @discardableResult
+    func deleteAccount(_ account: Finance_Account, cascade: Bool = false) async -> AccountDeletionOutcome {
+        do {
+            try await backend.deleteAccount(id: account.id, cascade: cascade)
+            await refresh(force: true)
+            return .deleted
+        } catch FinanceLedger.Failure.accountHasTransactions {
+            return .hasTransactions
+        } catch {
+            let detail = FinanceLog.describe(error)
+            guard !Self.wasCancelled(error) else {
+                FinanceLog.store.debug("delete account cancelled: \(detail, privacy: .public)")
+                return .failed
+            }
+            FinanceLog.store.error("delete account failed: \(detail, privacy: .public)")
+            errorMessage = Self.message(for: error)
+            await refresh(force: true)
+            return .failed
+        }
     }
 
     func saveTransaction(
@@ -483,22 +505,17 @@ final class FinanceStore: ObservableObject {
         }
     }
 
-    /// Removes a transaction, including one the server has never heard of.
+    /// Removes a transaction, including one that is already gone.
     ///
-    /// A row can be on screen without being in the database: the cache is
-    /// restored at launch and is whatever was true when the app last closed, so
-    /// anything deleted on another device in between is drawn from a snapshot
-    /// that no longer matches. Deleting it asked the server to remove something
-    /// it did not have, and `notFound` came back as a failure — the one row
-    /// nobody could get rid of, because it was already gone.
-    ///
-    /// So `notFound` counts as success here. The purpose of the tap was for the
-    /// row to stop existing, and it does not exist; the refresh that follows is
-    /// what takes it off the screen.
+    /// A row can be on screen without being in the ledger any more: a shared
+    /// account changed on another device, and the pull that would take the row
+    /// off screen has not landed yet. Deleting it then is a no-op the backend
+    /// treats as success — the point of the tap was for the row to stop
+    /// existing, and it does not exist.
     func deleteTransaction(_ transaction: Finance_Transaction) async {
         do {
             try await backend.deleteTransaction(id: transaction.id)
-        } catch let error as RPCError where error.code == .notFound {
+        } catch FinanceLedger.Failure.notFound {
             FinanceLog.store.debug("delete: transaction was already gone")
         } catch {
             let detail = FinanceLog.describe(error)
@@ -570,42 +587,22 @@ final class FinanceStore: ObservableObject {
         }
     }
 
-    // MARK: - Plumbing
-
     // MARK: - Live updates
-
-    /// How often a shared account is re-read while the app is in front.
-    ///
-    /// A poll, not a subscription. Financium has no push registration and no
-    /// streaming RPC, and inventing either for this would be a larger change
-    /// than the feature. Fifteen seconds is short enough that a partner's
-    /// spending appears while you are still looking at the screen, and long
-    /// enough to be unnoticeable on a phone bill.
-    private static let liveRefreshInterval = Duration.seconds(15)
 
     private var liveUpdates: Task<Void, Never>?
 
-    /// True when anything on screen belongs to more than one person.
-    ///
-    /// Polling a ledger only you can write to would be asking the server to
-    /// confirm what this device already knows.
+    /// True when any account on screen is shared.
     var hasSharedAccounts: Bool {
-        accounts.contains { Self.isShared($0) }
+        accounts.contains { isShared($0) }
     }
 
-    /// Starts re-reading while the app is in front and something is shared.
-    func startLiveUpdates() {
-        stopLiveUpdates()
-        guard mode == .account, hasSharedAccounts else { return }
-
-        liveUpdates = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: Self.liveRefreshInterval)
-                guard !Task.isCancelled else { return }
-                await self?.refresh()
-            }
-        }
-    }
+    /// Kept for the scene-phase hooks in `ContentView`. Live updates for a
+    /// shared account now arrive as CloudKit change pushes handled by
+    /// `CloudKitSyncEngine`, which calls `refresh()` itself when a pull lands —
+    /// there is nothing to poll. A single refresh still happens on activation,
+    /// next to this call, as a backstop for a push that was missed while the
+    /// app was not running.
+    func startLiveUpdates() {}
 
     func stopLiveUpdates() {
         liveUpdates?.cancel()
@@ -614,20 +611,82 @@ final class FinanceStore: ObservableObject {
 
     // MARK: - Sharing
 
-    /// Whether an account is shared with anyone, for the badge on its row.
-    nonisolated static func isShared(_ account: Finance_Account) -> Bool {
-        account.memberCount > 1
+    /// Supplies the URL to the toolbar's asynchronous `Transferable`. Existing
+    /// shares come from local bookkeeping; only a brand-new invite touches the
+    /// network, and that happens after the share menu has opened.
+    func shareURL(forAccountID accountID: String) async throws -> URL {
+        if let coordinator {
+            let urls = await coordinator.inviteURLs()
+            if let url = urls[accountID] { return url }
+        }
+        guard let account = accounts.first(where: { $0.id == accountID }) else {
+            throw FinanceLedger.Failure.notFound
+        }
+        guard let invite = await shareAccount(account), let url = invite.url else {
+            throw FinanceLedger.Failure.invalidArgument
+        }
+        return url
     }
 
-    /// Who is looking, for the calls that need to name them — leaving a shared
-    /// account is "remove me", and the server needs the id to know who that is.
-    var currentUserID: String { auth.user?.userID ?? "" }
+    /// Supplies `CKShareTransferRepresentation` with either a cached share or
+    /// a newly prepared one. The framework calls this only after it has opened
+    /// the collaboration UI, so CloudKit latency no longer blocks presentation.
+    func prepareShareRecord(forAccountID accountID: String) async throws -> CKShare {
+        if let share = accountShares[accountID] { return share }
+        guard let coordinator else { throw FinanceLedger.Failure.invalidArgument }
+        let share = try await coordinator.shareRecord(forAccount: accountID)
+        accountShares[accountID] = share
+        sharedAccountIDs.insert(accountID)
+        return share
+    }
+
+    func cachedShare(for account: Finance_Account) -> CKShare? {
+        accountShares[account.id]
+    }
+
+    /// Accounts with a live `CKShare` — this device's own or one it joined.
+    /// A share exists the moment the link is minted, before anyone accepts.
+    @Published private(set) var sharedAccountIDs: Set<String> = []
+
+    /// Whether this account has an active invite. Unlike `isShared`, this is
+    /// true as soon as the owner creates the link, even before it is accepted.
+    func hasShareInvite(_ account: Finance_Account) -> Bool {
+        sharedAccountIDs.contains(account.id)
+    }
+
+    /// A created invite alone does not make an account visibly collaborative.
+    /// For the owner, CloudKit's accepted-participant count must also be above
+    /// one. Accounts joined from another owner live in the shared database and
+    /// are collaborative by definition.
+    func isShared(_ account: Finance_Account) -> Bool {
+        participantAccountIDs.contains(account.id)
+            || (hasShareInvite(account) && account.memberCount > 1)
+    }
+
+    /// Who is looking, as their iCloud user-record name — for "remove me" from
+    /// a shared account.
+    var currentUserID: String { account.userRecordID?.recordName ?? "" }
 
     /// Whether this reader may invite others or make the account private again.
-    func isOwner(of account: Finance_Account) -> Bool {
-        // An account with no owner recorded is one from before sharing existed,
-        // and it belongs to whoever is looking at it.
-        account.ownerUserID.isEmpty || account.ownerUserID == auth.user?.userID
+    ///
+    /// True for everything except an account shared *with* this device from
+    /// someone else's iCloud. That covers a private account, one this device
+    /// shared out, and a stale share left by the old backend whose recorded
+    /// owner id no longer maps to anyone — all of which are this user's to
+    /// close.
+    func isOwner(of financeAccount: Finance_Account) -> Bool {
+        !participantAccountIDs.contains(financeAccount.id)
+    }
+
+    /// Turns a shared account back into a private one — the owner's action, and
+    /// also the way to clear a share inherited from the retired backend.
+    func makeAccountPrivate(_ financeAccount: Finance_Account) async {
+        if let coordinator {
+            await coordinator.makePrivate(accountID: financeAccount.id)
+        } else {
+            await local.setSharing(accountID: financeAccount.id, ownerUserID: "", memberCount: 1)
+        }
+        await refresh(force: true)
     }
 
     /// Shares an account and returns the invite to pass on.
@@ -641,6 +700,34 @@ final class FinanceStore: ObservableObject {
             errorMessage = Self.message(for: error)
             return nil
         }
+    }
+
+    /// The `CKShare` itself (existing or freshly minted) plus the container it
+    /// lives in, for presenting Apple's own `UICloudSharingController` — the
+    /// "Collaborate" screen with participant faces and the public-link toggle,
+    /// rather than a bare-URL activity sheet.
+    ///
+    /// iCloud sync only: local mode has no CloudKit container to share through.
+    func shareRecord(for account: Finance_Account) async -> (share: CKShare, container: CKContainer)? {
+        guard let coordinator else { return nil }
+        do {
+            let share = try await coordinator.shareRecord(forAccount: account.id)
+            await refresh(force: true)
+            return (share, coordinator.cloudContainer)
+        } catch {
+            guard !Self.wasCancelled(error) else { return nil }
+            errorMessage = Self.message(for: error)
+            return nil
+        }
+    }
+
+    /// Called when the reader stops sharing from inside
+    /// `UICloudSharingController` itself rather than through the app's own UI —
+    /// the controller has already removed the share; this just brings our own
+    /// bookkeeping in line with that.
+    func handleStoppedSharingFromSystemUI(accountID: String) async {
+        await coordinator?.handleStoppedSharingFromSystemUI(accountID: accountID)
+        await refresh(force: true)
     }
 
     /// Redeems an invite. Returns the account joined, so the screen can say which.
@@ -661,9 +748,17 @@ final class FinanceStore: ObservableObject {
         }
     }
 
-    /// Makes an account private again, or removes one member from it.
+    /// Makes an account private again (empty `memberID`), or removes one member
+    /// from it.
     func stopSharingAccount(_ account: Finance_Account, memberID: String = "") async -> Bool {
-        await mutation { try await $0.stopSharingAccount(id: account.id, memberID: memberID) }
+        // "Make it private" is the same operation whether the account is a real
+        // CKShare or a leftover from the old backend — route both through the
+        // coordinator, which handles the missing-share case.
+        if memberID.isEmpty {
+            await makeAccountPrivate(account)
+            return true
+        }
+        return await mutation { try await $0.stopSharingAccount(id: account.id, memberID: memberID) }
     }
 
     private func mutation(_ operation: (any FinanceBackend) async throws -> Void) async -> Bool {
@@ -693,9 +788,9 @@ final class FinanceStore: ObservableObject {
 
     /// Turns a failed write into something worth reading.
     ///
-    /// The two backends fail differently — one returns a gRPC status, the other
-    /// throws a `FinanceLedger.Failure` — but the user is looking at the same
-    /// screen either way, so both are mapped to the same sentences.
+    /// The ledger rules throw `FinanceLedger.Failure`; CloudKit throws
+    /// `CKError`. The user is looking at the same screen either way, so both
+    /// are mapped to the same sentences.
     static func message(for error: Error) -> String {
         if let failure = error as? FinanceLedger.Failure {
             switch failure {
@@ -707,30 +802,20 @@ final class FinanceStore: ObservableObject {
                 return NSLocalizedString("error.invalid", comment: "Write refused")
             }
         }
-        guard let rpc = error as? RPCError else {
+        guard let ck = error as? CKError else {
             return NSLocalizedString("error.generic", comment: "Something went wrong")
         }
-        switch rpc.code {
-        case .alreadyExists:
-            return NSLocalizedString("error.budget.duplicate_category", comment: "Category already budgeted")
-        case .failedPrecondition:
-            return NSLocalizedString("error.account.has_transactions", comment: "Account still has transactions")
-        case .unavailable, .deadlineExceeded, .cancelled:
-            return NSLocalizedString("error.unreachable", comment: "Server unreachable")
-        case .unauthenticated:
-            return NSLocalizedString("error.unauthorized", comment: "Session no longer valid")
-        case .permissionDenied:
-            // Not the same thing as an expired session, and saying so sent
-            // readers to sign in again over a call the server was never going
-            // to allow — which signing in again does not change.
+        switch ck.code {
+        case .networkUnavailable, .networkFailure, .serviceUnavailable,
+             .requestRateLimited, .zoneBusy:
+            return NSLocalizedString("error.unreachable", comment: "iCloud unreachable")
+        case .notAuthenticated:
+            return NSLocalizedString("error.unauthorized", comment: "Not signed in to iCloud")
+        case .permissionFailure:
             return NSLocalizedString("error.forbidden", comment: "Call refused")
-        case .invalidArgument, .notFound, .outOfRange:
-            return NSLocalizedString("error.invalid", comment: "Write refused")
+        case .quotaExceeded:
+            return NSLocalizedString("error.icloud.quota", comment: "iCloud storage full")
         default:
-            // Never `localizedDescription`. On an error that is not a
-            // `LocalizedError` — which `RPCError` is not — Foundation falls
-            // back to the numeric form, and the reader is told their accounts
-            // could not be loaded because of "runtime error 1".
             return NSLocalizedString("error.generic", comment: "Something went wrong")
         }
     }

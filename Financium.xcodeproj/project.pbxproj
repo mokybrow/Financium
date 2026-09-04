@@ -11,10 +11,6 @@
 		0BDDBC593032F4AC0017578D /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BDDBC583032F4AC0017578D /* SwiftUI.framework */; };
 		0BDDBC6A3032F4AE0017578D /* FinanciumWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0BDDBC543032F4AC0017578D /* FinanciumWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		FC0000013020589B00F7510A /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = FC0001013020589B00F7510A /* SwiftProtobuf */; };
-		FC0000023020589B00F7510A /* GRPCCore in Frameworks */ = {isa = PBXBuildFile; productRef = FC0001023020589B00F7510A /* GRPCCore */; };
-		FC0000033020589B00F7510A /* GRPCProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = FC0001033020589B00F7510A /* GRPCProtobuf */; };
-		FC0000043020589B00F7510A /* GRPCNIOTransportHTTP2 in Frameworks */ = {isa = PBXBuildFile; productRef = FC0001043020589B00F7510A /* GRPCNIOTransportHTTP2 */; };
-		FC0000053020589B00F7510A /* GRPCNIOTransportHTTP2Posix in Frameworks */ = {isa = PBXBuildFile; productRef = FC0001053020589B00F7510A /* GRPCNIOTransportHTTP2Posix */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,10 +86,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				FC0000013020589B00F7510A /* SwiftProtobuf in Frameworks */,
-				FC0000023020589B00F7510A /* GRPCCore in Frameworks */,
-				FC0000033020589B00F7510A /* GRPCProtobuf in Frameworks */,
-				FC0000043020589B00F7510A /* GRPCNIOTransportHTTP2 in Frameworks */,
-				FC0000053020589B00F7510A /* GRPCNIOTransportHTTP2Posix in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -160,10 +152,6 @@
 			name = Financium;
 			packageProductDependencies = (
 				FC0001013020589B00F7510A /* SwiftProtobuf */,
-				FC0001023020589B00F7510A /* GRPCCore */,
-				FC0001033020589B00F7510A /* GRPCProtobuf */,
-				FC0001043020589B00F7510A /* GRPCNIOTransportHTTP2 */,
-				FC0001053020589B00F7510A /* GRPCNIOTransportHTTP2Posix */,
 			);
 			productName = Financium;
 			productReference = 0B79BAA03020589B00F7510A /* Financium.app */;
@@ -221,9 +209,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				FC0002013020589B00F7510A /* XCRemoteSwiftPackageReference "swift-protobuf" */,
-				FC0002023020589B00F7510A /* XCRemoteSwiftPackageReference "grpc-swift-2" */,
-				FC0002033020589B00F7510A /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */,
-				FC0002043020589B00F7510A /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0B79BAA13020589B00F7510A /* Products */;
@@ -404,32 +389,12 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Financium/Financium.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = XVGJW3U9VA;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				FINANCIUM_AUTH_BASE_URL = "http://127.0.0.1:8080";
-				"FINANCIUM_AUTH_BASE_URL[sdk=iphoneos*]" = "https://sso.golapta.com";
-				FINANCIUM_AUTH_HOST = 127.0.0.1;
-				"FINANCIUM_AUTH_HOST[sdk=iphoneos*]" = auth.golapta.com;
-				FINANCIUM_AUTH_PORT = 44044;
-				"FINANCIUM_AUTH_PORT[sdk=iphoneos*]" = 443;
-				FINANCIUM_AUTH_TLS = NO;
-				"FINANCIUM_AUTH_TLS[sdk=iphoneos*]" = YES;
-				FINANCIUM_FINANCE_HOST = 127.0.0.1;
-				"FINANCIUM_FINANCE_HOST[sdk=iphoneos*]" = money.golapta.com;
-				FINANCIUM_FINANCE_PORT = 44044;
-				"FINANCIUM_FINANCE_PORT[sdk=iphoneos*]" = 443;
-				FINANCIUM_FINANCE_TLS = NO;
-				"FINANCIUM_FINANCE_TLS[sdk=iphoneos*]" = YES;
-				FINANCIUM_USERS_HOST = 127.0.0.1;
-				"FINANCIUM_USERS_HOST[sdk=iphoneos*]" = users.golapta.com;
-				FINANCIUM_USERS_PORT = 44044;
-				"FINANCIUM_USERS_PORT[sdk=iphoneos*]" = 443;
-				FINANCIUM_USERS_TLS = NO;
-				"FINANCIUM_USERS_TLS[sdk=iphoneos*]" = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Financium/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Financium;
@@ -472,32 +437,12 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Financium/Financium.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = XVGJW3U9VA;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				FINANCIUM_AUTH_BASE_URL = "https://sso.golapta.com";
-				"FINANCIUM_AUTH_BASE_URL[sdk=iphonesimulator*]" = "http://127.0.0.1:8080";
-				FINANCIUM_AUTH_HOST = auth.golapta.com;
-				"FINANCIUM_AUTH_HOST[sdk=iphonesimulator*]" = 127.0.0.1;
-				FINANCIUM_AUTH_PORT = 443;
-				"FINANCIUM_AUTH_PORT[sdk=iphonesimulator*]" = 44044;
-				FINANCIUM_AUTH_TLS = YES;
-				"FINANCIUM_AUTH_TLS[sdk=iphonesimulator*]" = NO;
-				FINANCIUM_FINANCE_HOST = money.golapta.com;
-				"FINANCIUM_FINANCE_HOST[sdk=iphonesimulator*]" = 127.0.0.1;
-				FINANCIUM_FINANCE_PORT = 443;
-				"FINANCIUM_FINANCE_PORT[sdk=iphonesimulator*]" = 44044;
-				FINANCIUM_FINANCE_TLS = YES;
-				"FINANCIUM_FINANCE_TLS[sdk=iphonesimulator*]" = NO;
-				FINANCIUM_USERS_HOST = users.golapta.com;
-				"FINANCIUM_USERS_HOST[sdk=iphonesimulator*]" = 127.0.0.1;
-				FINANCIUM_USERS_PORT = 443;
-				"FINANCIUM_USERS_PORT[sdk=iphonesimulator*]" = 44044;
-				FINANCIUM_USERS_TLS = YES;
-				"FINANCIUM_USERS_TLS[sdk=iphonesimulator*]" = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Financium/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Financium;
@@ -538,7 +483,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = FinanciumWidgets/FinanciumWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = XVGJW3U9VA;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FinanciumWidgets/Info.plist;
@@ -571,7 +516,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = FinanciumWidgets/FinanciumWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = XVGJW3U9VA;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FinanciumWidgets/Info.plist;
@@ -639,30 +584,6 @@
 				version = 1.36.1;
 			};
 		};
-		FC0002023020589B00F7510A /* XCRemoteSwiftPackageReference "grpc-swift-2" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/grpc/grpc-swift-2.git";
-			requirement = {
-				kind = exactVersion;
-				version = 2.3.0;
-			};
-		};
-		FC0002033020589B00F7510A /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/grpc/grpc-swift-protobuf.git";
-			requirement = {
-				kind = exactVersion;
-				version = 2.2.1;
-			};
-		};
-		FC0002043020589B00F7510A /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/grpc/grpc-swift-nio-transport";
-			requirement = {
-				kind = exactVersion;
-				version = 2.5.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -670,26 +591,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = FC0002013020589B00F7510A /* XCRemoteSwiftPackageReference "swift-protobuf" */;
 			productName = SwiftProtobuf;
-		};
-		FC0001023020589B00F7510A /* GRPCCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = FC0002023020589B00F7510A /* XCRemoteSwiftPackageReference "grpc-swift-2" */;
-			productName = GRPCCore;
-		};
-		FC0001033020589B00F7510A /* GRPCProtobuf */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = FC0002033020589B00F7510A /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */;
-			productName = GRPCProtobuf;
-		};
-		FC0001043020589B00F7510A /* GRPCNIOTransportHTTP2 */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = FC0002043020589B00F7510A /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */;
-			productName = GRPCNIOTransportHTTP2;
-		};
-		FC0001053020589B00F7510A /* GRPCNIOTransportHTTP2Posix */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = FC0002043020589B00F7510A /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */;
-			productName = GRPCNIOTransportHTTP2Posix;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

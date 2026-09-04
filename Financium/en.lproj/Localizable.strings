@@ -23,6 +23,13 @@
 "profile.local.title" = "On this device";
 "profile.go_to_sign_in" = "Go to sign-in";
 "profile.local.hint" = "Signing in lets you keep your records across devices. You will be asked whether to move what is already here.";
+"profile.sync" = "Sync";
+"profile.sync.on" = "iCloud";
+"profile.sync.off" = "This device";
+"profile.sync.hint.on" = "Your ledger is kept on this device and synced through your iCloud account. Shared accounts sync too.";
+"profile.sync.hint.off" = "Your ledger is kept on this device only.";
+"profile.sync.hint.no_account" = "Sign in to iCloud in Settings to sync your ledger across devices and share accounts.";
+"error.icloud.quota" = "Your iCloud storage is full. Free up space and try again.";
 "profile.local.reset" = "Delete all local data";
 "profile.local.reset.confirm" = "Delete everything on this device?";
 "profile.local.reset.message" = "Accounts, transactions, budgets and goals kept on this device will be removed. This cannot be undone.";
@@ -79,6 +86,9 @@
 "correction.hint" = "Recorded as an entry in your transactions, so the balance always matches the movements behind it.";
 "correction.entry" = "Balance correction";
 "money.account.delete" = "Delete account";
+"money.account.delete.has_transactions.title" = "This account still has transactions";
+"money.account.delete.has_transactions.message" = "Delete the account together with everything recorded on it? This cannot be undone.";
+"money.account.delete.force" = "Delete everything";
 
 /* Transaction editors */
 "transaction.category" = "Category";
@@ -137,6 +147,10 @@
 "activity.filter.account" = "Account";
 "activity.filter.currency" = "Currency";
 "activity.empty" = "No operations yet";
+"activity.today" = "Today";
+"activity.yesterday" = "Yesterday";
+"activity.group.collapse" = "Collapse this day";
+"activity.group.expand" = "Expand this day";
 "activity.empty.subtitle" = "Added expenses and incoming will show up here";
 
 /* Budget */
@@ -169,16 +183,24 @@
 
 /* Built-in category names */
 "category.groceries" = "Groceries";
+"category.restaurants" = "Restaurants";
 "category.clothing" = "Clothing";
 "category.leisure" = "Leisure";
 "category.transport" = "Transport";
 "category.home" = "Home";
+"category.utilities" = "Utilities";
 "category.health" = "Health";
+"category.education" = "Education";
+"category.travel" = "Travel";
+"category.subscriptions" = "Subscriptions";
+"category.pets" = "Pets";
 "category.other" = "Other";
 "category.salary" = "Salary";
 "category.bonus" = "Bonus";
 "category.gift" = "Gift";
 "category.refund" = "Refund";
+"category.investment" = "Investment";
+"category.freelance" = "Freelance";
 "budget.name.placeholder" = "Name";
 "budget.remind" = "Remind";
 "budget.payment_date" = "Payment Day";
@@ -212,6 +234,44 @@
 "profile.title" = "Profile";
 "profile.general" = "General";
 "profile.name" = "Name";
+"profile.name.not_set" = "Add your name";
+"profile.photo.remove" = "Remove photo";
+"profile.photo.edit" = "Edit photo";
+"profile.photo.editor" = "Photo";
+"profile.photo.crop_hint" = "Drag and pinch to position. Only what fits the circle is kept.";
+"profile.photo.rotate_left" = "Rotate left";
+"profile.photo.rotate_right" = "Rotate right";
+"profile.photo.replace" = "Replace photo";
+"profile.photo.choose" = "Choose a photo";
+"profile.photo.set" = "Set a photo";
+"profile.name.edit" = "Edit";
+"profile.section.general" = "General";
+"profile.appearance.avatar" = "Avatar";
+"profile.appearance.emoji" = "Emoji";
+"profile.appearance.choose" = "Choose";
+"profile.appearance.background" = "Background";
+"profile.appearance.emoji_clear" = "Remove emoji";
+"profile.appearance.monogram" = "Monogram";
+"profile.monogram.classic" = "Classic";
+"profile.monogram.rounded" = "Rounded";
+"profile.monogram.serif" = "Serif";
+"profile.monogram.mono" = "Monospace";
+"profile.section.app" = "Application";
+"profile.section.information" = "Information";
+"profile.section.legal" = "Legal";
+"profile.section.support" = "Support";
+"profile.privacy" = "Privacy policy";
+"profile.terms" = "Terms & conditions";
+"profile.support.contact" = "Contact support";
+"profile.support.share" = "Share the app";
+"profile.support.rate" = "Rate the app";
+"profile.section.management" = "Management";
+"profile.support" = "Support";
+"profile.legal" = "Legal information";
+"profile.account.delete" = "Delete account";
+"profile.account.delete.confirm" = "Delete account?";
+"profile.account.delete.message" = "Your accounts, transactions, budgets, goals and profile are removed from this device and from iCloud, and you are signed out. This cannot be undone.";
+"common.done" = "Done";
 "profile.security" = "Security";
 "profile.email" = "Email";
 "profile.email.verified" = "Verified";
@@ -265,6 +325,9 @@
 "money.account.shared" = "Shared account";
 "money.account.shared.manage" = "Sharing";
 "money.account.leave" = "Leave account";
+"money.account.make_private" = "Make private";
+"money.account.share.again" = "Share the link again";
+"share.invite.message" = "You're invited to join the account “%@”";
 "shared.title" = "Shared account";
 "shared.members.private" = "Only you can see this account";
 "shared.members.count" = "Shared with %d people";

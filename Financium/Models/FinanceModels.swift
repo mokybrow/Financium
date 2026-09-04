@@ -74,7 +74,7 @@ nonisolated extension Finance_Money {
 }
 
 enum FinanceSection: String, CaseIterable, Identifiable {
-    case money, budget, goals, profile
+    case money, budget, goals
     var id: Self { self }
 
     /// Localized tab title. A `LocalizedStringKey` rather than a `String` so the
@@ -84,7 +84,6 @@ enum FinanceSection: String, CaseIterable, Identifiable {
         case .money: "tab.money"
         case .budget: "tab.budget"
         case .goals: "tab.goals"
-        case .profile: "tab.profile"
         }
     }
 
@@ -93,7 +92,6 @@ enum FinanceSection: String, CaseIterable, Identifiable {
         case .money: "creditcard"
         case .budget: "chart.pie"
         case .goals: "target"
-        case .profile: "person.crop.circle"
         }
     }
 }

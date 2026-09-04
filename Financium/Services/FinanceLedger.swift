@@ -177,6 +177,81 @@ nonisolated enum FinanceLedger {
         }
     }
 
+    // MARK: - Snapshot
+
+    /// Assembles the one consistent picture every screen reads, from ledger
+    /// data already in memory.
+    ///
+    /// This is the whole of what an on-device backend does for a read: filter
+    /// to the window, fill in budget spend, apply goal progress, total each
+    /// currency, and derive the overview. `LocalFinanceBackend` and
+    /// `CloudKitFinanceBackend` both keep their data in the same shape and hand
+    /// it here rather than each computing a snapshot its own way.
+    ///
+    /// Counterpart: `GetOverview` + the list endpoints in service.go.
+    static func snapshot(
+        period: FinancePeriod,
+        monthKey: String,
+        accounts: [Finance_Account],
+        transactions: [Finance_Transaction],
+        budgets: [(month: String, budget: Finance_Budget)],
+        goals: [Finance_Goal],
+        settings: Finance_FinanceSettings
+    ) -> FinanceSnapshot {
+        let interval = period.interval
+        let mainCurrency = settings.mainCurrencyCode.isEmpty ? "RUB" : settings.mainCurrencyCode
+
+        var snapshot = FinanceSnapshot()
+        snapshot.settings = settings
+        snapshot.accounts = accounts.filter { !$0.isArchived }
+        snapshot.transactions = transactions
+            .filter { transaction in
+                guard transaction.hasOccurredAt else { return false }
+                let date = transaction.occurredAt.date
+                return date >= interval.start && date < interval.end
+            }
+            .sorted { $0.occurredAt.date > $1.occurredAt.date }
+
+        let month = period.anchorMonth
+        snapshot.budgets = budgets
+            .filter { $0.month == monthKey }
+            .map { stored in
+                var filled = stored.budget
+                filled.spent = Finance_Money(
+                    minorUnits: spent(
+                        onCategory: stored.budget.category,
+                        month: month,
+                        currency: stored.budget.limit.currencyCode,
+                        transactions: transactions
+                    ),
+                    currencyCode: stored.budget.limit.currencyCode
+                )
+                return filled
+            }
+
+        var progressed = goals
+        applyGoalProgress(to: &progressed, accounts: accounts)
+        snapshot.goals = progressed
+
+        let totals = currencyTotals(
+            mainCurrency: mainCurrency,
+            accounts: snapshot.accounts,
+            transactions: transactions,
+            interval: interval
+        )
+        var overview = Finance_GetOverviewResponse()
+        overview.accounts = snapshot.accounts
+        overview.recentTransactions = Array(snapshot.transactions.prefix(50))
+        overview.currencies = totals
+        if let main = totals.first(where: { $0.currencyCode == mainCurrency }) {
+            overview.totalBalance = main.balance
+            overview.spent = main.spent
+            overview.earned = main.earned
+        }
+        snapshot.overview = overview
+        return snapshot
+    }
+
     // MARK: - Validation
 
     /// The reasons a write is refused, matching the gRPC statuses the service

@@ -12,16 +12,24 @@ import SwiftProtobuf
 /// rather than assuming a dot — a comma locale would otherwise silently parse
 /// "2,50" as nil and save nothing.
 func financeDecimal(from text: String) -> Decimal? {
-    let separator = Locale.current.decimalSeparator ?? "."
-    let normalized = text.replacingOccurrences(of: separator, with: ".")
+    let locale = Locale.current
+    let separator = locale.decimalSeparator ?? "."
+    let grouping = locale.groupingSeparator ?? "\u{00A0}"
+    let formatted = FIAmountRow.sanitize(text, locale: locale)
+    let ungrouped = formatted
+        .replacingOccurrences(of: grouping, with: "")
+        .filter { !$0.isWhitespace }
+    let normalized = ungrouped.replacingOccurrences(of: separator, with: ".")
     guard !normalized.isEmpty else { return nil }
     return Decimal(string: normalized, locale: Locale(identifier: "en_US_POSIX"))
 }
 
 /// Formats a stored amount back into something the pad can keep editing.
 func financeAmountText(_ value: Decimal) -> String {
-    let separator = Locale.current.decimalSeparator ?? "."
-    return String(describing: value).replacingOccurrences(of: ".", with: separator)
+    let locale = Locale.current
+    let separator = locale.decimalSeparator ?? "."
+    let localized = String(describing: value).replacingOccurrences(of: ".", with: separator)
+    return FIAmountRow.sanitize(localized, locale: locale)
 }
 
 private extension View {
@@ -47,6 +55,9 @@ struct TransactionEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let kind: TransactionEditorKind
     let transaction: Finance_Transaction?
+    /// Preselected account for a brand-new transaction — set when the editor is
+    /// opened from inside one account's activity list.
+    private let initialAccountID: String
 
     @State private var accountID = ""
     @State private var destinationID = ""
@@ -57,13 +68,15 @@ struct TransactionEditorView: View {
     @State private var occurredAt = Date()
     @State private var saving = false
 
-    init(kind: TransactionEditorKind) {
+    init(kind: TransactionEditorKind, accountID: String = "") {
         self.kind = kind
         self.transaction = nil
+        self.initialAccountID = accountID
     }
 
     init(transaction: Finance_Transaction) {
         self.transaction = transaction
+        self.initialAccountID = ""
         switch transaction.kind {
         case .income: self.kind = .income
         case .transfer: self.kind = .transfer
@@ -262,7 +275,8 @@ struct TransactionEditorView: View {
             return
         }
         if accountID.isEmpty {
-            accountID = store.accounts.first?.id ?? ""
+            let preferred = store.accounts.first { $0.id == initialAccountID }?.id
+            accountID = preferred ?? store.accounts.first?.id ?? ""
         }
         // A transfer gets no default category — `categoryOptions` is empty for
         // it, and defaulting to the first expense category is what named every

@@ -1,5 +1,5 @@
+import CloudKit
 import Foundation
-import GRPCCore
 import os
 
 /// Diagnostics for the calls the app makes.
@@ -36,14 +36,18 @@ nonisolated enum FinanceLog {
 
     /// Everything an error can be made to say, in one line.
     ///
-    /// gRPC failures are unwrapped to code and server message — the message is
-    /// the useful half and is the part `localizedDescription` throws away. A
-    /// cancellation is named as such rather than reported as a fault, because
-    /// it usually means the app called the request off itself.
+    /// CloudKit failures are unwrapped to their `CKError.Code` and the retry
+    /// hint when there is one — the useful half, and the part
+    /// `localizedDescription` buries. A cancellation is named as such rather
+    /// than reported as a fault, because it usually means the app called the
+    /// request off itself.
     static func describe(_ error: Error) -> String {
-        if let rpc = error as? RPCError {
-            let message = rpc.message.isEmpty ? "no message" : rpc.message
-            return "grpc \(rpc.code): \(message)"
+        if let ck = error as? CKError {
+            var line = "cloudkit \(ck.code.rawValue) (\(ck.code)): \(ck.localizedDescription)"
+            if let retry = ck.retryAfterSeconds {
+                line += " — retry after \(retry)s"
+            }
+            return line
         }
         if error is CancellationError {
             return "cancelled by the app"

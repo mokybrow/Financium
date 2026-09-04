@@ -39,9 +39,12 @@ struct FinanceCategory: Codable, Hashable, Identifiable {
 final class FinanceCategoryStore: ObservableObject {
     /// Built in, in the order they are offered.
     nonisolated static let builtInExpense = [
-        "Groceries", "Clothing", "Leisure", "Transport", "Home", "Health", "Other"
+        "Groceries", "Restaurants", "Clothing", "Leisure", "Transport", "Home",
+        "Utilities", "Health", "Education", "Travel", "Subscriptions", "Pets", "Other"
     ]
-    nonisolated static let builtInIncome = ["Salary", "Bonus", "Gift", "Refund", "Other"]
+    nonisolated static let builtInIncome = [
+        "Salary", "Bonus", "Gift", "Refund", "Investment", "Freelance", "Other"
+    ]
 
     @Published private(set) var custom: [FinanceCategory] = []
 
@@ -99,13 +102,17 @@ final class FinanceCategoryStore: ObservableObject {
     func exists(_ name: String, kind: FinanceCategory.Kind) -> Bool {
         let candidate = name.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Built-ins are checked on *both* sides and in *every* bundled
-        // language. `canonical` translates by name alone with no notion of who
-        // asked, so an English-locale user typing "Дом" would create a category
-        // that immediately folds into the built-in "Home" and vanishes from the
-        // menus while still being listed here. Custom names only clash within
-        // their own side: "Refund" as both a spend and an income is reasonable.
-        if Self.identifiersByName[candidate.lowercased()] != nil { return true }
+        // Checked in every bundled language, but only against built-ins on the
+        // *same* side. `canonical` translates by name alone with no notion of
+        // who asked, so an English-locale user typing "Дом" would still fold
+        // into the built-in "Home" here. But "Groceries" is only ever a
+        // built-in expense, so typing it for income must not collide with the
+        // expense-side entry — that's exactly the case a user reasonably wants
+        // (products bought for resale, say, tracked as its own income line).
+        if let identifier = Self.identifiersByName[candidate.lowercased()],
+           Self.builtInIdentifiers(for: kind).contains(identifier.lowercased()) {
+            return true
+        }
 
         let mine = custom.filter { $0.kind == kind }.map(\.name)
         return mine.contains { $0.caseInsensitiveCompare(candidate) == .orderedSame }
@@ -143,6 +150,13 @@ final class FinanceCategoryStore: ObservableObject {
         }
         return map
     }()
+
+    /// The built-in identifiers that live on one side of the ledger, lower-cased
+    /// for comparison against `identifiersByName`'s values.
+    nonisolated static func builtInIdentifiers(for kind: FinanceCategory.Kind) -> Set<String> {
+        let names = kind == .expense ? builtInExpense : builtInIncome
+        return Set(names.map { $0.lowercased() })
+    }
 
     /// The identifier a stored category belongs to, whatever language it was
     /// written in. Unknown values are the user's own and pass through.

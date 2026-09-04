@@ -10,6 +10,9 @@ struct MoneyView: View {
     /// Waiting on a confirmation. Deleting is one tap in a menu that opens on
     /// a long press, and none of it can be undone.
     @State private var pendingAccountDeletion: Finance_Account?
+    /// The plain delete was refused because the account still has
+    /// transactions — asking whether to take them with it.
+    @State private var accountDeletionNeedsCascade: Finance_Account?
 
     var body: some View {
         NavigationStack {
@@ -29,6 +32,7 @@ struct MoneyView: View {
             .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { addMenu }
+                ToolbarItem(placement: .topBarTrailing) { ProfileToolbarButton() }
             }
             .refreshable {
                 await rates.refresh()
@@ -53,13 +57,31 @@ struct MoneyView: View {
                     AccountEditorView(account: account)
                 case .correction(let account):
                     BalanceCorrectionView(account: account)
-                case .share(let account):
-                    SharedAccountView(account: account)
                 }
             }
             .fiErrorAlert($store.errorMessage)
             .fiConfirmDelete($pendingAccountDeletion) { account in
-                Task { await store.deleteAccount(account) }
+                Task {
+                    if await store.deleteAccount(account) == .hasTransactions {
+                        accountDeletionNeedsCascade = account
+                    }
+                }
+            }
+            .alert(
+                Text("money.account.delete.has_transactions.title"),
+                isPresented: Binding(
+                    get: { accountDeletionNeedsCascade != nil },
+                    set: { if !$0 { accountDeletionNeedsCascade = nil } }
+                )
+            ) {
+                Button("money.account.delete.force", role: .destructive) {
+                    if let account = accountDeletionNeedsCascade {
+                        Task { await store.deleteAccount(account, cascade: true) }
+                    }
+                }
+                Button("common.cancel", role: .cancel) {}
+            } message: {
+                Text("money.account.delete.has_transactions.message")
             }
             .onChange(of: store.pendingQuickAdd) { _, kind in
                 guard kind != nil else { return }
@@ -90,6 +112,7 @@ struct MoneyView: View {
             sheet = .transaction(kind)
         }
     }
+
 
     private var accountsSection: some View {
         VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
@@ -178,7 +201,7 @@ struct MoneyView: View {
                     // account's own glyph because it says something about who
                     // the money belongs to rather than what kind of account it
                     // is, and that is the more surprising fact of the two.
-                    if FinanceStore.isShared(account) {
+                    if store.isShared(account) {
                         Image(systemName: "person.2.fill")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -204,21 +227,18 @@ struct MoneyView: View {
                 Label("money.account.correct", systemImage: "plusminus")
             }
 
-            // Sharing is the owner's to start and stop. A member sees "leave"
-            // instead, because walking away from someone else's account is
-            // theirs to do and closing it is not.
-            if store.isOwner(of: account) {
-                Button {
-                    sheet = .share(account)
-                } label: {
-                    Label(
-                        FinanceStore.isShared(account) ? "money.account.shared.manage" : "money.account.share",
-                        systemImage: "person.2"
-                    )
+            // The owner can revoke an existing invite and every participant's
+            // access without opening the account first. A participant cannot
+            // close somebody else's share; their corresponding action is to
+            // leave it.
+            if store.isOwner(of: account), store.hasShareInvite(account) {
+                FIDestructiveMenuButton(
+                    titleKey: "money.account.make_private",
+                    systemImage: "person.2.slash"
+                ) {
+                    Task { await store.makeAccountPrivate(account) }
                 }
-            } else {
-                // Not a trash can: leaving is walking away from someone else's
-                // account, not throwing it out.
+            } else if !store.isOwner(of: account) {
                 FIDestructiveMenuButton(titleKey: "money.account.leave", systemImage: "person.fill.xmark") {
                     Task { await store.stopSharingAccount(account, memberID: store.currentUserID) }
                 }
@@ -422,14 +442,12 @@ enum MoneySheet: Identifiable {
     case transaction(TransactionEditorKind)
     case account(Finance_Account?)
     case correction(Finance_Account)
-    case share(Finance_Account)
 
     var id: String {
         switch self {
         case .transaction(let kind): "transaction.\(kind.id)"
         case .account(let account): "account.\(account?.id ?? "new")"
         case .correction(let account): "correction.\(account.id)"
-        case .share(let account): "share.\(account.id)"
         }
     }
 }
@@ -493,7 +511,10 @@ struct AccountActivityView: View {
     @State private var currencyFilter = ""
     @State private var editingTransaction: Finance_Transaction?
     @State private var pendingTransactionDeletion: Finance_Transaction?
-
+    /// A new transaction being added from this account's own list.
+    @State private var addKind: TransactionEditorKind?
+    /// Days the reader has folded away. Keyed by start-of-day.
+    @State private var collapsedDays: Set<Date> = []
     init(kind: ActivityKind) {
         self.kind = kind
         self.account = nil
@@ -525,15 +546,42 @@ struct AccountActivityView: View {
         return filtered.sorted(by: sortPredicate)
     }
 
+    /// One day of transactions, for the collapsible sections. Empty when the
+    /// list is sorted by value — grouping by day only makes sense in date
+    /// order.
+    private struct DayGroup: Identifiable {
+        let day: Date
+        let items: [Finance_Transaction]
+        var id: Date { day }
+    }
+
+    private var dayGroups: [DayGroup] {
+        guard sort == .dateDescending || sort == .dateAscending else { return [] }
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: transactions) {
+            calendar.startOfDay(for: $0.occurredAt.date)
+        }
+        let ascending = sort == .dateAscending
+        return grouped.keys
+            .sorted { ascending ? $0 < $1 : $0 > $1 }
+            .map { DayGroup(day: $0, items: grouped[$0] ?? []) }
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
-                if !transactions.isEmpty {
-                    FICard {
-                        ForEach(Array(transactions.enumerated()), id: \.element.id) { index, transaction in
-                            if index > 0 { FIRowSeparator() }
-                            row(transaction)
+                if dayGroups.isEmpty {
+                    if !transactions.isEmpty {
+                        FICard {
+                            ForEach(Array(transactions.enumerated()), id: \.element.id) { index, transaction in
+                                if index > 0 { FIRowSeparator() }
+                                row(transaction)
+                            }
                         }
+                    }
+                } else {
+                    ForEach(dayGroups) { group in
+                        daySection(group)
                     }
                 }
             }
@@ -552,6 +600,25 @@ struct AccountActivityView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                if let account {
+                    // Left of "+": sharing is not adding money, but it is the
+                    // other thing this page's owner can do to the account
+                    // itself, and the two read as a pair in that order.
+                    if store.isOwner(of: account) {
+                        shareControl(for: account)
+                    }
+
+                    FIToolbarAddButton {
+                        Button { addKind = .income } label: { Label("money.add.incoming", systemImage: "plus") }
+                        Button { addKind = .expense } label: { Label("money.add.expense", systemImage: "minus") }
+                        if store.accounts.count > 1 {
+                            Button { addKind = .transfer } label: {
+                                Label("money.add.transfer", systemImage: "arrow.left.arrow.right")
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("account.\(account.id).add")
+                }
                 sortMenu
                 if account == nil {
                     filterMenu
@@ -568,9 +635,80 @@ struct AccountActivityView: View {
             }
         }
         .sheet(item: $editingTransaction) { TransactionEditorView(transaction: $0) }
+        .sheet(item: $addKind) { kind in
+            TransactionEditorView(kind: kind, accountID: account?.id ?? "")
+        }
         .fiConfirmDelete($pendingTransactionDeletion) { transaction in
             Task { await store.deleteTransaction(transaction) }
         }
+    }
+
+    /// The toolbar's share control.
+    ///
+    /// A native `ShareLink` lives in the toolbar itself. Its transferable loads
+    /// the invite only after the system menu is already on screen.
+    private func shareControl(for account: Finance_Account) -> some View {
+        AccountShareLinkButton(
+            accountID: account.id,
+            accountName: account.name,
+            existingShare: store.cachedShare(for: account),
+            accessibilityLabel: store.hasShareInvite(account)
+                ? "money.account.share.again"
+                : "money.account.share"
+        )
+    }
+
+    @ViewBuilder
+    private func daySection(_ group: DayGroup) -> some View {
+        let collapsed = collapsedDays.contains(group.day)
+        VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
+            Button {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    if collapsed { collapsedDays.remove(group.day) } else { collapsedDays.insert(group.day) }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(collapsed ? -90 : 0))
+                    Text(verbatim: dayLabel(group.day))
+                        .font(FITheme.Typography.sectionHeader)
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 0)
+                    Text(verbatim: "\(group.items.count)")
+                        .font(FITheme.Typography.footnote)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                .padding(.horizontal, FITheme.Metrics.textInset)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(verbatim: dayLabel(group.day)))
+            .accessibilityHint(Text(collapsed
+                ? LocalizedStringKey("activity.group.expand")
+                : LocalizedStringKey("activity.group.collapse")))
+
+            if !collapsed {
+                FICard {
+                    ForEach(Array(group.items.enumerated()), id: \.element.id) { index, transaction in
+                        if index > 0 { FIRowSeparator() }
+                        row(transaction)
+                    }
+                }
+            }
+        }
+    }
+
+    private func dayLabel(_ day: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(day) { return NSLocalizedString("activity.today", comment: "Today") }
+        if calendar.isDateInYesterday(day) { return NSLocalizedString("activity.yesterday", comment: "Yesterday") }
+        let sameYear = calendar.isDate(day, equalTo: Date(), toGranularity: .year)
+        return sameYear
+            ? day.formatted(.dateTime.weekday(.abbreviated).day().month(.wide))
+            : day.formatted(.dateTime.day().month(.wide).year())
     }
 
     /// Account scope and currency, both as named rows.
