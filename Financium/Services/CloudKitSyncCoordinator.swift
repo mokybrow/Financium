@@ -1,7 +1,6 @@
 import CloudKit
 import CryptoKit
 import Foundation
-import SwiftProtobuf
 import UIKit
 import os
 
@@ -11,8 +10,8 @@ import os
 /// reads. This mirrors it to the user's private CloudKit database and pulls
 /// back anything another device — or a shared account — changed. `CKSyncEngine`
 /// does the hard parts: the pending-changes queue, server change tokens,
-/// retries and scheduling. What is left here is turning the ledger's protobuf
-/// messages into records and merging fetched records back in.
+/// retries and scheduling. Native ledger values use a legacy-compatible wire
+/// codec at this boundary so existing shared-account clients keep working.
 ///
 /// Two engines, one per database: the private one carries this person's own
 /// accounts, the shared one carries accounts other people have shared with
@@ -29,6 +28,7 @@ actor CloudKitSyncCoordinator {
     private var privateEngine: CKSyncEngine?
     private var sharedEngine: CKSyncEngine?
     private var started = false
+    private var recordSaveErrors: [CKRecord.ID: CKError] = [:]
 
     private var sidecar: SyncSidecar
     private let sidecarURL: URL
@@ -70,7 +70,6 @@ actor CloudKitSyncCoordinator {
     func start() async {
         guard !started else { return }
         started = true
-        await backend.attach(coordinator: self)
 
         let privateConfig = CKSyncEngine.Configuration(
             database: container.privateCloudDatabase,
@@ -86,6 +85,10 @@ actor CloudKitSyncCoordinator {
             delegate: self
         )
         sharedEngine = CKSyncEngine(sharedConfig)
+
+        // Publish both engines before the first suspension. An invitation can
+        // call start() concurrently with the normal launch task.
+        await backend.attach(coordinator: self)
 
         // The ledger zone holds budgets and settings; per-account zones are
         // created as accounts are reconciled.
@@ -185,6 +188,16 @@ actor CloudKitSyncCoordinator {
         try? await sharedEngine?.fetchChanges()
     }
 
+    /// Never reconcile an unreadable archive as an empty ledger: that would
+    /// enqueue deletions of cloud records whose local migration failed.
+    private func readableLocalLedger() async -> RawLedger? {
+        do { return try await local.rawLedger() }
+        catch {
+            log.error("local ledger load failed: \(FinanceLog.describe(error), privacy: .public)")
+            return nil
+        }
+    }
+
     // MARK: - Reconcile (local → pending changes)
 
     /// Walks the whole ledger and queues every record whose payload changed
@@ -192,7 +205,7 @@ actor CloudKitSyncCoordinator {
     /// hundred small hashes.
     func reconcile() async {
         guard let privateEngine else { return }
-        let raw = await local.rawLedger()
+        guard let raw = await readableLocalLedger() else { return }
         let desired = Self.desiredRecords(raw, sidecar: sidecar)
 
         var privateSaves: [CKSyncEngine.PendingRecordZoneChange] = []
@@ -203,13 +216,17 @@ actor CloudKitSyncCoordinator {
         for entry in desired {
             seen.insert(entry.recordName)
             let hash = entry.payloadHash
-            if sidecar.contentHashes[entry.recordName] == hash { continue }
-            sidecar.contentHashes[entry.recordName] = hash
-            // A real local edit: stamp the moment, so a later conflict is
-            // decided by which side changed last, not by which side synced last.
-            sidecar.updatedAt[entry.recordName] = Date()
-
             let recordID = CKRecord.ID(recordName: entry.recordName, zoneID: entry.zoneID)
+            let engine = sidecar.sharedZones.contains(entry.zoneID.zoneName) ? sharedEngine : privateEngine
+            let unchanged = sidecar.contentHashes[entry.recordName] == hash
+            if unchanged {
+                let queued = engine?.state.pendingRecordZoneChanges.contains(.saveRecord(recordID)) == true
+                if sidecar.systemFields[entry.recordName] != nil || queued { continue }
+            }
+            sidecar.contentHashes[entry.recordName] = hash
+            // Requeueing an unacknowledged upload is not a new local edit.
+            if !unchanged { sidecar.updatedAt[entry.recordName] = Date() }
+
             if sidecar.sharedZones.contains(entry.zoneID.zoneName) {
                 sharedSaves.append(.saveRecord(recordID))
             } else {
@@ -279,16 +296,57 @@ actor CloudKitSyncCoordinator {
     private func ensureShare(forAccountID id: String) async throws -> CKShare {
         let database = container.privateCloudDatabase
         let zoneID = CKRecordZone.ID(zoneName: Self.accountZoneName(id))
-        let ownerID = (try? await container.userRecordID().recordName) ?? ""
+        let ownerID = try await container.userRecordID().recordName
 
         // The zone may have been torn down by a previous "make private".
         // Recreate it (idempotent when it already exists), push the account's
         // records into it, and only then attach a share.
         await reconcile()
-        _ = try? await database.modifyRecordZones(saving: [CKRecordZone(zoneID: zoneID)], deleting: [])
-        try? await privateEngine?.sendChanges()
+        let zones = try await database.modifyRecordZones(saving: [CKRecordZone(zoneID: zoneID)], deleting: [])
+        guard let zoneResult = zones.saveResults[zoneID] else { throw CKError(.internalError) }
+        _ = try zoneResult.get()
+        guard let privateEngine else { throw CKError(.internalError) }
+        let accountRecordID = CKRecord.ID(
+            recordName: CloudRecordMapping.recordName(accountID: id), zoneID: zoneID
+        )
+        do {
+            _ = try await database.record(for: accountRecordID)
+        } catch let error as CKError where error.code == .unknownItem {
+            // The account may only exist locally after a rejected upload or
+            // an environment change. A cached hash is not proof of a server
+            // record. Requeue this zone once, without deleting cloud data or
+            // changing edit timestamps; normal conflict handling still applies.
+            let raw = try await local.rawLedger()
+            let records = Self.desiredRecords(raw, sidecar: sidecar).filter { $0.zoneID == zoneID }
+            guard records.contains(where: { $0.recordName == accountRecordID.recordName }),
+                  !sidecar.sharedZones.contains(zoneID.zoneName) else {
+                throw error
+            }
+            sidecar.systemFields[accountRecordID.recordName] = nil
+            privateEngine.state.add(pendingRecordZoneChanges: records.map {
+                .saveRecord(CKRecord.ID(recordName: $0.recordName, zoneID: $0.zoneID))
+            })
+            saveSidecar()
+        }
+        let group = CKOperationGroup()
+        group.name = "Prepare account invitation"
+        group.defaultConfiguration.timeoutIntervalForRequest = 30
+        group.defaultConfiguration.timeoutIntervalForResource = 60
+        recordSaveErrors = recordSaveErrors.filter { $0.key.zoneID != zoneID }
+        try await privateEngine.sendChanges(.init(scope: .zoneIDs([zoneID]), operationGroup: group))
+        if let failure = recordSaveErrors.first(where: { $0.key.zoneID == zoneID })?.value {
+            throw failure
+        }
+        // A queued retry is not a completed upload. Never return a share for
+        // an empty zone, including when bookkeeping came from another build.
+        guard !privateEngine.state.pendingRecordZoneChanges.contains(where: {
+            CKSyncEngine.SendChangesOptions.Scope.zoneIDs([zoneID]).contains($0)
+        }) else { throw CKError(.serviceUnavailable) }
+        _ = try await database.record(for: CKRecord.ID(
+            recordName: CloudRecordMapping.recordName(accountID: id), zoneID: zoneID
+        ))
 
-        if let existing = try? await existingShare(for: zoneID) {
+        if let existing = try await existingShare(for: zoneID) {
             var prepared = existing
             if let thumbnail = Self.appIconThumbnailData() {
                 existing[CKShare.SystemFieldKey.thumbnailImageData] = thumbnail as CKRecordValue
@@ -346,37 +404,12 @@ actor CloudKitSyncCoordinator {
             return saved
         }
 
-        // 1. Straight attempt.
         do {
             return await finish(try await save(makeShare(withThumbnail: true)))
-        } catch {
-            log.error("shareAccount failed: \(FinanceLog.describe(error), privacy: .public)")
-
-            // 2. "Record too large" — the thumbnail. Share without it.
-            if (error as? CKError)?.code == .limitExceeded {
-                if let saved = try? await save(makeShare(withThumbnail: false)) {
-                    return await finish(saved)
-                }
-            }
-
-            // 3. A zone still carrying the ghost of a removed share: drop it,
-            //    let the engine rebuild a clean one, try once more.
-            _ = try? await database.modifyRecordZones(saving: [], deleting: [zoneID])
-            for (name, zone) in sidecar.recordZones where zone == zoneID.zoneName {
-                sidecar.contentHashes[name] = nil
-                sidecar.systemFields[name] = nil
-                sidecar.recordZones[name] = nil
-                sidecar.updatedAt[name] = nil
-            }
-            saveSidecar()
-            await reconcile()
-            _ = try? await database.modifyRecordZones(saving: [CKRecordZone(zoneID: zoneID)], deleting: [])
-            try? await privateEngine?.sendChanges()
-
-            if let saved = try? await save(makeShare(withThumbnail: false)) {
-                return await finish(saved)
-            }
-            throw error
+        } catch let error as CKError where error.code == .limitExceeded {
+            // Only the thumbnail fallback is safe. Network, schema and
+            // permission failures must never delete the account's zone.
+            return await finish(try await save(makeShare(withThumbnail: false)))
         }
     }
 
@@ -399,23 +432,44 @@ actor CloudKitSyncCoordinator {
         saveSidecar()
     }
 
-    /// Called from the app delegate when the user taps a share link.
-    func acceptShare(_ metadata: CKShare.Metadata) async {
-        do {
-            _ = try await container.accept([metadata])
-            sidecar.sharedZones.insert(metadata.share.recordID.zoneID.zoneName)
-            saveSidecar()
-            try? await sharedEngine?.fetchChanges()
-            await onRemoteChange()
-        } catch {
-            log.error("accepting share failed: \(FinanceLog.describe(error), privacy: .public)")
+    /// Accept first, then fetch the shared database into the local ledger.
+    /// Per-share failures must reach the UI: the batch itself can succeed even
+    /// when an individual invitation is expired or access was revoked.
+    func acceptShare(_ metadata: CKShare.Metadata) async throws {
+        guard metadata.containerIdentifier == container.containerIdentifier else {
+            throw CKError(.invalidArguments)
         }
+        await start()
+
+        // Opening one's own link must not turn an owned account into a guest
+        // account or move its future writes into the shared database.
+        if metadata.participantRole == .owner {
+            guard let privateEngine else { throw CKError(.internalError) }
+            try await privateEngine.fetchChanges()
+            return
+        }
+
+        if metadata.participantStatus != .accepted {
+            let results = try await container.accept([metadata])
+            guard let result = results[metadata] else { throw CKError(.internalError) }
+            _ = try result.get()
+        }
+        sidecar.sharedZones.insert(metadata.share.recordID.zoneID.zoneName)
+        saveSidecar()
+        guard let sharedEngine else { throw CKError(.internalError) }
+        try await sharedEngine.fetchChanges()
+        await onRemoteChange()
     }
 
     private func existingShare(for zoneID: CKRecordZone.ID) async throws -> CKShare? {
         let zones = try await container.privateCloudDatabase.recordZones(for: [zoneID])
-        guard case .success(let zone)? = zones[zoneID], let shareRef = zone.share else { return nil }
-        return try await container.privateCloudDatabase.record(for: shareRef.recordID) as? CKShare
+        guard let result = zones[zoneID] else { throw CKError(.internalError) }
+        let zone = try result.get()
+        guard let shareRef = zone.share else { return nil }
+        guard let share = try await container.privateCloudDatabase.record(for: shareRef.recordID) as? CKShare else {
+            throw CKError(.internalError)
+        }
+        return share
     }
 
     private func invite(from share: CKShare) -> AccountInvite {
@@ -475,11 +529,16 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
             await handleAccountChange(change)
 
         case .fetchedRecordZoneChanges(let changes):
-            await applyFetched(modifications: changes.modifications, deletions: changes.deletions)
+            await applyFetched(modifications: changes.modifications, deletions: changes.deletions, isShared: isShared)
 
         case .fetchedDatabaseChanges(let changes):
-            for deletion in changes.deletions {
-                sidecar.sharedZones.remove(deletion.zoneID.zoneName)
+            if isShared {
+                for modification in changes.modifications {
+                    sidecar.sharedZones.insert(modification.zoneID.zoneName)
+                }
+                for deletion in changes.deletions {
+                    sidecar.sharedZones.remove(deletion.zoneID.zoneName)
+                }
             }
             saveSidecar()
 
@@ -503,7 +562,7 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
         let pending = syncEngine.state.pendingRecordZoneChanges.filter { scope.contains($0) }
         guard !pending.isEmpty else { return nil }
 
-        let raw = await local.rawLedger()
+        guard let raw = await readableLocalLedger() else { return nil }
         let systemFields = sidecar.systemFields
         let updatedAt = sidecar.updatedAt
 
@@ -539,15 +598,16 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
 
     private func applyFetched(
         modifications: [CKDatabase.RecordZoneChange.Modification],
-        deletions: [CKDatabase.RecordZoneChange.Deletion]
+        deletions: [CKDatabase.RecordZoneChange.Deletion],
+        isShared: Bool
     ) async {
         guard !modifications.isEmpty || !deletions.isEmpty else { return }
 
-        var accounts: [Finance_Account] = []
-        var transactions: [Finance_Transaction] = []
-        var budgets: [(month: String, budget: Finance_Budget)] = []
-        var goals: [Finance_Goal] = []
-        var settings: Finance_FinanceSettings?
+        var accounts: [FinanceAccount] = []
+        var transactions: [FinanceTransaction] = []
+        var budgets: [(month: String, budget: FinanceBudget)] = []
+        var goals: [FinanceGoal] = []
+        var settings: FinanceSettings?
         var deleted: Set<String> = []
         var touched: Set<String> = []
         var serverStamps: [String: Date] = [:]
@@ -555,6 +615,9 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
 
         for modification in modifications {
             let record = modification.record
+            // Restored sync state may fetch zone records without replaying a
+            // database modification. Imported accounts still belong to guests.
+            if isShared { sidecar.sharedZones.insert(record.recordID.zoneID.zoneName) }
             let name = record.recordID.recordName
             touched.insert(name)
             sidecar.systemFields[name] = Self.encodeSystemFields(record)
@@ -629,7 +692,7 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
     /// from the server, so a reconcile treats them as already synced.
     private func refreshBookkeeping(for names: Set<String>, serverStamps: [String: Date]) async {
         guard !names.isEmpty else { return }
-        let raw = await local.rawLedger()
+        guard let raw = await readableLocalLedger() else { return }
         var desired: [String: DesiredRecord] = [:]
         for entry in Self.desiredRecords(raw, sidecar: sidecar) { desired[entry.recordName] = entry }
         for name in names {
@@ -643,6 +706,7 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
 
     private func handleSent(_ sent: CKSyncEngine.Event.SentRecordZoneChanges, engine: CKSyncEngine) async {
         for saved in sent.savedRecords {
+            recordSaveErrors[saved.recordID] = nil
             sidecar.systemFields[saved.recordID.recordName] = Self.encodeSystemFields(saved)
         }
         for deletedID in sent.deletedRecordIDs {
@@ -652,6 +716,7 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
         var retry: [CKSyncEngine.PendingRecordZoneChange] = []
         for failure in sent.failedRecordSaves {
             let record = failure.record
+            recordSaveErrors[record.recordID] = failure.error
             let name = record.recordID.recordName
             switch failure.error.code {
             case .serverRecordChanged:
@@ -676,8 +741,14 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
                 ])
                 retry.append(.saveRecord(record.recordID))
             case .unknownItem:
-                sidecar.contentHashes[name] = nil
+                // Retry as a new record on the next reconcile, retaining the
+                // original edit timestamp for conflict resolution.
+                sidecar.systemFields[name] = nil
             default:
+                // A permanent failure can be removed from the engine queue.
+                // Invalidate the queued hash so a later reconcile can retry
+                // after, for example, the Production schema is deployed.
+                sidecar.contentHashes[name] = nil
                 log.error("record save failed: \(FinanceLog.describe(failure.error), privacy: .public)")
             }
         }
@@ -686,11 +757,11 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
     }
 
     private func applyServerRecord(_ record: CKRecord) async {
-        var accounts: [Finance_Account] = []
-        var transactions: [Finance_Transaction] = []
-        var budgets: [(month: String, budget: Finance_Budget)] = []
-        var goals: [Finance_Goal] = []
-        var settings: Finance_FinanceSettings?
+        var accounts: [FinanceAccount] = []
+        var transactions: [FinanceTransaction] = []
+        var budgets: [(month: String, budget: FinanceBudget)] = []
+        var goals: [FinanceGoal] = []
+        var settings: FinanceSettings?
 
         switch record.recordType {
         case CloudRecordMapping.accountType:
@@ -739,7 +810,7 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
             out.append(DesiredRecord(
                 recordName: CloudRecordMapping.recordName(accountID: account.id),
                 zoneID: zone(forAccount: account.id),
-                payloadHash: digest((try? account.serializedData()) ?? Data())
+                payloadHash: digest(LegacyFinanceCodec.encode(account))
             ))
         }
         for transaction in raw.transactions {
@@ -747,11 +818,11 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
             out.append(DesiredRecord(
                 recordName: CloudRecordMapping.recordName(transactionID: transaction.id),
                 zoneID: primary.isEmpty ? ledgerZone : zone(forAccount: primary),
-                payloadHash: digest((try? transaction.serializedData()) ?? Data())
+                payloadHash: digest(LegacyFinanceCodec.encode(transaction))
             ))
         }
         for stored in raw.budgets {
-            var data = (try? stored.budget.serializedData()) ?? Data()
+            var data = LegacyFinanceCodec.encode(stored.budget)
             data.append(contentsOf: stored.month.utf8)
             out.append(DesiredRecord(
                 recordName: CloudRecordMapping.recordName(budgetID: stored.budget.id),
@@ -763,13 +834,13 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
             out.append(DesiredRecord(
                 recordName: CloudRecordMapping.recordName(goalID: goal.id),
                 zoneID: goal.accountID.isEmpty ? ledgerZone : zone(forAccount: goal.accountID),
-                payloadHash: digest((try? goal.serializedData()) ?? Data())
+                payloadHash: digest(LegacyFinanceCodec.encode(goal))
             ))
         }
         out.append(DesiredRecord(
             recordName: CloudRecordMapping.settingsRecordName,
             zoneID: ledgerZone,
-            payloadHash: digest((try? raw.settings.serializedData()) ?? Data())
+            payloadHash: digest(LegacyFinanceCodec.encode(raw.settings))
         ))
         return out
     }
@@ -820,20 +891,21 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
 
     // MARK: System-field archiving
 
-    /// A small square JPEG of the app icon for the `CKShare` — what the
+    /// A small square PNG of the app icon for the `CKShare` — what the
     /// recipient sees on the invitation screen instead of a generic iCloud
     /// glyph. PNG is intentional: the icon asset has transparent rounded
     /// corners, which JPEG used to flatten to black squares.
     ///
     /// Deliberately tiny. The share record has a hard size limit, and a
     /// full-resolution PNG of the 1024² icon blew past it with "record too
-    /// large" (CKError 27). 96px at 1× as PNG is a few kilobytes; anything
+    /// large" (CKError 27). 160px at 1× stays sharp in Messages while remaining
+    /// comfortably below the record limit; anything
     /// larger than 40 KB is dropped rather than risking the whole share.
     private static let pngSignature = Data([0x89, 0x50, 0x4E, 0x47])
 
     static func appIconThumbnailData() -> Data? {
         guard let image = UIImage(named: "AppIconPreviewDollarWallet") else { return nil }
-        let side: CGFloat = 96
+        let side: CGFloat = 160
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1
         format.opaque = false

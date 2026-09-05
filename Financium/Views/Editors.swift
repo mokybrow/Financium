@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftProtobuf
 
 // Editor sheets use native navigation chrome, controls and input methods so
 // calendars, menus, focus, paste, dictation and accessibility follow iOS.
@@ -54,7 +53,7 @@ struct TransactionEditorView: View {
     @EnvironmentObject private var categories: FinanceCategoryStore
     @Environment(\.dismiss) private var dismiss
     let kind: TransactionEditorKind
-    let transaction: Finance_Transaction?
+    let transaction: FinanceTransaction?
     /// Preselected account for a brand-new transaction — set when the editor is
     /// opened from inside one account's activity list.
     private let initialAccountID: String
@@ -74,7 +73,7 @@ struct TransactionEditorView: View {
         self.initialAccountID = accountID
     }
 
-    init(transaction: Finance_Transaction) {
+    init(transaction: FinanceTransaction) {
         self.transaction = transaction
         self.initialAccountID = ""
         switch transaction.kind {
@@ -301,7 +300,7 @@ struct TransactionEditorView: View {
         return true
     }
 
-    private func account(_ id: String) -> Finance_Account? {
+    private func account(_ id: String) -> FinanceAccount? {
         store.accounts.first { $0.id == id }
     }
 
@@ -443,7 +442,7 @@ struct AccountEditorView: View {
     @EnvironmentObject private var store: FinanceStore
     @Environment(\.dismiss) private var dismiss
 
-    let account: Finance_Account?
+    let account: FinanceAccount?
 
     @State private var name = ""
     @State private var symbol = "creditcard.fill"
@@ -452,7 +451,7 @@ struct AccountEditorView: View {
     @State private var saving = false
     @State private var prefilled = false
 
-    init(account: Finance_Account? = nil) {
+    init(account: FinanceAccount? = nil) {
         self.account = account
     }
 
@@ -601,7 +600,7 @@ struct BalanceCorrectionView: View {
     @EnvironmentObject private var store: FinanceStore
     @Environment(\.dismiss) private var dismiss
 
-    let account: Finance_Account
+    let account: FinanceAccount
 
     private enum Direction: String, CaseIterable, Identifiable {
         case add, subtract
@@ -688,7 +687,7 @@ struct BalanceCorrectionView: View {
 
     private var resultText: String? {
         guard let delta else { return nil }
-        let money = Finance_Money(
+        let money = FinanceMoney(
             decimal: account.balance.decimalValue + delta,
             currencyCode: account.balance.currencyCode
         )
@@ -726,14 +725,14 @@ struct BudgetEditorView: View {
     @EnvironmentObject private var store: FinanceStore
     @EnvironmentObject private var categories: FinanceCategoryStore
     @Environment(\.dismiss) private var dismiss
-    var budget: Finance_Budget?
+    var budget: FinanceBudget?
 
     @State private var title = ""
     @State private var category = ""
     @State private var limit = ""
     @State private var reminder = true
     @State private var paymentDate = Date()
-    @State private var recurrence: Finance_BudgetRecurrence = .monthly
+    @State private var recurrence: FinanceBudgetRecurrence = .monthly
     @State private var saving = false
 
     var body: some View {
@@ -805,27 +804,17 @@ struct BudgetEditorView: View {
         }
     }
 
-    /// Categories that can still take a budget this month.
-    ///
-    /// A month holds one budget per category, so offering a category that
-    /// already has one only sets up a refusal at save time. The category this
-    /// budget is already on stays in the list, otherwise editing it would find
-    /// its own value missing.
+    /// All expense categories remain available, including those already used
+    /// by other budgets in this month.
     private var categoryOptions: [String] {
-        // Both sides folded onto identifiers. A budget stored under a
-        // translated name would otherwise not match the identifier in `all`,
-        // so the menu offered a category that already had a budget and the
-        // save came back refused.
-        let taken = Set(
-            store.budgets
-                .filter { $0.id != budget?.id }
-                .map { FinanceCategoryStore.canonical($0.category) }
-        )
-        let all = categories.options(for: .expense, existing: store.transactions)
-        let free = all.filter { !taken.contains($0) }
-        // If every known category is spoken for, fall back to the full list
-        // rather than an empty menu the user cannot get out of.
-        return free.isEmpty ? all : free
+        var all = categories.options(for: .expense, existing: store.transactions)
+        // A custom category may survive only on the budget (for example after
+        // it was removed from the catalog). It must remain editable.
+        if let budget {
+            let current = FinanceCategoryStore.canonical(budget.category)
+            if !current.isEmpty, !all.contains(current) { all.append(current) }
+        }
+        return all
     }
 
     /// The category menu.
@@ -850,10 +839,8 @@ struct BudgetEditorView: View {
         }
     }
 
-    /// What gets written to the transaction: the stable identifier, never the
-    /// translated name. Storing the display name would file a spend under
-    /// "Продукты" on a Russian phone and "Groceries" on an English one, and the
-    /// two would never again be recognised as the same category.
+    /// Store the category identifier, preserving the choice when other
+    /// budgets are added or refreshed while the editor is open.
     private var storedCategory: String {
         category.isEmpty ? (categoryOptions.first ?? "") : category
     }
@@ -862,11 +849,11 @@ struct BudgetEditorView: View {
         FinanceCategoryStore.displayName(for: storedCategory)
     }
 
-    private var recurrenceOptions: [Finance_BudgetRecurrence] {
+    private var recurrenceOptions: [FinanceBudgetRecurrence] {
         [.once, .weekly, .monthly, .quarterly, .yearly]
     }
 
-    private func recurrenceTitle(_ value: Finance_BudgetRecurrence) -> LocalizedStringKey {
+    private func recurrenceTitle(_ value: FinanceBudgetRecurrence) -> LocalizedStringKey {
         switch value {
         case .weekly: "budget.recurrence.weekly"
         case .monthly: "budget.recurrence.monthly"
@@ -883,10 +870,6 @@ struct BudgetEditorView: View {
 
     private func prefill() {
         guard let budget else {
-            // Default to a category that is still free. Spend is attributed by
-            // category, so a month can only carry one budget per category —
-            // starting on one that is already taken means the save is refused
-            // for a choice the user never made.
             if category.isEmpty { category = categoryOptions.first ?? "" }
             return
         }
@@ -901,7 +884,7 @@ struct BudgetEditorView: View {
     }
 
     private func save() {
-        guard let value = financeDecimal(from: limit) else { return }
+        guard isValid, !saving, let value = financeDecimal(from: limit) else { return }
         saving = true
 
         Task {
@@ -926,7 +909,7 @@ struct GoalEditorView: View {
     @EnvironmentObject private var store: FinanceStore
     @EnvironmentObject private var categories: FinanceCategoryStore
     @Environment(\.dismiss) private var dismiss
-    var goal: Finance_Goal?
+    var goal: FinanceGoal?
 
     @State private var title = ""
     @State private var accountID = ""
@@ -1000,7 +983,7 @@ struct GoalEditorView: View {
         }
     }
 
-    private var selectedAccount: Finance_Account? {
+    private var selectedAccount: FinanceAccount? {
         store.accounts.first { $0.id == accountID }
     }
 

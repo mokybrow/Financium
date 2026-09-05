@@ -180,7 +180,7 @@ final class FinanceCategoryStore: ObservableObject {
     /// Everything on offer for a kind of transaction: the built-ins, the user's
     /// own of that kind, and any category already sitting on a transaction — so
     /// a category typed on another device still shows up in the menu.
-    func options(for kind: TransactionEditorKind, existing: [Finance_Transaction]) -> [String] {
+    func options(for kind: TransactionEditorKind, existing: [FinanceTransaction]) -> [String] {
         // A transfer has no category: it is the same money in two places, not
         // money spent on anything.
         guard kind != .transfer else { return [] }

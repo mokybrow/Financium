@@ -1,4 +1,3 @@
-import SwiftProtobuf
 import SwiftUI
 
 struct MoneyView: View {
@@ -6,13 +5,13 @@ struct MoneyView: View {
     @EnvironmentObject private var rates: ExchangeRates
     @State private var sheet: MoneySheet?
     @State private var activityKind: ActivityKind?
-    @State private var accountActivity: Finance_Account?
+    @State private var accountActivity: FinanceAccount?
     /// Waiting on a confirmation. Deleting is one tap in a menu that opens on
     /// a long press, and none of it can be undone.
-    @State private var pendingAccountDeletion: Finance_Account?
+    @State private var pendingAccountDeletion: FinanceAccount?
     /// The plain delete was refused because the account still has
     /// transactions — asking whether to take them with it.
-    @State private var accountDeletionNeedsCascade: Finance_Account?
+    @State private var accountDeletionNeedsCascade: FinanceAccount?
 
     var body: some View {
         NavigationStack {
@@ -191,7 +190,7 @@ struct MoneyView: View {
         .padding(.horizontal, FITheme.Metrics.cardInset)
     }
 
-    private func accountRow(_ account: Finance_Account) -> some View {
+    private func accountRow(_ account: FinanceAccount) -> some View {
         Button {
             accountActivity = account
         } label: {
@@ -257,7 +256,7 @@ struct MoneyView: View {
     /// than a generic banknote glyph, which looked the same for every exotic
     /// currency and so said nothing about any of them.
     @ViewBuilder
-    private func accountGlyph(_ account: Finance_Account) -> some View {
+    private func accountGlyph(_ account: FinanceAccount) -> some View {
         let code = account.balance.currencyCode.isEmpty ? store.mainCurrencyCode : account.balance.currencyCode
 
         if !account.symbolName.isEmpty {
@@ -324,7 +323,7 @@ struct MoneyView: View {
         }
     }
 
-    private var selectedTotals: Finance_CurrencyTotal {
+    private var selectedTotals: FinanceCurrencyTotal {
         store.totals(for: store.effectiveDisplayCurrency)
     }
 
@@ -351,7 +350,7 @@ struct MoneyView: View {
 
     private var totalBalanceText: String {
         let result = convertedBalance
-        let money = Finance_Money(decimal: result.amount, currencyCode: store.effectiveDisplayCurrency)
+        let money = FinanceMoney(decimal: result.amount, currencyCode: store.effectiveDisplayCurrency)
         // "≈" only when something was actually converted: a single-currency
         // total is exact, and hedging an exact number teaches the reader to
         // ignore the mark where it matters.
@@ -363,7 +362,7 @@ struct MoneyView: View {
     /// Earned minus spent for the period, in the currency on screen.
     private var netText: String {
         let net = selectedTotals.earned.decimalValue - selectedTotals.spent.decimalValue
-        let money = Finance_Money(decimal: abs(net), currencyCode: store.effectiveDisplayCurrency)
+        let money = FinanceMoney(decimal: abs(net), currencyCode: store.effectiveDisplayCurrency)
         return (net < 0 ? "−" : "+") + money.formatted
     }
 
@@ -440,8 +439,8 @@ struct MoneyView: View {
 /// editing an account to correcting it rebuilds the sheet.
 enum MoneySheet: Identifiable {
     case transaction(TransactionEditorKind)
-    case account(Finance_Account?)
-    case correction(Finance_Account)
+    case account(FinanceAccount?)
+    case correction(FinanceAccount)
 
     var id: String {
         switch self {
@@ -502,15 +501,15 @@ private enum ActivityAccountFilter: String, CaseIterable, Identifiable {
 struct AccountActivityView: View {
     @EnvironmentObject private var store: FinanceStore
     private let kind: ActivityKind?
-    private let account: Finance_Account?
+    private let account: FinanceAccount?
 
     @State private var sort: ActivitySort = .dateDescending
     @State private var accountFilter: ActivityAccountFilter = .all
     /// Seeded from the Money screen's currency picker on appear, so tapping a
     /// total opens the transactions that add up to it rather than all of them.
     @State private var currencyFilter = ""
-    @State private var editingTransaction: Finance_Transaction?
-    @State private var pendingTransactionDeletion: Finance_Transaction?
+    @State private var editingTransaction: FinanceTransaction?
+    @State private var pendingTransactionDeletion: FinanceTransaction?
     /// A new transaction being added from this account's own list.
     @State private var addKind: TransactionEditorKind?
     /// Days the reader has folded away. Keyed by start-of-day.
@@ -520,12 +519,12 @@ struct AccountActivityView: View {
         self.account = nil
     }
 
-    init(account: Finance_Account) {
+    init(account: FinanceAccount) {
         self.kind = nil
         self.account = account
     }
 
-    private var transactions: [Finance_Transaction] {
+    private var transactions: [FinanceTransaction] {
         let scoped = store.transactions.filter { transaction in
             if let account {
                 return transaction.fromAccountID == account.id || transaction.toAccountID == account.id
@@ -551,7 +550,7 @@ struct AccountActivityView: View {
     /// order.
     private struct DayGroup: Identifiable {
         let day: Date
-        let items: [Finance_Transaction]
+        let items: [FinanceTransaction]
         var id: Date { day }
     }
 
@@ -647,7 +646,7 @@ struct AccountActivityView: View {
     ///
     /// A native `ShareLink` lives in the toolbar itself. Its transferable loads
     /// the invite only after the system menu is already on screen.
-    private func shareControl(for account: Finance_Account) -> some View {
+    private func shareControl(for account: FinanceAccount) -> some View {
         AccountShareLinkButton(
             accountID: account.id,
             accountName: account.name,
@@ -759,7 +758,7 @@ struct AccountActivityView: View {
         }
     }
 
-    private func row(_ transaction: Finance_Transaction) -> some View {
+    private func row(_ transaction: FinanceTransaction) -> some View {
         Button { editingTransaction = transaction } label: {
             FIListRow(
                 title: Text(verbatim: title(for: transaction)),
@@ -800,7 +799,7 @@ struct AccountActivityView: View {
     /// column of identical signs would be noise.
     private enum Direction { case outgoing, incoming }
 
-    private func direction(for transaction: Finance_Transaction) -> Direction? {
+    private func direction(for transaction: FinanceTransaction) -> Direction? {
         guard let account else { return nil }
         switch transaction.kind {
         case .expense: return .outgoing
@@ -816,7 +815,7 @@ struct AccountActivityView: View {
     /// receiving account, the money that left the other one is the wrong
     /// number — and in the wrong currency — so the destination amount is shown
     /// instead.
-    private func amountText(for transaction: Finance_Transaction) -> String {
+    private func amountText(for transaction: FinanceTransaction) -> String {
         var money = transaction.amount
         if let account,
            transaction.kind == .transfer,
@@ -835,7 +834,7 @@ struct AccountActivityView: View {
         }
     }
 
-    private func amountColor(for transaction: Finance_Transaction) -> Color {
+    private func amountColor(for transaction: FinanceTransaction) -> Color {
         switch direction(for: transaction) {
         case .outgoing: FITheme.Palette.destructive
         case .incoming: FITheme.Palette.positive
@@ -851,7 +850,7 @@ struct AccountActivityView: View {
     /// when it differs from the category; otherwise it is that old default and
     /// the row is named after the other account, which is what a transfer
     /// actually is.
-    private func title(for transaction: Finance_Transaction) -> String {
+    private func title(for transaction: FinanceTransaction) -> String {
         let stored = transaction.title
         let isLegacyDefault = transaction.kind == .transfer
             && !transaction.category.isEmpty
@@ -890,7 +889,7 @@ struct AccountActivityView: View {
     /// and an icon sitting between a date and a number reads as decoration. In
     /// the subtitle it is a word, in the reader's language, next to the other
     /// facts about the row.
-    private func subtitle(for transaction: Finance_Transaction) -> String {
+    private func subtitle(for transaction: FinanceTransaction) -> String {
         let day = transaction.hasOccurredAt ? transaction.occurredAt.date.formatted(.dateTime.day().month(.abbreviated)) : ""
         let accountName = account == nil ? account(for: transaction)?.name ?? "" : ""
         let marker = transaction.kind == .transfer
@@ -899,12 +898,12 @@ struct AccountActivityView: View {
         return [day, accountName, marker].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
-    private func account(for transaction: Finance_Transaction) -> Finance_Account? {
+    private func account(for transaction: FinanceTransaction) -> FinanceAccount? {
         let id = transaction.kind == .income ? transaction.toAccountID : transaction.fromAccountID
         return store.accounts.first { $0.id == id }
     }
 
-    private func isCash(_ account: Finance_Account) -> Bool {
+    private func isCash(_ account: FinanceAccount) -> Bool {
         let value = (account.name + " " + account.symbolName).lowercased()
         return value.contains("cash") || value.contains("налич") || value.contains("wallet") || value.contains("banknote")
     }
@@ -913,7 +912,7 @@ struct AccountActivityView: View {
         Array(Set(store.transactions.map(\.amount.currencyCode).filter { !$0.isEmpty })).sorted()
     }
 
-    private func sortPredicate(_ lhs: Finance_Transaction, _ rhs: Finance_Transaction) -> Bool {
+    private func sortPredicate(_ lhs: FinanceTransaction, _ rhs: FinanceTransaction) -> Bool {
         switch sort {
         case .dateDescending: return lhs.occurredAt.date > rhs.occurredAt.date
         case .dateAscending: return lhs.occurredAt.date < rhs.occurredAt.date

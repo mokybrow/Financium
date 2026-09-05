@@ -9,8 +9,8 @@ struct BudgetView: View {
     @EnvironmentObject private var store: FinanceStore
     @State private var editor: BudgetEditorTarget?
     /// The budget being read, and the one waiting on a confirmation.
-    @State private var viewing: Finance_Budget?
-    @State private var pendingDeletion: Finance_Budget?
+    @State private var viewing: FinanceBudget?
+    @State private var pendingDeletion: FinanceBudget?
 
     var body: some View {
         NavigationStack {
@@ -54,7 +54,12 @@ struct BudgetView: View {
             .sheet(item: $editor) { target in
                 BudgetEditorView(budget: target.budget)
             }
-            .fiErrorAlert($store.errorMessage)
+            // While editing, the sheet owns save errors. Presenting the same
+            // alert from the covered screen can compete with that presentation.
+            .fiErrorAlert(Binding(
+                get: { editor == nil ? store.errorMessage : nil },
+                set: { store.errorMessage = $0 }
+            ))
             .fiConfirmDelete($pendingDeletion) { budget in
                 Task { await store.deleteBudget(budget) }
             }
@@ -70,7 +75,7 @@ struct BudgetView: View {
         }
     }
 
-    private func row(_ budget: Finance_Budget) -> some View {
+    private func row(_ budget: FinanceBudget) -> some View {
         // A tap looks, a long press acts.
         //
         // Tapping straight into the editor meant the only way to read a budget
@@ -105,7 +110,7 @@ struct BudgetView: View {
         }
     }
 
-    private func spentText(_ budget: Finance_Budget) -> String {
+    private func spentText(_ budget: FinanceBudget) -> String {
         String(
             format: NSLocalizedString("budget.spent_format", comment: "Spent of limit"),
             budget.spent.abbreviated,
@@ -113,7 +118,7 @@ struct BudgetView: View {
         )
     }
 
-    private func isOverspent(_ budget: Finance_Budget) -> Bool {
+    private func isOverspent(_ budget: FinanceBudget) -> Bool {
         budget.spent.decimalValue > budget.limit.decimalValue
     }
 
@@ -121,14 +126,14 @@ struct BudgetView: View {
     ///
     /// Overspend used to be clamped to "0 left", which hid exactly the case a
     /// budget exists to catch.
-    private func statusText(_ budget: Finance_Budget) -> String {
+    private func statusText(_ budget: FinanceBudget) -> String {
         let difference = budget.limit.decimalValue - budget.spent.decimalValue
-        let money = Finance_Money(decimal: abs(difference), currencyCode: budget.limit.currencyCode)
+        let money = FinanceMoney(decimal: abs(difference), currencyCode: budget.limit.currencyCode)
         let key = difference >= 0 ? "budget.left_format" : "budget.over_format"
         return String(format: NSLocalizedString(key, comment: "Budget progress"), money.abbreviated)
     }
 
-    private func progress(_ budget: Finance_Budget) -> Double {
+    private func progress(_ budget: FinanceBudget) -> Double {
         let limit = NSDecimalNumber(decimal: budget.limit.decimalValue).doubleValue
         guard limit > 0 else { return 0 }
         return NSDecimalNumber(decimal: budget.spent.decimalValue).doubleValue / limit
@@ -138,7 +143,7 @@ struct BudgetView: View {
 /// Lets `sheet(item:)` present the editor both for a new budget and an existing
 /// one — the id is what makes SwiftUI rebuild the sheet when the target changes.
 struct BudgetEditorTarget: Identifiable {
-    let budget: Finance_Budget?
+    let budget: FinanceBudget?
     var id: String { budget?.id ?? "new" }
 }
 
@@ -150,10 +155,10 @@ struct BudgetEditorTarget: Identifiable {
 private struct BudgetDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
-    let budget: Finance_Budget
+    let budget: FinanceBudget
 
-    private var remaining: Finance_Money {
-        Finance_Money(
+    private var remaining: FinanceMoney {
+        FinanceMoney(
             decimal: budget.limit.decimalValue - budget.spent.decimalValue,
             currencyCode: budget.limit.currencyCode
         )
@@ -179,7 +184,7 @@ private struct BudgetDetailView: View {
                         FIListRow(
                             title: Text(isOverspent ? "budget.over_title" : "budget.view.left"),
                             accessory: .value(
-                                Text(verbatim: Finance_Money(
+                                Text(verbatim: FinanceMoney(
                                     decimal: abs(remaining.decimalValue),
                                     currencyCode: budget.limit.currencyCode
                                 ).formatted)

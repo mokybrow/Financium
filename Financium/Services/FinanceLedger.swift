@@ -1,5 +1,4 @@
 import Foundation
-import SwiftProtobuf
 
 /// The accounting rules, as pure functions over the data.
 ///
@@ -20,9 +19,9 @@ nonisolated enum FinanceLedger {
     ///
     /// Counterpart: `applyBalanceChanges` in repository.go.
     static func applyBalance(
-        of transaction: Finance_Transaction,
+        of transaction: FinanceTransaction,
         direction: Int64,
-        to accounts: inout [Finance_Account]
+        to accounts: inout [FinanceAccount]
     ) {
         func adjust(_ accountID: String, _ delta: Int64) {
             guard !accountID.isEmpty,
@@ -53,15 +52,15 @@ nonisolated enum FinanceLedger {
 
     /// What has been spent against a budget's category in a month.
     ///
-    /// Expenses only, and by category rather than by budget — which is why a
-    /// month holds one budget per category.
+    /// Expenses only, matched by category, currency and month. Budgets with
+    /// the same scope share this spend total and each apply their own limit.
     ///
     /// Counterpart: `SpentByCategory` in repository.go.
     static func spent(
         onCategory category: String,
         month: Date,
         currency: String,
-        transactions: [Finance_Transaction]
+        transactions: [FinanceTransaction]
     ) -> Int64 {
         // The caller hands over a *local* start-of-month, so the year and month
         // are read in the local calendar — reading them in UTC turns 1 March
@@ -93,7 +92,7 @@ nonisolated enum FinanceLedger {
     /// currency is that account's.
     ///
     /// Counterpart: `applyGoalAccountBalances` in repository.go.
-    static func applyGoalProgress(to goals: inout [Finance_Goal], accounts: [Finance_Account]) {
+    static func applyGoalProgress(to goals: inout [FinanceGoal], accounts: [FinanceAccount]) {
         let byID = Dictionary(accounts.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         for index in goals.indices {
             guard let account = byID[goals[index].accountID] else { continue }
@@ -101,11 +100,11 @@ nonisolated enum FinanceLedger {
             // Clamped at zero: an overdrawn account has saved nothing towards
             // the goal, and a negative "saved" would draw a bar running
             // backwards.
-            goals[index].saved = Finance_Money(
+            goals[index].saved = FinanceMoney(
                 minorUnits: max(account.balance.minorUnits, 0),
                 currencyCode: currency
             )
-            goals[index].target = Finance_Money(
+            goals[index].target = FinanceMoney(
                 minorUnits: goals[index].target.minorUnits,
                 currencyCode: currency
             )
@@ -122,21 +121,21 @@ nonisolated enum FinanceLedger {
     /// Counterpart: `currencyTotals` in service.go.
     static func currencyTotals(
         mainCurrency: String,
-        accounts: [Finance_Account],
-        transactions: [Finance_Transaction],
+        accounts: [FinanceAccount],
+        transactions: [FinanceTransaction],
         interval: DateInterval
-    ) -> [Finance_CurrencyTotal] {
-        var totals: [String: Finance_CurrencyTotal] = [:]
+    ) -> [FinanceCurrencyTotal] {
+        var totals: [String: FinanceCurrencyTotal] = [:]
 
         @discardableResult
         func ensure(_ code: String) -> Bool {
             guard !code.isEmpty else { return false }
             if totals[code] == nil {
-                var fresh = Finance_CurrencyTotal()
+                var fresh = FinanceCurrencyTotal()
                 fresh.currencyCode = code
-                fresh.balance = Finance_Money(minorUnits: 0, currencyCode: code)
-                fresh.spent = Finance_Money(minorUnits: 0, currencyCode: code)
-                fresh.earned = Finance_Money(minorUnits: 0, currencyCode: code)
+                fresh.balance = FinanceMoney(minorUnits: 0, currencyCode: code)
+                fresh.spent = FinanceMoney(minorUnits: 0, currencyCode: code)
+                fresh.earned = FinanceMoney(minorUnits: 0, currencyCode: code)
                 totals[code] = fresh
             }
             return true
@@ -192,11 +191,11 @@ nonisolated enum FinanceLedger {
     static func snapshot(
         period: FinancePeriod,
         monthKey: String,
-        accounts: [Finance_Account],
-        transactions: [Finance_Transaction],
-        budgets: [(month: String, budget: Finance_Budget)],
-        goals: [Finance_Goal],
-        settings: Finance_FinanceSettings
+        accounts: [FinanceAccount],
+        transactions: [FinanceTransaction],
+        budgets: [(month: String, budget: FinanceBudget)],
+        goals: [FinanceGoal],
+        settings: FinanceSettings
     ) -> FinanceSnapshot {
         let interval = period.interval
         let mainCurrency = settings.mainCurrencyCode.isEmpty ? "RUB" : settings.mainCurrencyCode
@@ -217,7 +216,7 @@ nonisolated enum FinanceLedger {
             .filter { $0.month == monthKey }
             .map { stored in
                 var filled = stored.budget
-                filled.spent = Finance_Money(
+                filled.spent = FinanceMoney(
                     minorUnits: spent(
                         onCategory: stored.budget.category,
                         month: month,
@@ -239,7 +238,7 @@ nonisolated enum FinanceLedger {
             transactions: transactions,
             interval: interval
         )
-        var overview = Finance_GetOverviewResponse()
+        var overview = FinanceOverview()
         overview.accounts = snapshot.accounts
         overview.recentTransactions = Array(snapshot.transactions.prefix(50))
         overview.currencies = totals
@@ -259,12 +258,11 @@ nonisolated enum FinanceLedger {
     enum Failure: Error {
         case invalidArgument
         case notFound
-        case conflict
         case accountHasTransactions
     }
 
     /// Counterpart: `SaveTransaction`'s validation in service.go.
-    static func validate(_ transaction: Finance_Transaction) throws {
+    static func validate(_ transaction: FinanceTransaction) throws {
         guard transaction.amount.minorUnits > 0,
               isISOCurrency(transaction.amount.currencyCode) else {
             throw Failure.invalidArgument
@@ -292,7 +290,7 @@ nonisolated enum FinanceLedger {
 
 // Not MainActor: the target defaults every declaration to the main actor, and
 // `LocalFinanceBackend` is an actor that builds money off it.
-nonisolated extension Finance_Money {
+nonisolated extension FinanceMoney {
     init(minorUnits: Int64, currencyCode: String) {
         self.init()
         self.minorUnits = minorUnits

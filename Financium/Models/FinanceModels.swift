@@ -2,14 +2,14 @@ import Combine
 import Foundation
 import SwiftUI
 
-nonisolated extension Finance_Account: Identifiable {}
-nonisolated extension Finance_Transaction: Identifiable {}
-nonisolated extension Finance_Budget: Identifiable {}
-nonisolated extension Finance_Goal: Identifiable {}
+nonisolated extension FinanceAccount: Identifiable {}
+nonisolated extension FinanceTransaction: Identifiable {}
+nonisolated extension FinanceBudget: Identifiable {}
+nonisolated extension FinanceGoal: Identifiable {}
 
 // Not MainActor: the local backend is an actor and formats and builds money
 // away from the main thread.
-nonisolated extension Finance_Money {
+nonisolated extension FinanceMoney {
     init(decimal: Decimal, currencyCode: String) {
         self.init()
         let scaled = decimal * 100
@@ -90,7 +90,7 @@ enum FinanceSection: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .money: "creditcard"
-        case .budget: "chart.pie"
+        case .budget: "gauge.with.dots.needle.50percent"
         case .goals: "target"
         }
     }
@@ -101,7 +101,7 @@ nonisolated enum TransactionEditorKind: Identifiable, Equatable {
     var id: Int {
         switch self { case .expense: 1; case .income: 2; case .transfer: 3 }
     }
-    var proto: Finance_TransactionKind {
+    var transactionKind: FinanceTransactionKind {
         switch self { case .expense: .expense; case .income: .income; case .transfer: .transfer }
     }
     var titleKey: LocalizedStringKey {

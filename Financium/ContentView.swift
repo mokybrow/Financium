@@ -53,6 +53,7 @@ struct ContentView: View {
         }
         .animation(.easeOut(duration: 0.25), value: isLoadingFirstContent)
         .animation(.easeOut(duration: 0.25), value: auth.isAuthenticated)
+        .fiErrorAlert($finance.shareAcceptanceError)
         .task {
             try? await Task.sleep(for: .seconds(8))
             firstLoadTimedOut = true

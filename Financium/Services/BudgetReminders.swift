@@ -53,7 +53,7 @@ final class BudgetReminders {
     /// single notification a given edit invalidated is more code than redoing
     /// the lot, and a stale reminder for a deleted budget is a bug the user
     /// notices.
-    func reschedule(budgets: [Finance_Budget], enabled: Bool) async {
+    func reschedule(budgets: [FinanceBudget], enabled: Bool) async {
         center.removeAllPendingNotificationRequests()
         guard enabled else { return }
 
@@ -98,7 +98,7 @@ final class BudgetReminders {
     /// Separated from scheduling so the dates can be reasoned about — and
     /// tested — without a notification centre.
     nonisolated static func occurrences(
-        for budgets: [Finance_Budget],
+        for budgets: [FinanceBudget],
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> [Occurrence] {
@@ -131,7 +131,7 @@ final class BudgetReminders {
     /// has not already passed.
     private nonisolated static func paymentDates(
         from first: Date,
-        recurrence: Finance_BudgetRecurrence,
+        recurrence: FinanceBudgetRecurrence,
         calendar: Calendar
     ) -> [Date] {
         guard let step = stride(for: recurrence) else { return [first] }
@@ -142,7 +142,7 @@ final class BudgetReminders {
     }
 
     private nonisolated static func stride(
-        for recurrence: Finance_BudgetRecurrence
+        for recurrence: FinanceBudgetRecurrence
     ) -> (unit: Calendar.Component, amount: Int)? {
         switch recurrence {
         case .weekly: (.weekOfYear, 1)

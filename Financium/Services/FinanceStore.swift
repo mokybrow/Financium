@@ -3,7 +3,6 @@ import Combine
 import Foundation
 import WidgetKit
 import os
-import SwiftProtobuf
 
 /// How the app is being used.
 ///
@@ -25,12 +24,12 @@ enum FinanceMode: Equatable {
 /// working without an account changed one line here instead of every screen.
 @MainActor
 final class FinanceStore: ObservableObject {
-    @Published private(set) var overview = Finance_GetOverviewResponse()
-    @Published private(set) var accounts: [Finance_Account] = []
-    @Published private(set) var transactions: [Finance_Transaction] = []
-    @Published private(set) var budgets: [Finance_Budget] = []
-    @Published private(set) var goals: [Finance_Goal] = []
-    @Published private(set) var settings = Finance_FinanceSettings()
+    @Published private(set) var overview = FinanceOverview()
+    @Published private(set) var accounts: [FinanceAccount] = []
+    @Published private(set) var transactions: [FinanceTransaction] = []
+    @Published private(set) var budgets: [FinanceBudget] = []
+    @Published private(set) var goals: [FinanceGoal] = []
+    @Published private(set) var settings = FinanceSettings()
     @Published private(set) var isLoading = false
 
     /// Whether the backend has answered at least once this session.
@@ -41,6 +40,9 @@ final class FinanceStore: ObservableObject {
     /// blink out and back for a reader who genuinely has no accounts.
     @Published private(set) var hasLoaded = false
     @Published var errorMessage: String?
+    /// Invitation errors belong to the app root, including the sign-in screen,
+    /// and must survive background ledger refreshes.
+    @Published var shareAcceptanceError: String?
 
     /// Why the last load failed, or nil.
     ///
@@ -103,6 +105,8 @@ final class FinanceStore: ObservableObject {
     /// The live store, for the app delegate — which SwiftUI does not inject
     /// environment objects into — to reach the sync coordinator.
     static weak var current: FinanceStore?
+    private static var pendingShareInvitations: [CKShare.Metadata] = []
+    private var acceptingShareInvitations = false
 
     init(
         account: iCloudAccount,
@@ -112,6 +116,41 @@ final class FinanceStore: ObservableObject {
         self.local = local
         self.backend = local
         Self.current = self
+        Task { await acceptPendingShareInvitations() }
+    }
+
+    /// Keep cold-launch metadata until SwiftUI has created the store. Repeated
+    /// delivery of the same invitation while it is being accepted is a no-op.
+    static func receiveShareInvitation(_ metadata: CKShare.Metadata) {
+        guard !pendingShareInvitations.contains(where: {
+            $0.containerIdentifier == metadata.containerIdentifier
+                && $0.share.recordID == metadata.share.recordID
+        }) else { return }
+        pendingShareInvitations.append(metadata)
+        Task { await current?.acceptPendingShareInvitations() }
+    }
+
+    private func acceptPendingShareInvitations() async {
+        guard !acceptingShareInvitations else { return }
+        acceptingShareInvitations = true
+        defer { acceptingShareInvitations = false }
+
+        while let metadata = Self.pendingShareInvitations.first {
+            do {
+                await account.refresh()
+                guard account.isAvailable else { throw CKError(.notAuthenticated) }
+                enableCloudSync()
+                guard let coordinator else { throw CKError(.internalError) }
+                try await coordinator.acceptShare(metadata)
+                await refresh(force: true)
+            } catch {
+                if !Self.wasCancelled(error) {
+                    FinanceLog.store.error("accepting share failed: \(FinanceLog.describe(error), privacy: .public)")
+                    shareAcceptanceError = Self.message(for: error)
+                }
+            }
+            Self.pendingShareInvitations.removeFirst()
+        }
     }
 
     /// Stands up the CloudKit sync engine and switches to it when the device
@@ -120,7 +159,7 @@ final class FinanceStore: ObservableObject {
     func enableCloudSync() {
         guard coordinator == nil else { return }
         let coordinator = CloudKitSyncCoordinator(local: local) { [weak self] in
-            await self?.refresh()
+            await self?.refresh(force: true)
         }
         self.coordinator = coordinator
         self.cloud = coordinator.backend
@@ -319,15 +358,15 @@ final class FinanceStore: ObservableObject {
     /// This period's totals in one currency, zeroed rather than absent when the
     /// user has moved nothing in it — a blank row reads as a fault, "0" reads
     /// as an answer.
-    func totals(for code: String) -> Finance_CurrencyTotal {
+    func totals(for code: String) -> FinanceCurrencyTotal {
         if let match = overview.currencies.first(where: { $0.currencyCode.caseInsensitiveCompare(code) == .orderedSame }) {
             return match
         }
-        var empty = Finance_CurrencyTotal()
+        var empty = FinanceCurrencyTotal()
         empty.currencyCode = code
-        empty.balance = Finance_Money(decimal: 0, currencyCode: code)
-        empty.spent = Finance_Money(decimal: 0, currencyCode: code)
-        empty.earned = Finance_Money(decimal: 0, currencyCode: code)
+        empty.balance = FinanceMoney(decimal: 0, currencyCode: code)
+        empty.spent = FinanceMoney(decimal: 0, currencyCode: code)
+        empty.earned = FinanceMoney(decimal: 0, currencyCode: code)
         return empty
     }
 
@@ -469,7 +508,7 @@ final class FinanceStore: ObservableObject {
     }
 
     @discardableResult
-    func deleteAccount(_ account: Finance_Account, cascade: Bool = false) async -> AccountDeletionOutcome {
+    func deleteAccount(_ account: FinanceAccount, cascade: Bool = false) async -> AccountDeletionOutcome {
         do {
             try await backend.deleteAccount(id: account.id, cascade: cascade)
             await refresh(force: true)
@@ -512,7 +551,7 @@ final class FinanceStore: ObservableObject {
     /// off screen has not landed yet. Deleting it then is a no-op the backend
     /// treats as success — the point of the tap was for the row to stop
     /// existing, and it does not exist.
-    func deleteTransaction(_ transaction: Finance_Transaction) async {
+    func deleteTransaction(_ transaction: FinanceTransaction) async {
         do {
             try await backend.deleteTransaction(id: transaction.id)
         } catch FinanceLedger.Failure.notFound {
@@ -531,7 +570,7 @@ final class FinanceStore: ObservableObject {
 
     func upsertBudget(
         id: String = "", title: String, category: String, limit: Decimal,
-        reminder: Bool, paymentDate: Date, recurrence: Finance_BudgetRecurrence
+        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence
     ) async -> Bool {
         // An existing budget keeps the currency it was written in. Stamping the
         // main currency on every save silently re-denominated a budget the user
@@ -549,7 +588,7 @@ final class FinanceStore: ObservableObject {
         }
     }
 
-    func deleteBudget(_ budget: Finance_Budget) async {
+    func deleteBudget(_ budget: FinanceBudget) async {
         _ = await mutation { try await $0.deleteBudget(id: budget.id) }
     }
 
@@ -565,7 +604,7 @@ final class FinanceStore: ObservableObject {
         }
     }
 
-    func deleteGoal(_ goal: Finance_Goal) async {
+    func deleteGoal(_ goal: FinanceGoal) async {
         _ = await mutation { try await $0.deleteGoal(id: goal.id) }
     }
 
@@ -634,13 +673,21 @@ final class FinanceStore: ObservableObject {
     func prepareShareRecord(forAccountID accountID: String) async throws -> CKShare {
         if let share = accountShares[accountID] { return share }
         guard let coordinator else { throw FinanceLedger.Failure.invalidArgument }
-        let share = try await coordinator.shareRecord(forAccount: accountID)
-        accountShares[accountID] = share
-        sharedAccountIDs.insert(accountID)
-        return share
+        do {
+            let share = try await coordinator.shareRecord(forAccount: accountID)
+            accountShares[accountID] = share
+            sharedAccountIDs.insert(accountID)
+            return share
+        } catch {
+            if !Self.wasCancelled(error) {
+                FinanceLog.store.error("prepare share failed: \(FinanceLog.describe(error), privacy: .public)")
+                shareAcceptanceError = Self.message(for: error)
+            }
+            throw error
+        }
     }
 
-    func cachedShare(for account: Finance_Account) -> CKShare? {
+    func cachedShare(for account: FinanceAccount) -> CKShare? {
         accountShares[account.id]
     }
 
@@ -650,7 +697,7 @@ final class FinanceStore: ObservableObject {
 
     /// Whether this account has an active invite. Unlike `isShared`, this is
     /// true as soon as the owner creates the link, even before it is accepted.
-    func hasShareInvite(_ account: Finance_Account) -> Bool {
+    func hasShareInvite(_ account: FinanceAccount) -> Bool {
         sharedAccountIDs.contains(account.id)
     }
 
@@ -658,7 +705,7 @@ final class FinanceStore: ObservableObject {
     /// For the owner, CloudKit's accepted-participant count must also be above
     /// one. Accounts joined from another owner live in the shared database and
     /// are collaborative by definition.
-    func isShared(_ account: Finance_Account) -> Bool {
+    func isShared(_ account: FinanceAccount) -> Bool {
         participantAccountIDs.contains(account.id)
             || (hasShareInvite(account) && account.memberCount > 1)
     }
@@ -674,13 +721,13 @@ final class FinanceStore: ObservableObject {
     /// shared out, and a stale share left by the old backend whose recorded
     /// owner id no longer maps to anyone — all of which are this user's to
     /// close.
-    func isOwner(of financeAccount: Finance_Account) -> Bool {
+    func isOwner(of financeAccount: FinanceAccount) -> Bool {
         !participantAccountIDs.contains(financeAccount.id)
     }
 
     /// Turns a shared account back into a private one — the owner's action, and
     /// also the way to clear a share inherited from the retired backend.
-    func makeAccountPrivate(_ financeAccount: Finance_Account) async {
+    func makeAccountPrivate(_ financeAccount: FinanceAccount) async {
         if let coordinator {
             await coordinator.makePrivate(accountID: financeAccount.id)
         } else {
@@ -690,7 +737,7 @@ final class FinanceStore: ObservableObject {
     }
 
     /// Shares an account and returns the invite to pass on.
-    func shareAccount(_ account: Finance_Account) async -> AccountInvite? {
+    func shareAccount(_ account: FinanceAccount) async -> AccountInvite? {
         do {
             let invite = try await backend.shareAccount(id: account.id)
             await refresh(force: true)
@@ -708,7 +755,7 @@ final class FinanceStore: ObservableObject {
     /// rather than a bare-URL activity sheet.
     ///
     /// iCloud sync only: local mode has no CloudKit container to share through.
-    func shareRecord(for account: Finance_Account) async -> (share: CKShare, container: CKContainer)? {
+    func shareRecord(for account: FinanceAccount) async -> (share: CKShare, container: CKContainer)? {
         guard let coordinator else { return nil }
         do {
             let share = try await coordinator.shareRecord(forAccount: account.id)
@@ -731,7 +778,7 @@ final class FinanceStore: ObservableObject {
     }
 
     /// Redeems an invite. Returns the account joined, so the screen can say which.
-    func joinAccount(code: String) async -> Finance_Account? {
+    func joinAccount(code: String) async -> FinanceAccount? {
         do {
             let account = try await backend.joinAccount(code: code)
             await refresh(force: true)
@@ -750,7 +797,7 @@ final class FinanceStore: ObservableObject {
 
     /// Makes an account private again (empty `memberID`), or removes one member
     /// from it.
-    func stopSharingAccount(_ account: Finance_Account, memberID: String = "") async -> Bool {
+    func stopSharingAccount(_ account: FinanceAccount, memberID: String = "") async -> Bool {
         // "Make it private" is the same operation whether the account is a real
         // CKShare or a leftover from the old backend — route both through the
         // coordinator, which handles the missing-share case.
@@ -773,7 +820,7 @@ final class FinanceStore: ObservableObject {
                 return false
             }
             FinanceLog.store.error("write failed: \(detail, privacy: .public)")
-            errorMessage = Self.message(for: error)
+            let message = Self.message(for: error)
             // Re-read even though the write failed.
             //
             // A refused write means what is on screen and what is in the
@@ -782,6 +829,9 @@ final class FinanceStore: ObservableObject {
             // Skipping it left a row the reader had just deleted sitting in the
             // list under an error saying it could not be found.
             await refresh(force: true)
+            // A successful refresh clears errorMessage. Publish the refused
+            // write afterwards so the editor can explain why it stayed open.
+            errorMessage = message
             return false
         }
     }
@@ -794,8 +844,6 @@ final class FinanceStore: ObservableObject {
     static func message(for error: Error) -> String {
         if let failure = error as? FinanceLedger.Failure {
             switch failure {
-            case .conflict:
-                return NSLocalizedString("error.budget.duplicate_category", comment: "Category already budgeted")
             case .accountHasTransactions:
                 return NSLocalizedString("error.account.has_transactions", comment: "Account still has transactions")
             case .invalidArgument, .notFound:
@@ -815,6 +863,10 @@ final class FinanceStore: ObservableObject {
             return NSLocalizedString("error.forbidden", comment: "Call refused")
         case .quotaExceeded:
             return NSLocalizedString("error.icloud.quota", comment: "iCloud storage full")
+        case .serverRejectedRequest, .badContainer, .missingEntitlement:
+            return NSLocalizedString("error.icloud.configuration", comment: "CloudKit configuration failure")
+        case .unknownItem, .zoneNotFound:
+            return NSLocalizedString("error.icloud.missing_record", comment: "Account not uploaded")
         default:
             return NSLocalizedString("error.generic", comment: "Something went wrong")
         }

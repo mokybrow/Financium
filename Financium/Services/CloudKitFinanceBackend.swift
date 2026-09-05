@@ -60,7 +60,7 @@ actor CloudKitFinanceBackend: FinanceBackend {
         return try await coordinator.shareAccount(id: id)
     }
 
-    func joinAccount(code: String) async throws -> Finance_Account {
+    func joinAccount(code: String) async throws -> FinanceAccount {
         // Shared accounts are joined by tapping the iCloud link, which the
         // system routes to the app delegate — not by pasting a code here.
         throw FinanceLedger.Failure.notFound
@@ -98,7 +98,7 @@ actor CloudKitFinanceBackend: FinanceBackend {
     func upsertBudget(
         id: String, monthKey: String, title: String, category: String,
         limit: Decimal, currency: String,
-        reminder: Bool, paymentDate: Date, recurrence: Finance_BudgetRecurrence
+        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence
     ) async throws {
         try await synced {
             try await local.upsertBudget(

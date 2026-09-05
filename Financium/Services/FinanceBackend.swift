@@ -1,6 +1,5 @@
 import Foundation
 import os
-import SwiftProtobuf
 
 /// Everything the app reads in one go.
 ///
@@ -17,19 +16,19 @@ nonisolated struct AccountInvite: Sendable, Equatable {
 }
 
 nonisolated struct FinanceSnapshot: Sendable {
-    var overview = Finance_GetOverviewResponse()
-    var accounts: [Finance_Account] = []
-    var transactions: [Finance_Transaction] = []
-    var budgets: [Finance_Budget] = []
-    var goals: [Finance_Goal] = []
-    var settings = Finance_FinanceSettings()
+    var overview = FinanceOverview()
+    var accounts: [FinanceAccount] = []
+    var transactions: [FinanceTransaction] = []
+    var budgets: [FinanceBudget] = []
+    var goals: [FinanceGoal] = []
+    var settings = FinanceSettings()
 }
 
 /// What the app can do with money, independent of where it is kept.
 ///
-/// The remote implementation talks to `money-service`; the local one keeps a
-/// file on the device. `FinanceStore` owns screen state and knows only this
-/// protocol, so no view changes between the two modes.
+/// The iCloud implementation mirrors the same local file to CloudKit.
+/// `FinanceStore` owns screen state and knows only this protocol, so no view
+/// changes between the two modes.
 nonisolated protocol FinanceBackend: Sendable {
     func load(period: FinancePeriod, monthKey: String) async throws -> FinanceSnapshot
 
@@ -49,7 +48,7 @@ nonisolated protocol FinanceBackend: Sendable {
     /// second link that also still works.
     func shareAccount(id: String) async throws -> AccountInvite
     /// Redeems an invite, returning the account that was joined.
-    func joinAccount(code: String) async throws -> Finance_Account
+    func joinAccount(code: String) async throws -> FinanceAccount
     /// Empty `memberID` makes the account private again — the owner's to send.
     /// A member id removes that person; a member may pass their own to leave.
     func stopSharingAccount(id: String, memberID: String) async throws
@@ -66,7 +65,7 @@ nonisolated protocol FinanceBackend: Sendable {
     func upsertBudget(
         id: String, monthKey: String, title: String, category: String,
         limit: Decimal, currency: String,
-        reminder: Bool, paymentDate: Date, recurrence: Finance_BudgetRecurrence
+        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence
     ) async throws
     func deleteBudget(id: String) async throws
 
@@ -83,54 +82,29 @@ nonisolated protocol FinanceBackend: Sendable {
 
 // MARK: - Local storage
 
-/// The local database, as it sits on disk.
-///
-/// Messages are stored in protobuf's binary encoding rather than as a bespoke
-/// `Codable` mirror: the wire format is already the app's model, and it tolerates
-/// fields being added and removed, so a file written by an older build still
-/// opens. `Data` encodes as base64 inside the JSON envelope.
-private nonisolated struct LocalFinanceFile: Codable {
-    var accounts: [Data] = []
-    var transactions: [Data] = []
-    var budgets: [StoredBudget] = []
-    var goals: [Data] = []
-    var settings: Data?
-}
-
-/// A budget and the month it belongs to.
-///
-/// `Finance_Budget` carries no month — the service keys budgets by month in the
-/// *request*, not on the message — so the local file has to remember it. Kept
-/// beside the payload rather than bolted onto the proto, which would change a
-/// contract for one side's convenience.
-private nonisolated struct StoredBudget: Codable {
-    var month: String
-    var payload: Data
-}
-
 /// Every entity in the ledger, unfiltered, for the CloudKit sync engine to
 /// mirror and merge. Unlike `FinanceSnapshot` this is not scoped to a period
 /// and keeps budgets paired with their months.
 nonisolated struct RawLedger: Sendable {
-    var accounts: [Finance_Account] = []
-    var transactions: [Finance_Transaction] = []
-    var budgets: [(month: String, budget: Finance_Budget)] = []
-    var goals: [Finance_Goal] = []
-    var settings = Finance_FinanceSettings()
+    var accounts: [FinanceAccount] = []
+    var transactions: [FinanceTransaction] = []
+    var budgets: [(month: String, budget: FinanceBudget)] = []
+    var goals: [FinanceGoal] = []
+    var settings = FinanceSettings()
 }
 
 /// The whole local ledger, handed out for migration.
 nonisolated struct LocalExport {
     nonisolated struct Budget {
         var month: String
-        var budget: Finance_Budget
+        var budget: FinanceBudget
     }
 
-    var accounts: [Finance_Account] = []
-    var transactions: [Finance_Transaction] = []
+    var accounts: [FinanceAccount] = []
+    var transactions: [FinanceTransaction] = []
     var budgets: [Budget] = []
-    var goals: [Finance_Goal] = []
-    var settings = Finance_FinanceSettings()
+    var goals: [FinanceGoal] = []
+    var settings = FinanceSettings()
 }
 
 /// Money kept on the device, with no account and no network.
@@ -140,12 +114,12 @@ nonisolated struct LocalExport {
 actor LocalFinanceBackend: FinanceBackend {
     private let url: URL
 
-    private var accounts: [Finance_Account] = []
-    private var transactions: [Finance_Transaction] = []
+    private var accounts: [FinanceAccount] = []
+    private var transactions: [FinanceTransaction] = []
     /// Paired with the month each belongs to, which the message itself lacks.
-    private var budgets: [(month: String, budget: Finance_Budget)] = []
-    private var goals: [Finance_Goal] = []
-    private var settings = Finance_FinanceSettings()
+    private var budgets: [(month: String, budget: FinanceBudget)] = []
+    private var goals: [FinanceGoal] = []
+    private var settings = FinanceSettings()
     private var loaded = false
 
     init(url: URL? = nil) {
@@ -161,8 +135,8 @@ actor LocalFinanceBackend: FinanceBackend {
 
     /// True when there is anything worth offering to move to an account.
     var hasData: Bool {
-        get async {
-            await ensureLoaded()
+        get async throws {
+            try await ensureLoaded()
             return !accounts.isEmpty || !transactions.isEmpty || !budgets.isEmpty || !goals.isEmpty
         }
     }
@@ -170,9 +144,9 @@ actor LocalFinanceBackend: FinanceBackend {
     /// Everything on the device, for the migration to replay onto an account.
     ///
     /// Budgets come with their months, which `FinanceSnapshot` cannot carry
-    /// because `Finance_Budget` has no month of its own.
-    func exportAll() async -> LocalExport {
-        await ensureLoaded()
+    /// because `FinanceBudget` has no month of its own.
+    func exportAll() async throws -> LocalExport {
+        try await ensureLoaded()
         var export = LocalExport()
         export.accounts = accounts
         export.transactions = transactions
@@ -186,8 +160,8 @@ actor LocalFinanceBackend: FinanceBackend {
 
     /// Every entity as it sits in the file, for the sync engine to turn into
     /// records.
-    func rawLedger() async -> RawLedger {
-        await ensureLoaded()
+    func rawLedger() async throws -> RawLedger {
+        try await ensureLoaded()
         var raw = RawLedger()
         raw.accounts = accounts
         raw.transactions = transactions
@@ -204,14 +178,18 @@ actor LocalFinanceBackend: FinanceBackend {
     /// `deleted` are removed. This never enqueues anything back to the sync
     /// engine; the caller reconciles after applying.
     func applyRemote(
-        accounts remoteAccounts: [Finance_Account],
-        transactions remoteTransactions: [Finance_Transaction],
-        budgets remoteBudgets: [(month: String, budget: Finance_Budget)],
-        goals remoteGoals: [Finance_Goal],
-        settings remoteSettings: Finance_FinanceSettings?,
+        accounts remoteAccounts: [FinanceAccount],
+        transactions remoteTransactions: [FinanceTransaction],
+        budgets remoteBudgets: [(month: String, budget: FinanceBudget)],
+        goals remoteGoals: [FinanceGoal],
+        settings remoteSettings: FinanceSettings?,
         deleted: Set<String>
     ) async {
-        await ensureLoaded()
+        do { try await ensureLoaded() }
+        catch {
+            FinanceLog.store.error("local ledger load failed: \(FinanceLog.describe(error), privacy: .public)")
+            return
+        }
 
         func upsert<T>(_ list: inout [T], _ incoming: [T], id: (T) -> String) {
             for item in incoming {
@@ -249,7 +227,11 @@ actor LocalFinanceBackend: FinanceBackend {
     /// owner checks keep working. Set by the sync coordinator when a `CKShare`
     /// is created, accepted, or removed — not something a screen calls.
     func setSharing(accountID: String, ownerUserID: String, memberCount: Int32) async {
-        await ensureLoaded()
+        do { try await ensureLoaded() }
+        catch {
+            FinanceLog.store.error("local ledger load failed: \(FinanceLog.describe(error), privacy: .public)")
+            return
+        }
         guard let index = accounts.firstIndex(where: { $0.id == accountID }) else { return }
         accounts[index].ownerUserID = ownerUserID
         accounts[index].memberCount = memberCount
@@ -261,7 +243,7 @@ actor LocalFinanceBackend: FinanceBackend {
         transactions = []
         budgets = []
         goals = []
-        settings = Finance_FinanceSettings()
+        settings = FinanceSettings()
         // Reset rather than "loaded and empty", so the next read re-applies the
         // device-currency default instead of silently falling back to roubles.
         loaded = false
@@ -271,7 +253,7 @@ actor LocalFinanceBackend: FinanceBackend {
     // MARK: Reading
 
     func load(period: FinancePeriod, monthKey: String) async throws -> FinanceSnapshot {
-        await ensureLoaded()
+        try await ensureLoaded()
         return FinanceLedger.snapshot(
             period: period,
             monthKey: monthKey,
@@ -286,17 +268,17 @@ actor LocalFinanceBackend: FinanceBackend {
     // MARK: Accounts
 
     func createAccount(name: String, symbol: String, opening: Decimal, currency: String) async throws {
-        await ensureLoaded()
+        try await ensureLoaded()
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, FinanceLedger.isISOCurrency(currency.uppercased()) else {
             throw FinanceLedger.Failure.invalidArgument
         }
 
-        var account = Finance_Account()
+        var account = FinanceAccount()
         account.id = UUID().uuidString
         account.name = trimmed
         account.symbolName = symbol.isEmpty ? "creditcard.fill" : symbol
-        account.balance = Finance_Money(decimal: opening, currencyCode: currency)
+        account.balance = FinanceMoney(decimal: opening, currencyCode: currency)
         accounts.append(account)
         try persist()
     }
@@ -305,7 +287,7 @@ actor LocalFinanceBackend: FinanceBackend {
         id: String, name: String, symbol: String,
         balance: Decimal?, currency: String, isArchived: Bool
     ) async throws {
-        await ensureLoaded()
+        try await ensureLoaded()
         guard let index = accounts.firstIndex(where: { $0.id == id }) else {
             throw FinanceLedger.Failure.notFound
         }
@@ -321,13 +303,13 @@ actor LocalFinanceBackend: FinanceBackend {
             guard FinanceLedger.isISOCurrency(currency.uppercased()) else {
                 throw FinanceLedger.Failure.invalidArgument
             }
-            accounts[index].balance = Finance_Money(decimal: balance, currencyCode: currency)
+            accounts[index].balance = FinanceMoney(decimal: balance, currencyCode: currency)
         }
         try persist()
     }
 
     func deleteAccount(id: String, cascade: Bool) async throws {
-        await ensureLoaded()
+        try await ensureLoaded()
         guard accounts.contains(where: { $0.id == id }) else { throw FinanceLedger.Failure.notFound }
         let touching = transactions.filter { $0.fromAccountID == id || $0.toAccountID == id }
         guard touching.isEmpty || cascade else { throw FinanceLedger.Failure.accountHasTransactions }
@@ -355,7 +337,7 @@ actor LocalFinanceBackend: FinanceBackend {
         throw FinanceLedger.Failure.invalidArgument
     }
 
-    func joinAccount(code: String) async throws -> Finance_Account {
+    func joinAccount(code: String) async throws -> FinanceAccount {
         throw FinanceLedger.Failure.invalidArgument
     }
 
@@ -372,11 +354,11 @@ actor LocalFinanceBackend: FinanceBackend {
         amount: Decimal, destinationAmount: Decimal?,
         currency: String, note: String, date: Date
     ) async throws {
-        await ensureLoaded()
+        try await ensureLoaded()
 
-        var transaction = Finance_Transaction()
+        var transaction = FinanceTransaction()
         transaction.id = id.isEmpty ? UUID().uuidString : id
-        transaction.kind = kind.proto
+        transaction.kind = kind.transactionKind
         if kind == .income {
             transaction.toAccountID = accountID
         } else {
@@ -386,13 +368,13 @@ actor LocalFinanceBackend: FinanceBackend {
         transaction.title = title
         transaction.category = category
         transaction.note = note
-        transaction.amount = Finance_Money(decimal: amount, currencyCode: currency)
+        transaction.amount = FinanceMoney(decimal: amount, currencyCode: currency)
         let destinationCurrency = accounts.first { $0.id == destinationID }?.balance.currencyCode ?? currency
-        transaction.destinationAmount = Finance_Money(
+        transaction.destinationAmount = FinanceMoney(
             decimal: destinationAmount ?? amount,
             currencyCode: destinationCurrency
         )
-        transaction.occurredAt = Google_Protobuf_Timestamp(date: date)
+        transaction.occurredAt = FinanceTimestamp(date: date)
 
         try FinanceLedger.validate(transaction)
 
@@ -410,7 +392,7 @@ actor LocalFinanceBackend: FinanceBackend {
     }
 
     func deleteTransaction(id: String) async throws {
-        await ensureLoaded()
+        try await ensureLoaded()
         guard let index = transactions.firstIndex(where: { $0.id == id }) else {
             throw FinanceLedger.Failure.notFound
         }
@@ -424,27 +406,21 @@ actor LocalFinanceBackend: FinanceBackend {
     func upsertBudget(
         id: String, monthKey: String, title: String, category: String,
         limit: Decimal, currency: String,
-        reminder: Bool, paymentDate: Date, recurrence: Finance_BudgetRecurrence
+        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence
     ) async throws {
-        await ensureLoaded()
+        try await ensureLoaded()
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty, !category.isEmpty, limit > 0 else {
             throw FinanceLedger.Failure.invalidArgument
         }
 
-        // One budget per category per month, refused rather than folded into the
-        // existing row — spend is attributed by category, so two budgets on one
-        // category would track the same money.
-        let clash = budgets.contains {
-            $0.budget.id != id && $0.month == monthKey && $0.budget.category == category
-        }
-        guard !clash else { throw FinanceLedger.Failure.conflict }
-
-        var budget = Finance_Budget()
+        // Budgets are independent by id, even within the same category and
+        // month. Each compares that category's spend against its own limit.
+        var budget = FinanceBudget()
         budget.id = id.isEmpty ? UUID().uuidString : id
         budget.title = trimmedTitle
         budget.category = category
-        budget.limit = Finance_Money(decimal: limit, currencyCode: currency)
+        budget.limit = FinanceMoney(decimal: limit, currencyCode: currency)
         budget.reminderEnabled = reminder
         if reminder {
             budget.paymentDate = Self.dateKey(paymentDate)
@@ -462,7 +438,7 @@ actor LocalFinanceBackend: FinanceBackend {
     }
 
     func deleteBudget(id: String) async throws {
-        await ensureLoaded()
+        try await ensureLoaded()
         budgets.removeAll { $0.budget.id == id }
         try persist()
     }
@@ -473,21 +449,21 @@ actor LocalFinanceBackend: FinanceBackend {
         id: String, title: String, accountID: String,
         category: String, target: Decimal, currency: String
     ) async throws {
-        await ensureLoaded()
+        try await ensureLoaded()
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty, target > 0 else { throw FinanceLedger.Failure.invalidArgument }
         guard let account = accounts.first(where: { $0.id == accountID }) else {
             throw FinanceLedger.Failure.notFound
         }
 
-        var goal = Finance_Goal()
+        var goal = FinanceGoal()
         goal.id = id.isEmpty ? UUID().uuidString : id
         goal.title = trimmedTitle
         goal.accountID = accountID
         goal.category = category
         // The account decides the currency, as it does on the service: a goal is
         // denominated in the account it is saved into.
-        goal.target = Finance_Money(decimal: target, currencyCode: account.balance.currencyCode)
+        goal.target = FinanceMoney(decimal: target, currencyCode: account.balance.currencyCode)
 
         if let index = goals.firstIndex(where: { $0.id == goal.id }) {
             goals[index] = goal
@@ -498,7 +474,7 @@ actor LocalFinanceBackend: FinanceBackend {
     }
 
     func deleteGoal(id: String) async throws {
-        await ensureLoaded()
+        try await ensureLoaded()
         goals.removeAll { $0.id == id }
         try persist()
     }
@@ -508,7 +484,7 @@ actor LocalFinanceBackend: FinanceBackend {
     func updateSettings(
         currency: String, monthlyReminders: Bool, promoEmail: Bool, promoPush: Bool
     ) async throws {
-        await ensureLoaded()
+        try await ensureLoaded()
         let code = currency.uppercased()
         guard FinanceLedger.isISOCurrency(code) else { throw FinanceLedger.Failure.invalidArgument }
         settings.mainCurrencyCode = code
@@ -525,84 +501,28 @@ actor LocalFinanceBackend: FinanceBackend {
         return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
     }
 
-    private func ensureLoaded() async {
+    private func ensureLoaded() async throws {
         guard !loaded else { return }
-        loaded = true
-
-        guard let data = try? Data(contentsOf: url),
-              let file = try? JSONDecoder().decode(LocalFinanceFile.self, from: data) else {
-            // Nothing in the on-device ledger. Before falling back to a fresh
-            // start, look for the snapshot the old account mode left behind and
-            // adopt it — this is what a person whose backend went away still
-            // has of their data.
-            if recoverFromLegacyAccountCache() {
-                try? persist()
+        let archive: FinanceArchive
+        if let saved = try FinanceArchive.load(from: url) {
+            archive = saved
+        } else {
+            let cacheURL = url.deletingLastPathComponent().appendingPathComponent("finance-cache-v1.json")
+            if let recovered = try FinanceArchive.recoverCache(from: cacheURL) {
+                // The old cache remains intact; only the new local archive is written.
+                try recovered.encoded().write(to: url, options: .atomic)
+                archive = recovered
             } else {
-                settings.mainCurrencyCode = Self.deviceCurrency()
+                archive = FinanceArchive()
             }
-            return
         }
-        accounts = file.accounts.compactMap { try? Finance_Account(serializedBytes: $0) }
-        transactions = file.transactions.compactMap { try? Finance_Transaction(serializedBytes: $0) }
-        budgets = file.budgets.compactMap { stored in
-            guard let budget = try? Finance_Budget(serializedBytes: stored.payload) else { return nil }
-            return (month: stored.month, budget: budget)
-        }
-        goals = file.goals.compactMap { try? Finance_Goal(serializedBytes: $0) }
-        if let raw = file.settings, let stored = try? Finance_FinanceSettings(serializedBytes: raw) {
-            settings = stored
-        }
-        if settings.mainCurrencyCode.isEmpty {
-            settings.mainCurrencyCode = Self.deviceCurrency()
-        }
-    }
-
-    /// The last snapshot the pre-CloudKit account mode kept on disk.
-    ///
-    /// When the gRPC backend went away it took the live data with it, but the
-    /// app had been caching the last answer it got in `finance-cache-v1.json` —
-    /// accounts, settings, goals, and the transactions for the month last
-    /// viewed. This reads that file into the ledger so the migration to iCloud
-    /// starts from the user's real data rather than an empty screen. Runs once:
-    /// after this the on-device file exists and this path is never taken again.
-    private nonisolated struct LegacyCache: Decodable {
-        var monthKey: String = ""
-        var accounts: [Data] = []
-        var transactions: [Data] = []
-        var budgets: [Data] = []
-        var goals: [Data] = []
-        var settings: Data?
-    }
-
-    private func recoverFromLegacyAccountCache() -> Bool {
-        let cacheURL = url.deletingLastPathComponent().appendingPathComponent("finance-cache-v1.json")
-        guard let data = try? Data(contentsOf: cacheURL),
-              let cache = try? JSONDecoder().decode(LegacyCache.self, from: data) else {
-            return false
-        }
-
-        let recoveredAccounts = cache.accounts.compactMap { try? Finance_Account(serializedBytes: $0) }
-        let recoveredTransactions = cache.transactions.compactMap { try? Finance_Transaction(serializedBytes: $0) }
-        let recoveredGoals = cache.goals.compactMap { try? Finance_Goal(serializedBytes: $0) }
-        let recoveredBudgets = cache.budgets.compactMap { try? Finance_Budget(serializedBytes: $0) }
-
-        guard !recoveredAccounts.isEmpty || !recoveredTransactions.isEmpty
-            || !recoveredGoals.isEmpty || !recoveredBudgets.isEmpty else { return false }
-
-        accounts = recoveredAccounts
-        transactions = recoveredTransactions
-        goals = recoveredGoals
-        // The cache never recorded a month per budget — the whole snapshot is
-        // for `monthKey`, so that is the month they belong to.
-        budgets = recoveredBudgets.map { (month: cache.monthKey, budget: $0) }
-        if let raw = cache.settings, let stored = try? Finance_FinanceSettings(serializedBytes: raw) {
-            settings = stored
-        }
-        if settings.mainCurrencyCode.isEmpty {
-            settings.mainCurrencyCode = Self.deviceCurrency()
-        }
-        FinanceLog.store.notice("recovered \(recoveredAccounts.count, privacy: .public) accounts and \(recoveredTransactions.count, privacy: .public) transactions from the legacy account cache")
-        return true
+        accounts = archive.accounts
+        transactions = archive.transactions
+        budgets = archive.budgets.map { (month: $0.month, budget: $0.budget) }
+        goals = archive.goals
+        settings = archive.settings
+        if settings.mainCurrencyCode.isEmpty { settings.mainCurrencyCode = Self.deviceCurrency() }
+        loaded = true
     }
 
     /// A first-run default worth having: the phone's own currency beats making
@@ -613,18 +533,12 @@ actor LocalFinanceBackend: FinanceBackend {
     }
 
     private func persist() throws {
-        var file = LocalFinanceFile()
-        file.accounts = accounts.compactMap { try? $0.serializedData() }
-        file.transactions = transactions.compactMap { try? $0.serializedData() }
-        file.budgets = budgets.compactMap { stored in
-            guard let payload = try? stored.budget.serializedData() else { return nil }
-            return StoredBudget(month: stored.month, payload: payload)
-        }
-        file.goals = goals.compactMap { try? $0.serializedData() }
-        file.settings = try? settings.serializedData()
-
-        let data = try JSONEncoder().encode(file)
-        // Atomic: a crash mid-write must not leave a half-written ledger.
-        try data.write(to: url, options: .atomic)
+        var archive = FinanceArchive()
+        archive.accounts = accounts
+        archive.transactions = transactions
+        archive.budgets = budgets.map { FinanceArchive.Budget(month: $0.month, budget: $0.budget) }
+        archive.goals = goals
+        archive.settings = settings
+        try archive.encoded().write(to: url, options: .atomic)
     }
 }

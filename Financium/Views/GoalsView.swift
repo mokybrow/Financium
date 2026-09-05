@@ -7,8 +7,8 @@ struct GoalsView: View {
     @EnvironmentObject private var store: FinanceStore
     @State private var editor: GoalEditorTarget?
     /// The goal being read, and the one waiting on a confirmation.
-    @State private var viewing: Finance_Goal?
-    @State private var pendingDeletion: Finance_Goal?
+    @State private var viewing: FinanceGoal?
+    @State private var pendingDeletion: FinanceGoal?
 
     var body: some View {
         NavigationStack {
@@ -68,7 +68,7 @@ struct GoalsView: View {
         }
     }
 
-    private func row(_ goal: Finance_Goal) -> some View {
+    private func row(_ goal: FinanceGoal) -> some View {
         // A tap reads the goal in full; editing moved to the context menu, so
         // the exact figures have somewhere to be seen that is not the form
         // that changes them.
@@ -110,11 +110,11 @@ struct GoalsView: View {
         }
     }
 
-    private func name(of goal: Finance_Goal) -> String {
+    private func name(of goal: FinanceGoal) -> String {
         goal.title.isEmpty ? FinanceCategoryStore.displayName(for: goal.category) : goal.title
     }
 
-    private func account(of goal: Finance_Goal) -> Finance_Account? {
+    private func account(of goal: FinanceGoal) -> FinanceAccount? {
         store.accounts.first { $0.id == goal.accountID }
     }
 
@@ -126,13 +126,13 @@ struct GoalsView: View {
     /// confident 0%: a wrong number rather than a missing one. A currency that
     /// has since changed is no longer a problem: the goal follows the account,
     /// the way the account's own balance does.
-    private func problem(with goal: Finance_Goal) -> LocalizedStringKey? {
+    private func problem(with goal: FinanceGoal) -> LocalizedStringKey? {
         account(of: goal) == nil ? "goals.problem.no_account" : nil
     }
 
     /// What the account holds towards the goal — the balance the backend
     /// reports as `saved`, which is recomputed from the account on every load.
-    private func savedText(_ goal: Finance_Goal) -> String {
+    private func savedText(_ goal: FinanceGoal) -> String {
         String(
             format: NSLocalizedString("goals.saved_format", comment: "Saved of target"),
             goal.saved.abbreviated,
@@ -140,7 +140,7 @@ struct GoalsView: View {
         )
     }
 
-    private func isMet(_ goal: Finance_Goal) -> Bool {
+    private func isMet(_ goal: FinanceGoal) -> Bool {
         goal.saved.decimalValue >= goal.target.decimalValue
     }
 
@@ -149,14 +149,14 @@ struct GoalsView: View {
     /// The old row clamped the remainder at zero, so a goal that had been
     /// beaten read "0 left" — indistinguishable from one landing exactly on
     /// target, and it threw away the thing the user most wants to see.
-    private func statusText(_ goal: Finance_Goal) -> String {
+    private func statusText(_ goal: FinanceGoal) -> String {
         let difference = goal.target.decimalValue - goal.saved.decimalValue
-        let money = Finance_Money(decimal: abs(difference), currencyCode: goal.target.currencyCode)
+        let money = FinanceMoney(decimal: abs(difference), currencyCode: goal.target.currencyCode)
         let key = difference >= 0 ? "goals.left_format" : "goals.over_format"
         return String(format: NSLocalizedString(key, comment: "Goal progress"), money.abbreviated)
     }
 
-    private func progress(_ goal: Finance_Goal) -> Double {
+    private func progress(_ goal: FinanceGoal) -> Double {
         let target = NSDecimalNumber(decimal: goal.target.decimalValue).doubleValue
         guard target > 0 else { return 0 }
         return NSDecimalNumber(decimal: goal.saved.decimalValue).doubleValue / target
@@ -164,7 +164,7 @@ struct GoalsView: View {
 }
 
 struct GoalEditorTarget: Identifiable {
-    let goal: Finance_Goal?
+    let goal: FinanceGoal?
     var id: String { goal?.id ?? "new" }
 }
 
@@ -172,7 +172,7 @@ struct GoalEditorTarget: Identifiable {
 private struct GoalDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
-    let goal: Finance_Goal
+    let goal: FinanceGoal
 
     private var difference: Decimal { goal.target.decimalValue - goal.saved.decimalValue }
     private var isMet: Bool { difference <= 0 }
@@ -195,7 +195,7 @@ private struct GoalDetailView: View {
                         FIListRow(
                             title: Text(isMet ? "goal.over_title" : "goal.view.left"),
                             accessory: .value(
-                                Text(verbatim: Finance_Money(
+                                Text(verbatim: FinanceMoney(
                                     decimal: abs(difference),
                                     currencyCode: goal.target.currencyCode
                                 ).formatted)

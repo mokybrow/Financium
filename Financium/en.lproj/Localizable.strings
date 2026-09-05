@@ -10,7 +10,6 @@
 "common.ok" = "OK";
 "common.error" = "Error";
 "common.retry" = "Try again";
-"error.budget.duplicate_category" = "This category already has a budget this month. Pick another category, or edit the existing budget.";
 "error.account.has_transactions" = "This account still has transactions, so it cannot be deleted.";
 "error.unreachable" = "Could not reach the server. Check your connection and try again.";
 "error.invalid" = "That could not be saved. Check the fields and try again.";
@@ -211,7 +210,7 @@
 "budget.recurrence.quarterly" = "Quarterly";
 "budget.recurrence.yearly" = "Yearly";
 "budget.limit.placeholder" = "Limit";
-"budget.hint" = "The category indicates which spending category will reduce the budget. The payment day and repeat interval control reminders.";
+"budget.hint" = "The category determines which expenses count toward the budget. Budgets with the same category and currency track the same monthly spending, each against its own limit. The payment date and repeat interval control reminders.";
 "budget.delete" = "Delete budget";
 
 /* Goals */
@@ -374,3 +373,6 @@
 "budget.over_title" = "Over by";
 "goal.over_title" = "Over target";
 "widget.budget.entity" = "Budget";
+
+"error.icloud.configuration" = "iCloud rejected the request. The app’s CloudKit configuration needs to be checked. Please contact the developer.";
+"error.icloud.missing_record" = "The account could not be found in iCloud. Wait for synchronization and try again.";

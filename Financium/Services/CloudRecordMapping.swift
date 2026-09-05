@@ -1,13 +1,12 @@
 import CloudKit
 import Foundation
-import SwiftProtobuf
 
-/// Turns the ledger's protobuf messages into `CKRecord`s and back.
+/// Turns native ledger values into `CKRecord`s and back.
 ///
-/// One record type per kind of thing. The message travels whole, in protobuf's
-/// wire format, in a single `payload` field — the same bytes the on-device file
-/// already stores — so there is one definition of the model, not a CloudKit
-/// mirror of it to keep in step. A few fields are lifted out alongside the
+/// One record type per entity. The compatibility codec preserves the legacy
+/// wire format in a single `payload` field, while the local file uses native
+/// versioned JSON. This keeps existing shared accounts readable by older app
+/// versions. A few fields are lifted out alongside the
 /// payload only where CloudKit needs them queryable or sortable.
 ///
 /// `nonisolated` because the sync engine calls this from its own background
@@ -68,59 +67,59 @@ nonisolated enum CloudRecordMapping {
 
     // MARK: - Encoding
 
-    static func apply(account: Finance_Account, updatedAt: Date, to record: CKRecord) {
-        record["payload"] = (try? account.serializedData()) as CKRecordValue?
+    static func apply(account: FinanceAccount, updatedAt: Date, to record: CKRecord) {
+        record["payload"] = LegacyFinanceCodec.encode(account) as CKRecordValue?
         record["updatedAt"] = updatedAt as CKRecordValue
     }
 
-    static func apply(transaction: Finance_Transaction, updatedAt: Date, to record: CKRecord) {
-        record["payload"] = (try? transaction.serializedData()) as CKRecordValue?
+    static func apply(transaction: FinanceTransaction, updatedAt: Date, to record: CKRecord) {
+        record["payload"] = LegacyFinanceCodec.encode(transaction) as CKRecordValue?
         record["occurredAt"] = (transaction.hasOccurredAt ? transaction.occurredAt.date : Date()) as CKRecordValue
         record["updatedAt"] = updatedAt as CKRecordValue
     }
 
-    static func apply(budget: Finance_Budget, month: String, updatedAt: Date, to record: CKRecord) {
-        record["payload"] = (try? budget.serializedData()) as CKRecordValue?
+    static func apply(budget: FinanceBudget, month: String, updatedAt: Date, to record: CKRecord) {
+        record["payload"] = LegacyFinanceCodec.encode(budget) as CKRecordValue?
         record["month"] = month as CKRecordValue
         record["updatedAt"] = updatedAt as CKRecordValue
     }
 
-    static func apply(goal: Finance_Goal, updatedAt: Date, to record: CKRecord) {
-        record["payload"] = (try? goal.serializedData()) as CKRecordValue?
+    static func apply(goal: FinanceGoal, updatedAt: Date, to record: CKRecord) {
+        record["payload"] = LegacyFinanceCodec.encode(goal) as CKRecordValue?
         record["updatedAt"] = updatedAt as CKRecordValue
     }
 
-    static func apply(settings: Finance_FinanceSettings, updatedAt: Date, to record: CKRecord) {
-        record["payload"] = (try? settings.serializedData()) as CKRecordValue?
+    static func apply(settings: FinanceSettings, updatedAt: Date, to record: CKRecord) {
+        record["payload"] = LegacyFinanceCodec.encode(settings) as CKRecordValue?
         record["updatedAt"] = updatedAt as CKRecordValue
     }
 
     // MARK: - Decoding
 
-    static func account(from record: CKRecord) -> Finance_Account? {
+    static func account(from record: CKRecord) -> FinanceAccount? {
         guard let data = record["payload"] as? Data else { return nil }
-        return try? Finance_Account(serializedBytes: data)
+        return try? LegacyFinanceCodec.decode(FinanceAccount.self, from: data)
     }
 
-    static func transaction(from record: CKRecord) -> Finance_Transaction? {
+    static func transaction(from record: CKRecord) -> FinanceTransaction? {
         guard let data = record["payload"] as? Data else { return nil }
-        return try? Finance_Transaction(serializedBytes: data)
+        return try? LegacyFinanceCodec.decode(FinanceTransaction.self, from: data)
     }
 
-    static func budget(from record: CKRecord) -> (month: String, budget: Finance_Budget)? {
+    static func budget(from record: CKRecord) -> (month: String, budget: FinanceBudget)? {
         guard let data = record["payload"] as? Data,
-              let budget = try? Finance_Budget(serializedBytes: data) else { return nil }
+              let budget = try? LegacyFinanceCodec.decode(FinanceBudget.self, from: data) else { return nil }
         let month = record["month"] as? String ?? ""
         return (month, budget)
     }
 
-    static func goal(from record: CKRecord) -> Finance_Goal? {
+    static func goal(from record: CKRecord) -> FinanceGoal? {
         guard let data = record["payload"] as? Data else { return nil }
-        return try? Finance_Goal(serializedBytes: data)
+        return try? LegacyFinanceCodec.decode(FinanceGoal.self, from: data)
     }
 
-    static func settings(from record: CKRecord) -> Finance_FinanceSettings? {
+    static func settings(from record: CKRecord) -> FinanceSettings? {
         guard let data = record["payload"] as? Data else { return nil }
-        return try? Finance_FinanceSettings(serializedBytes: data)
+        return try? LegacyFinanceCodec.decode(FinanceSettings.self, from: data)
     }
 }
