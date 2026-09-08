@@ -3,7 +3,7 @@
 "widget.quick_add.expense" = "Expense";
 "widget.quick_add.income" = "Income";
 "widget.summary.title" = "Summary";
-"widget.summary.description" = "Balance, spending and income for the period.";
+"widget.summary.description" = "Monthly net, income, expenses and total balance.";
 "widget.summary.total" = "Total";
 "widget.summary.spent" = "Spent";
 "widget.summary.earned" = "Earned";
@@ -15,3 +15,13 @@
 "unit.thousand" = "K";
 "unit.million" = "M";
 "unit.billion" = "B";
+
+"widget.month" = "This month";
+"widget.refresh" = "Open Financium to update";
+"widget.lock.difference" = "Monthly net";
+"widget.lock.income" = "Monthly income";
+"widget.lock.expense" = "Monthly expenses";
+"widget.lock.description" = "This month at a glance. Tap to open your finances.";
+"widget.budget.left" = "Remaining";
+"widget.budget.over" = "Over budget";
+"widget.preview.budget" = "Groceries";

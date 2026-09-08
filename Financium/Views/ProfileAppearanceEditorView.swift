@@ -15,7 +15,6 @@ struct ProfileAppearanceEditorView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var editorImage: UIImage?
     @State private var editorIsNew = false
-    @State private var emojiFocused = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -48,24 +47,6 @@ struct ProfileAppearanceEditorView: View {
                 }
 
                 FISection("profile.appearance.avatar") {
-                    ZStack {
-                        pickerRow(
-                            "profile.appearance.emoji",
-                            value: profile.emoji == nil ? "profile.appearance.choose" : nil,
-                            verbatimValue: profile.emoji,
-                            symbol: "face.smiling"
-                        )
-                        .contentShape(Rectangle())
-                        .onTapGesture { emojiFocused = true }
-
-                        // The real field, invisible, catching the emoji keyboard.
-                        EmojiOnlyTextField(placeholder: "", text: emojiBinding, isFocused: $emojiFocused)
-                            .frame(width: 1, height: 1)
-                            .opacity(0.01)
-                    }
-
-                    FIRowSeparator()
-
                     NavigationLink { AvatarBackgroundEditorView() } label: {
                         pickerRow("profile.appearance.background", value: "profile.appearance.choose")
                     }

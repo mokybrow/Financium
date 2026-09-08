@@ -32,10 +32,18 @@ struct FinanceWidgetSnapshot: Codable, Sendable {
     var budgets: [Budget]
 
     var updatedAt: Date
+    // Optional for decoding snapshots from versions that exported the UI period.
+    var monthStart: Date? = nil
 
-    /// Earned minus spent for the period. Stored rather than derived so the
-    /// tile and the app cannot round it differently.
-    var differenceMinor: Int64 { earnedMinor - spentMinor }
+    var isCurrentMonth: Bool {
+        guard let monthStart else { return false }
+        return Calendar.current.isDate(monthStart, equalTo: .now, toGranularity: .month)
+    }
+
+    var differenceMinor: Int64 {
+        let result = earnedMinor.subtractingReportingOverflow(spentMinor)
+        return result.overflow ? (earnedMinor >= 0 ? .max : .min) : result.partialValue
+    }
 
     struct Budget: Codable, Sendable, Identifiable {
         var id: String
@@ -52,7 +60,11 @@ struct FinanceWidgetSnapshot: Codable, Sendable {
             return Double(spentMinor) / Double(limitMinor)
         }
 
-        var percent: Int { Int((progress * 100).rounded()) }
+        var remainingMinor: Int64 {
+            let result = limitMinor.subtractingReportingOverflow(spentMinor)
+            return result.overflow ? .max : (result.partialValue == .min ? .max : abs(result.partialValue))
+        }
+        var percent: Int { Int(min(max((progress * 100).rounded(), 0), 999_999)) }
         var isOverspent: Bool { spentMinor > limitMinor }
     }
 
@@ -81,7 +93,9 @@ enum FinanceWidgetStore {
 
     static func load() -> FinanceWidgetSnapshot? {
         guard let data = defaults?.data(forKey: snapshotKey) else { return nil }
-        return try? JSONDecoder().decode(FinanceWidgetSnapshot.self, from: data)
+        guard var snapshot = try? JSONDecoder().decode(FinanceWidgetSnapshot.self, from: data) else { return nil }
+        if !snapshot.isCurrentMonth { snapshot.budgets = [] }
+        return snapshot
     }
 
     /// Writes the snapshot and asks the tiles to redraw.
@@ -164,11 +178,9 @@ enum FinanceWidgetFormat {
     }
 
     /// Signed and shortened, for the difference on the summary tile.
-    static func compactSigned(_ minor: Int64) -> String {
-        let text = compact(abs(minor), currencyCode: "")
-        if minor > 0 { return "+\(text)" }
-        if minor < 0 { return "−\(text)" }
-        return text
+    static func compactSigned(_ minor: Int64, currencyCode: String = "") -> String {
+        let text = compact(minor, currencyCode: currencyCode)
+        return minor > 0 ? "+" + text : text
     }
 
     /// Signed, for a difference that means something opposite either way.

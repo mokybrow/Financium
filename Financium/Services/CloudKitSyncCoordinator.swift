@@ -904,7 +904,7 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
     private static let pngSignature = Data([0x89, 0x50, 0x4E, 0x47])
 
     static func appIconThumbnailData() -> Data? {
-        guard let image = UIImage(named: "AppIconPreviewDollarWallet") else { return nil }
+        guard let image = UIImage(named: "AppIconPreview") else { return nil }
         let side: CGFloat = 160
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1

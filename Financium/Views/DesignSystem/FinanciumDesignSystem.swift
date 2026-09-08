@@ -236,7 +236,7 @@ struct FIListRow<Trailing: View>: View {
         subtitle: Text? = nil,
         titleColor: Color = .primary,
         icon: String? = nil,
-        iconColor: Color = FITheme.Palette.accent,
+        iconColor: Color = .primary,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.title = title
@@ -284,7 +284,7 @@ extension FIListRow where Trailing == FIRowAccessoryView {
         subtitle: Text? = nil,
         titleColor: Color = .primary,
         icon: String? = nil,
-        iconColor: Color = FITheme.Palette.accent,
+        iconColor: Color = .primary,
         accessory: FIRowAccessory = .none
     ) {
         self.init(title: title, subtitle: subtitle, titleColor: titleColor, icon: icon, iconColor: iconColor) {
@@ -297,7 +297,7 @@ extension FIListRow where Trailing == FIRowAccessoryView {
         subtitle: LocalizedStringKey? = nil,
         titleColor: Color = .primary,
         icon: String? = nil,
-        iconColor: Color = FITheme.Palette.accent,
+        iconColor: Color = .primary,
         accessory: FIRowAccessory = .none
     ) {
         self.init(
@@ -389,16 +389,18 @@ struct FIProgressRow: View {
 struct FIToggleRow: View {
     private let title: Text
     private let subtitle: Text?
+    private let icon: String?
     @Binding private var isOn: Bool
 
-    init(_ titleKey: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, isOn: Binding<Bool>) {
+    init(_ titleKey: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, icon: String? = nil, isOn: Binding<Bool>) {
         self.title = Text(titleKey)
         self.subtitle = subtitle.map { Text($0) }
+        self.icon = icon
         self._isOn = isOn
     }
 
     var body: some View {
-        FIListRow(title: title, subtitle: subtitle) {
+        FIListRow(title: title, subtitle: subtitle, icon: icon) {
             Toggle("", isOn: $isOn)
                 .labelsHidden()
                 .tint(FITheme.Palette.positive)
@@ -435,17 +437,20 @@ struct FIDateRow: View {
 struct FIMenuRow<Content: View>: View {
     private let title: Text
     private let value: Text
+    private let icon: String?
     private let menuContent: Content
 
-    init(_ titleKey: LocalizedStringKey, value: String, @ViewBuilder menuContent: () -> Content) {
+    init(_ titleKey: LocalizedStringKey, value: String, icon: String? = nil, @ViewBuilder menuContent: () -> Content) {
         self.title = Text(titleKey)
         self.value = Text(verbatim: value)
+        self.icon = icon
         self.menuContent = menuContent()
     }
 
-    init(title: Text, value: Text, @ViewBuilder menuContent: () -> Content) {
+    init(title: Text, value: Text, icon: String? = nil, @ViewBuilder menuContent: () -> Content) {
         self.title = title
         self.value = value
+        self.icon = icon
         self.menuContent = menuContent()
     }
 
@@ -453,7 +458,7 @@ struct FIMenuRow<Content: View>: View {
         Menu {
             menuContent
         } label: {
-            FIListRow(title: title, accessory: .menu(value))
+            FIListRow(title: title, icon: icon, accessory: .menu(value))
         }
         // The menu inherits the ambient tint otherwise, and its rows come out
         // looking disabled.
@@ -923,6 +928,18 @@ extension View {
     func fiRowContextMenu<MenuItems: View>(@ViewBuilder menuItems: () -> MenuItems) -> some View {
         background(FITheme.Palette.card)
             .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: FITheme.Metrics.cardRadius, style: .continuous))
+            .contextMenu { menuItems().tint(.primary) }
+    }
+
+    /// Long-press menu for a tile that already paints its own opaque
+    /// background — an account card. Same as `fiRowContextMenu` but without the
+    /// card-coloured fill, which would otherwise show as a white halo behind
+    /// the tile's rounded corners.
+    func fiCardContextMenu<MenuItems: View>(
+        cornerRadius: CGFloat,
+        @ViewBuilder menuItems: () -> MenuItems
+    ) -> some View {
+        contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .contextMenu { menuItems().tint(.primary) }
     }
 }

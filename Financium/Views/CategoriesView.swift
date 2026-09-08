@@ -22,6 +22,7 @@ struct FinanceCategory: Codable, Hashable, Identifiable {
 
     let name: String
     let kind: Kind
+    var symbolName: String? = nil
 
     var id: String { "\(kind.rawValue).\(name)" }
 }
@@ -47,14 +48,20 @@ final class FinanceCategoryStore: ObservableObject {
     ]
 
     @Published private(set) var custom: [FinanceCategory] = []
+    /// Built-in categories the user removed, by lower-cased identifier. They
+    /// stop being offered anywhere; transactions already filed under them are
+    /// untouched.
+    @Published private(set) var hiddenBuiltIns: Set<String> = []
 
     private let defaults: UserDefaults
     private static let storageKey = "finance.custom_categories.v2"
+    private static let hiddenBuiltInsKey = "finance.hidden_builtin_categories"
     /// The first format: a bare list of names, all of them expenses.
     private static let legacyStorageKey = "finance.custom_categories"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        hiddenBuiltIns = Set(defaults.stringArray(forKey: Self.hiddenBuiltInsKey) ?? [])
 
         if let data = defaults.data(forKey: Self.storageKey) {
             // Keyed on presence, not on decoding: falling through to the legacy
@@ -86,17 +93,82 @@ final class FinanceCategoryStore: ObservableObject {
     /// for no reason. The same name on the other side is fine: "Other" is
     /// legitimately both.
     @discardableResult
-    func add(_ name: String, kind: FinanceCategory.Kind) -> Bool {
+    func add(_ name: String, kind: FinanceCategory.Kind, symbolName: String = "tag") -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !exists(trimmed, kind: kind) else { return false }
-        custom.append(FinanceCategory(name: trimmed, kind: kind))
+        custom.append(FinanceCategory(name: trimmed, kind: kind, symbolName: symbolName))
         persist()
         return true
+    }
+
+    static let symbols = ["tag", "cart", "fork.knife", "cup.and.saucer", "tshirt", "house", "car", "bus", "airplane", "heart", "cross.case", "book", "graduationcap", "gift", "pawprint", "gamecontroller", "film", "music.note", "phone", "wifi", "bolt", "leaf", "sportscourt", "briefcase", "banknote", "creditcard", "chart.line.uptrend.xyaxis", "building.columns"]
+
+    func symbol(for name: String, kind: FinanceCategory.Kind) -> String {
+        if let custom = custom.first(where: { $0.kind == kind && $0.name.caseInsensitiveCompare(name) == .orderedSame }),
+           let symbol = custom.symbolName { return symbol }
+        switch Self.canonical(name) {
+        case "Groceries": return "cart"
+        case "Restaurants": return "fork.knife"
+        case "Clothing": return "tshirt"
+        case "Leisure": return "gamecontroller"
+        case "Transport": return "car"
+        case "Home": return "house"
+        case "Utilities": return "bolt"
+        case "Health": return "cross.case"
+        case "Education": return "graduationcap"
+        case "Travel": return "airplane"
+        case "Subscriptions": return "repeat"
+        case "Pets": return "pawprint"
+        case "Salary": return "briefcase"
+        case "Bonus": return "star"
+        case "Gift": return "gift"
+        case "Refund": return "arrow.uturn.backward"
+        case "Investment": return "chart.line.uptrend.xyaxis"
+        case "Freelance": return "laptopcomputer"
+        default: return "tag"
+        }
+    }
+
+    func remove(customIDs: Set<String>, builtIns: Set<String>) {
+        custom.removeAll { customIDs.contains($0.id) }
+        hiddenBuiltIns.formUnion(builtIns.map { Self.canonical($0).lowercased() })
+        persist()
+        persistHidden()
     }
 
     func remove(_ category: FinanceCategory) {
         custom.removeAll { $0 == category }
         persist()
+    }
+
+    /// Removes a built-in category from every menu. Reversible with
+    /// `restoreBuiltIn`.
+    func hideBuiltIn(_ identifier: String) {
+        hiddenBuiltIns.insert(Self.canonical(identifier).lowercased())
+        persistHidden()
+    }
+
+    func restoreBuiltIn(_ identifier: String) {
+        hiddenBuiltIns.remove(Self.canonical(identifier).lowercased())
+        persistHidden()
+    }
+
+    func restoreAllBuiltIns() {
+        hiddenBuiltIns.removeAll()
+        persistHidden()
+    }
+
+    func isBuiltInHidden(_ identifier: String) -> Bool {
+        hiddenBuiltIns.contains(Self.canonical(identifier).lowercased())
+    }
+
+    /// Whether a category — built-in identifier or a custom name — is already
+    /// on a recorded transaction, in which case it must not be removed.
+    func isUsed(_ category: String, in transactions: [FinanceTransaction]) -> Bool {
+        let target = Self.canonical(category).lowercased()
+        return transactions.contains {
+            !$0.category.isEmpty && Self.canonical($0.category).lowercased() == target
+        }
     }
 
     func exists(_ name: String, kind: FinanceCategory.Kind) -> Bool {
@@ -123,6 +195,10 @@ final class FinanceCategoryStore: ObservableObject {
     private func persist() {
         guard let data = try? JSONEncoder().encode(custom) else { return }
         defaults.set(data, forKey: Self.storageKey)
+    }
+
+    private func persistHidden() {
+        defaults.set(Array(hiddenBuiltIns), forKey: Self.hiddenBuiltInsKey)
     }
 
     // MARK: - Naming
@@ -186,7 +262,8 @@ final class FinanceCategoryStore: ObservableObject {
         guard kind != .transfer else { return [] }
 
         let side: FinanceCategory.Kind = kind == .income ? .income : .expense
-        let builtIn = side == .income ? Self.builtInIncome : Self.builtInExpense
+        let builtIn = (side == .income ? Self.builtInIncome : Self.builtInExpense)
+            .filter { !isBuiltInHidden($0) }
         let mine = custom.filter { $0.kind == side }.map(\.name)
         let used = existing
             .filter { transaction in
@@ -216,33 +293,27 @@ final class FinanceCategoryStore: ObservableObject {
 struct CategoriesView: View {
     @EnvironmentObject private var categories: FinanceCategoryStore
 
+    @State private var editing = false
     @State private var adding = false
-    @State private var pendingDeletion: FinanceCategory?
+    /// Rows ticked for deletion while editing (`Row.id`).
+    @State private var selected: Set<String> = []
+    @State private var confirmDelete = false
+
+    private struct Row: Identifiable {
+        let name: String        // stored identifier (built-in) or user name (custom)
+        let display: String
+        let kind: FinanceCategory.Kind
+        let custom: FinanceCategory?
+        var id: String { custom?.id ?? "builtin.\(name)" }
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
-                if !categories.custom.isEmpty {
-                    FISection("categories.custom") {
-                        ForEach(Array(categories.custom.enumerated()), id: \.element.id) { index, category in
-                            if index > 0 { FIRowSeparator() }
-                            customRow(category)
-                        }
-                    }
-                }
+                categorySection(.income)
+                categorySection(.expense)
 
-                FISection("categories.expense") {
-                    builtInRows(FinanceCategoryStore.builtInExpense)
-                }
 
-                FISection("categories.income") {
-                    builtInRows(FinanceCategoryStore.builtInIncome)
-                }
-
-                // One note, at the foot of the page rather than tucked under the
-                // first card: it describes how categories work everywhere, not
-                // just the section it used to hang off.
-                FIFootnote("categories.custom.hint")
             }
             .fiCardInsets()
             .padding(.top, 12)
@@ -252,51 +323,117 @@ struct CategoriesView: View {
         .fiPageBackground()
         .navigationTitle(Text("categories.title"))
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(editing)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                FIToolbarButton(systemImage: "plus", accessibilityLabel: "categories.add") {
-                    adding = true
+            // Each control is its own toolbar item with its own id, so a control
+            // only ever fades in or out as a whole. Nothing morphs one item slot
+            // between a menu and a plain button — that swap is what UIKit can't
+            // animate smoothly on the very first tap.
+            ToolbarItem(id: "categories.menu", placement: .topBarTrailing) {
+                if !editing {
+                    Menu {
+                        Button { editing = true } label: {
+                            Label("common.edit", systemImage: "pencil")
+                        }
+                        Button { adding = true } label: { Label("categories.add", systemImage: "plus") }
+                        Divider()
+                        Button {
+                            categories.restoreAllBuiltIns()
+                        } label: {
+                            Label("categories.restore_builtins", systemImage: "arrow.uturn.backward")
+                        }
+                        .disabled(categories.hiddenBuiltIns.isEmpty)
+                    } label: { Image(systemName: "ellipsis") }
+                    .tint(.primary)
+                }
+            }
+            ToolbarItem(id: "categories.cancel", placement: .cancellationAction) {
+                if editing {
+                    Button(role: .close) { endEditing() }
+                        .tint(.primary)
+                        .accessibilityLabel(Text("common.cancel"))
+                }
+            }
+            ToolbarItem(id: "categories.delete", placement: .confirmationAction) {
+                if editing {
+                    Button(role: .destructive) { confirmDelete = true } label: {
+                        Image(systemName: "trash")
+                    }
+                    .tint(.primary)
+                    .disabled(selected.isEmpty)
+                    .accessibilityLabel(Text("common.delete"))
                 }
             }
         }
         .sheet(isPresented: $adding) { CategoryEditorView() }
-        // `presenting:` hands the category to the buttons, so the action does
-        // not have to read state that the dismissal is in the middle of
-        // clearing.
-        .alert(
-            Text("categories.delete.confirm"),
-            isPresented: Binding(
-                get: { pendingDeletion != nil },
-                set: { if !$0 { pendingDeletion = nil } }
-            ),
-            presenting: pendingDeletion
-        ) { category in
-            Button("common.delete", role: .destructive) { categories.remove(category) }
+        .alert(Text("categories.delete.selected"), isPresented: $confirmDelete) {
+            Button("common.delete", role: .destructive) { deleteSelected() }
             Button("common.cancel", role: .cancel) {}
-        } message: { _ in
+        } message: {
             Text("categories.delete.message")
         }
     }
 
-    @ViewBuilder
-    private func builtInRows(_ names: [String]) -> some View {
-        ForEach(Array(names.enumerated()), id: \.element) { index, name in
-            if index > 0 { FIRowSeparator() }
-            FIListRow(title: Text(verbatim: FinanceCategoryStore.displayName(for: name)))
-        }
+    private func rows(_ kind: FinanceCategory.Kind) -> [Row] {
+        let builtIns = (kind == .income ? FinanceCategoryStore.builtInIncome : FinanceCategoryStore.builtInExpense)
+            .filter { !categories.isBuiltInHidden($0) }
+            .map { Row(name: $0, display: FinanceCategoryStore.displayName(for: $0), kind: kind, custom: nil) }
+        let mine = categories.custom.filter { $0.kind == kind }
+            .map { Row(name: $0.name, display: $0.name, kind: kind, custom: $0) }
+        return builtIns + mine
     }
 
-    private func customRow(_ category: FinanceCategory) -> some View {
-        FIListRow(
-            title: Text(verbatim: category.name),
-            accessory: .value(Text(category.kind.titleKey))
-        )
-        .fiRowContextMenu {
-            FIDestructiveMenuButton(titleKey: "categories.delete") {
-                pendingDeletion = category
+    @ViewBuilder
+    private func categorySection(_ kind: FinanceCategory.Kind) -> some View {
+        let items = rows(kind)
+        if !items.isEmpty {
+            FISection(kind == .income ? "categories.income" : "categories.expense") {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, row in
+                    VStack(spacing: 0) {
+                        if index > 0 { FIRowSeparator() }
+                        categoryRow(row)
+                    }
+                }
             }
         }
     }
+
+    private func categoryRow(_ row: Row) -> some View {
+        let isOn = selected.contains(row.id)
+
+        return HStack(spacing: 0) {
+            if editing {
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isOn ? FITheme.Palette.accent : Color.secondary)
+                    .padding(.leading, FITheme.Metrics.cardInset)
+                    .padding(.trailing, 4)
+            }
+            FIListRow(title: Text(verbatim: row.display), icon: categories.symbol(for: row.name, kind: row.kind), iconColor: FITheme.Palette.accent) {
+                if row.custom != nil {
+                    Image(systemName: "person.fill").foregroundStyle(FITheme.Palette.accent)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard editing else { return }
+            if isOn { selected.remove(row.id) } else { selected.insert(row.id) }
+        }
+    }
+
+    private func endEditing() {
+        editing = false
+        selected.removeAll()
+    }
+
+    private func deleteSelected() {
+        let all = (rows(.income) + rows(.expense)).filter { selected.contains($0.id) }
+        categories.remove(customIDs: Set(all.compactMap { $0.custom?.id }),
+                          builtIns: Set(all.filter { $0.custom == nil }.map(\.name)))
+        selected.removeAll()
+    }
+
 }
 
 // MARK: - Editor
@@ -307,6 +444,7 @@ private struct CategoryEditorView: View {
 
     @State private var name = ""
     @State private var kind: FinanceCategory.Kind = .expense
+    @State private var symbolName = "tag"
 
     var body: some View {
         NavigationStack {
@@ -332,6 +470,22 @@ private struct CategoryEditorView: View {
                             }
                         }
                     }
+                    FIRowSeparator()
+                    Menu {
+                        Picker("categories.icon", selection: $symbolName) {
+                            ForEach(FinanceCategoryStore.symbols, id: \.self) { symbol in
+                                Label(LocalizedStringKey("category.icon.\(symbol)"), systemImage: symbol).tag(symbol)
+                            }
+                        }
+                    } label: {
+                        FIListRow(title: Text("categories.icon")) {
+                            HStack(spacing: 8) {
+                                Image(systemName: symbolName)
+                                Text(LocalizedStringKey("category.icon.\(symbolName)"))
+                                Image(systemName: "chevron.up.chevron.down").font(.caption2)
+                            }.foregroundStyle(.secondary)
+                        }
+                    }.tint(.primary)
                 }
 
                 if isDuplicate {
@@ -352,8 +506,7 @@ private struct CategoryEditorView: View {
                 onClose: { dismiss() }
             )
         }
-        .presentationDetents([.height(320)])
-        .presentationDragIndicator(.visible)
+        .presentationDetents([.height(360), .large])
     }
 
     private var trimmed: String {
@@ -369,6 +522,6 @@ private struct CategoryEditorView: View {
     }
 
     private func save() {
-        if categories.add(trimmed, kind: kind) { dismiss() }
+        if categories.add(trimmed, kind: kind, symbolName: symbolName) { dismiss() }
     }
 }

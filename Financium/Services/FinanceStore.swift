@@ -183,7 +183,6 @@ final class FinanceStore: ObservableObject {
         budgets = snapshot.budgets
         goals = snapshot.goals
         settings = snapshot.settings
-        publishWidgetSnapshot()
     }
 
     /// Leaves the figures the Home Screen tiles draw in the shared container.
@@ -198,7 +197,9 @@ final class FinanceStore: ObservableObject {
     /// is the one worth a place on the Home Screen — but the widget also lets
     /// the reader pick, and it can only offer what was sent. Capping the list
     /// at four made the other budgets unpickable.
-    private func publishWidgetSnapshot() {
+    private func publishWidgetSnapshot(_ monthly: FinanceSnapshot, monthStart: Date) {
+        let overview = monthly.overview
+        let budgets = monthly.budgets
         guard Self.sharedContainerIsAvailable else { return }
 
         let ranked = budgets
@@ -224,7 +225,8 @@ final class FinanceStore: ObservableObject {
             earnedMinor: overview.earned.minorUnits,
             currencyCode: mainCurrencyCode,
             budgets: Array(ranked),
-            updatedAt: Date()
+            updatedAt: Date(),
+            monthStart: monthStart
         )
 
         guard let defaults = Self.sharedDefaults,
@@ -233,7 +235,11 @@ final class FinanceStore: ObservableObject {
         // keeps count of, and an app that asks after every refresh — several of
         // which happen on one launch — has its later requests ignored,
         // including the one that mattered.
-        guard defaults.data(forKey: Self.widgetSnapshotKey) != data else { return }
+        if let previousData = defaults.data(forKey: Self.widgetSnapshotKey),
+           var previous = try? JSONDecoder().decode(WidgetSnapshot.self, from: previousData) {
+            previous.updatedAt = snapshot.updatedAt
+            if previous == snapshot { return }
+        }
         defaults.set(data, forKey: Self.widgetSnapshotKey)
         WidgetCenter.shared.reloadAllTimelines()
     }
@@ -282,16 +288,17 @@ final class FinanceStore: ObservableObject {
     /// extension target alone, so one declaration cannot serve both without
     /// editing target membership by hand. The field names are what hold the two
     /// together — rename one here and the tile silently loses that figure.
-    private struct WidgetSnapshot: Encodable {
+    private struct WidgetSnapshot: Codable, Equatable {
         let totalBalanceMinor: Int64
         let spentMinor: Int64
         let earnedMinor: Int64
         let currencyCode: String
         let budgets: [WidgetBudget]
-        let updatedAt: Date
+        var updatedAt: Date
+        let monthStart: Date
     }
 
-    private struct WidgetBudget: Encodable {
+    private struct WidgetBudget: Codable, Equatable {
         let id: String
         let title: String
         let spentMinor: Int64
@@ -378,6 +385,15 @@ final class FinanceStore: ObservableObject {
         return formatter.string(from: period.anchorMonth)
     }
 
+    /// Read-only history for plan charts; never changes the global period or UI snapshot.
+    func transactionsForPlan(from start: Date, through end: Date) async throws -> [FinanceTransaction] {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM"
+        let snapshot = try await backend.load(period: .range(start: start, end: end), monthKey: formatter.string(from: start))
+        return snapshot.transactions
+    }
+
     // MARK: - Reading
 
     /// Re-reads everything, one refresh at a time.
@@ -419,8 +435,27 @@ final class FinanceStore: ObservableObject {
             // file the answer under the wrong window.
             let key = monthKey
 
-            let snapshot = try await backend.load(period: period, monthKey: key)
+            let selectedPeriod = period
+            let snapshot = try await backend.load(period: selectedPeriod, monthKey: key)
             apply(snapshot)
+            let currentMonth = FinancePeriod.currentMonth
+            let formatter = DateFormatter()
+            formatter.calendar = Calendar(identifier: .gregorian)
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyy-MM"
+            let widgetMonth = formatter.string(from: currentMonth.anchorMonth)
+            // Widgets always describe this month, independently of the UI picker.
+            do {
+                let monthly: FinanceSnapshot
+                if selectedPeriod == currentMonth {
+                    monthly = snapshot
+                } else {
+                    monthly = try await backend.load(period: currentMonth, monthKey: widgetMonth)
+                }
+                publishWidgetSnapshot(monthly, monthStart: currentMonth.anchorMonth)
+            } catch {
+                FinanceLog.store.error("widget snapshot failed: \(FinanceLog.describe(error), privacy: .public)")
+            }
             hasLoaded = true
             errorMessage = nil
             loadFailure = nil
@@ -478,8 +513,8 @@ final class FinanceStore: ObservableObject {
 
     // MARK: - Writing
 
-    func createAccount(name: String, symbol: String, opening: Decimal, currency: String) async -> Bool {
-        await mutation { try await $0.createAccount(name: name, symbol: symbol, opening: opening, currency: currency) }
+    func createAccount(name: String, symbol: String, opening: Decimal, currency: String, appearance: FinanceAccountAppearance? = nil) async -> Bool {
+        await mutation { try await $0.createAccount(name: name, symbol: symbol, opening: opening, currency: currency, appearance: appearance) }
     }
 
     /// Saves an edit to an existing account.
@@ -489,12 +524,12 @@ final class FinanceStore: ObservableObject {
     /// money.
     func updateAccount(
         id: String, name: String, symbol: String,
-        balance: Decimal?, currency: String, isArchived: Bool = false
+        balance: Decimal?, currency: String, isArchived: Bool = false, appearance: FinanceAccountAppearance? = nil
     ) async -> Bool {
         await mutation {
             try await $0.updateAccount(
                 id: id, name: name, symbol: symbol,
-                balance: balance, currency: currency, isArchived: isArchived
+                balance: balance, currency: currency, isArchived: isArchived, appearance: appearance
             )
         }
     }
@@ -570,20 +605,21 @@ final class FinanceStore: ObservableObject {
 
     func upsertBudget(
         id: String = "", title: String, category: String, limit: Decimal,
-        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence
+        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence, accountID: String = "", coverJSON: String? = nil
     ) async -> Bool {
         // An existing budget keeps the currency it was written in. Stamping the
         // main currency on every save silently re-denominated a budget the user
         // had set up in another one.
         let existing = budgets.first { $0.id == id }?.limit.currencyCode
-        let currency = existing?.isEmpty == false ? existing! : mainCurrencyCode
+        let currency = accounts.first(where: { $0.id == accountID })?.balance.currencyCode
+            ?? (existing?.isEmpty == false ? existing! : mainCurrencyCode)
         let month = monthKey
 
         return await mutation {
             try await $0.upsertBudget(
                 id: id, monthKey: month, title: title, category: category,
                 limit: limit, currency: currency,
-                reminder: reminder, paymentDate: paymentDate, recurrence: recurrence
+                reminder: reminder, paymentDate: paymentDate, recurrence: recurrence, accountID: accountID, coverJSON: coverJSON
             )
         }
     }
@@ -594,12 +630,12 @@ final class FinanceStore: ObservableObject {
 
     func upsertGoal(
         id: String = "", title: String, accountID: String,
-        category: String, target: Decimal, currency: String
+        category: String, target: Decimal, currency: String, coverJSON: String? = nil
     ) async -> Bool {
         await mutation {
             try await $0.upsertGoal(
                 id: id, title: title, accountID: accountID,
-                category: category, target: target, currency: currency
+                category: category, target: target, currency: currency, coverJSON: coverJSON
             )
         }
     }

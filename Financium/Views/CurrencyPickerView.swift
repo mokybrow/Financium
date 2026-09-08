@@ -5,7 +5,7 @@ nonisolated enum FinanceCurrencies {
     /// `commonISOCurrencyCodes` rather than `isoCurrencyCodes`: the latter
     /// includes withdrawn currencies and metals, which nobody keeps a bank
     /// account in.
-    static let all: [String] = Locale.commonISOCurrencyCodes
+    static let all: [String] = popular
 
     /// Shown first, because these cover almost every account anyone adds.
     static let popular = ["RUB", "USD", "EUR", "GBP", "CNY", "JPY", "TRY", "KZT", "AED", "GEL"]

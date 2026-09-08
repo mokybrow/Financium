@@ -27,6 +27,73 @@ struct FinanceStorageRegression {
         try roundTrip(FinanceGoal.self)
         try roundTrip(FinanceSettings.self)
 
+        // Cover payload survives local JSON and CloudKit legacy payloads.
+        let cover = #"{"font":"rounded","emoji":"🍞","color":"blue","photo":"AQID"}"#
+        var coveredBudget = FinanceBudget()
+        coveredBudget.coverJSON = cover
+        let decodedBudget = try LegacyFinanceCodec.decode(FinanceBudget.self, from: LegacyFinanceCodec.encode(coveredBudget))
+        check(decodedBudget.coverJSON == cover)
+        let jsonBudget = try JSONDecoder().decode(FinanceBudget.self, from: JSONEncoder().encode(coveredBudget))
+        check(jsonBudget.coverJSON == cover)
+        var coveredGoal = FinanceGoal()
+        coveredGoal.coverJSON = cover
+        let decodedGoal = try LegacyFinanceCodec.decode(FinanceGoal.self, from: LegacyFinanceCodec.encode(coveredGoal))
+        check(decodedGoal.coverJSON == cover)
+        let jsonGoal = try JSONDecoder().decode(FinanceGoal.self, from: JSONEncoder().encode(coveredGoal))
+        check(jsonGoal.coverJSON == cover)
+        let emptyBudget = try JSONDecoder().decode(FinanceBudget.self, from: Data("{}".utf8))
+        let emptyGoal = try JSONDecoder().decode(FinanceGoal.self, from: Data("{}".utf8))
+        check(emptyBudget.coverJSON.isEmpty && emptyGoal.coverJSON.isEmpty)
+
+        // Older covers decode without resetting their photo, emoji or font.
+        let oldCover = FinancePlanCover.decode(cover)
+        check(oldCover.emoji == "🍞" && oldCover.photo == Data([1, 2, 3]))
+        check(oldCover.backgroundColor == nil && oldCover.gradientEnabled == nil)
+        var gradientCover = oldCover
+        gradientCover.backgroundColor = "102030"
+        gradientCover.gradientColor = "AABBCC"
+        gradientCover.gradientEnabled = true
+        check(FinancePlanCover.decode(try gradientCover.encoded()) == gradientCover)
+
+        // Participant snapshots replace prior revisions, and only accepted members count.
+        func participantAmount(_ units: Int64, currency: String = "RUB") -> FinanceMoney {
+            var value = FinanceMoney(); value.minorUnits = units; value.currencyCode = currency; return value
+        }
+        let collaboration = FinancePlanCollaboration(ownerID: "owner", acceptedParticipantIDs: ["partner"], contributions: [
+            .init(participantID: "owner", monthKey: "2026-09", amount: participantAmount(50_000), revision: 1),
+            .init(participantID: "partner", monthKey: "2026-09", amount: participantAmount(30_000), revision: 1),
+            .init(participantID: "partner", monthKey: "2026-09", amount: participantAmount(100_000), revision: 2),
+            .init(participantID: "partner", monthKey: "2026-09", amount: participantAmount(100_000), revision: 2),
+            .init(participantID: "pending", monthKey: "2026-09", amount: participantAmount(900_000), revision: 1),
+            .init(participantID: "owner", monthKey: "2026-08", amount: participantAmount(800_000), revision: 2)
+        ])
+        check(collaboration.isShared)
+        check(collaboration.total(currency: "RUB", monthKey: "2026-09").minorUnits == 150_000)
+        check(collaboration.total(currency: "USD", monthKey: "2026-09").minorUnits == 0)
+        let collaborationJSON = String(decoding: try JSONEncoder().encode(collaboration), as: UTF8.self)
+        coveredBudget.collaborationJSON = collaborationJSON
+        coveredGoal.collaborationJSON = collaborationJSON
+        let sharedBudget = try LegacyFinanceCodec.decode(FinanceBudget.self, from: LegacyFinanceCodec.encode(coveredBudget))
+        let sharedGoal = try LegacyFinanceCodec.decode(FinanceGoal.self, from: LegacyFinanceCodec.encode(coveredGoal))
+        check(sharedBudget.collaborationJSON == collaborationJSON && sharedGoal.collaborationJSON == collaborationJSON)
+        check(emptyBudget.collaborationJSON.isEmpty && emptyGoal.collaborationJSON.isEmpty)
+
+        // New appearance and budget scope survive both persistence formats.
+        var styled = FinanceAccount()
+        styled.colorID = "green"
+        styled.accountType = "deposit"
+        styled.annualRateBasisPoints = 1250
+        let styledWire = try LegacyFinanceCodec.decode(FinanceAccount.self, from: LegacyFinanceCodec.encode(styled))
+        check(styledWire == styled)
+        let styledJSON = try JSONDecoder().decode(FinanceAccount.self, from: JSONEncoder().encode(styled))
+        check(styledJSON == styled)
+        var scoped = FinanceBudget()
+        scoped.accountID = "account-a"
+        let scopedWire = try LegacyFinanceCodec.decode(FinanceBudget.self, from: LegacyFinanceCodec.encode(scoped))
+        check(scopedWire.accountID == "account-a")
+        let oldAccount = try JSONDecoder().decode(FinanceAccount.self, from: Data("{}".utf8))
+        check(oldAccount.colorID.isEmpty && oldAccount.annualRateBasisPoints == 0)
+
         let intervals: [Double] = [0, -0.25, -1, 0.123456789, 123456789.1234, -978307200.25, 999999999.99]
         for (index, interval) in intervals.enumerated() {
             let date = Date(timeIntervalSinceReferenceDate: interval)

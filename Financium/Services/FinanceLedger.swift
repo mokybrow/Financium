@@ -88,13 +88,20 @@ nonisolated enum FinanceLedger {
 
     // MARK: - Goals
 
-    /// A goal's progress is the balance of the account it is saved into, and its
-    /// currency is that account's.
+    /// A goal follows its linked account, or all active accounts in the goal's
+    /// currency when accountID is empty. No implicit currency conversion.
     ///
     /// Counterpart: `applyGoalAccountBalances` in repository.go.
     static func applyGoalProgress(to goals: inout [FinanceGoal], accounts: [FinanceAccount]) {
         let byID = Dictionary(accounts.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         for index in goals.indices {
+            if goals[index].accountID.isEmpty {
+                let currency = goals[index].target.currencyCode
+                let balance = accounts.filter { !$0.isArchived && $0.balance.currencyCode == currency }
+                    .reduce(Decimal.zero) { $0 + $1.balance.decimalValue }
+                goals[index].saved = FinanceMoney(decimal: max(0, balance), currencyCode: currency)
+                continue
+            }
             guard let account = byID[goals[index].accountID] else { continue }
             let currency = account.balance.currencyCode
             // Clamped at zero: an overdrawn account has saved nothing towards
@@ -221,7 +228,7 @@ nonisolated enum FinanceLedger {
                         onCategory: stored.budget.category,
                         month: month,
                         currency: stored.budget.limit.currencyCode,
-                        transactions: transactions
+                        transactions: transactions.filter { stored.budget.accountID.isEmpty || $0.fromAccountID == stored.budget.accountID }
                     ),
                     currencyCode: stored.budget.limit.currencyCode
                 )

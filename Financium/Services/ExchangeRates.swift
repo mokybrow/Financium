@@ -24,6 +24,15 @@ final class ExchangeRates: ObservableObject {
     @Published private(set) var publishedOn: Date?
     @Published private(set) var isLoading = false
 
+    @Published private(set) var previousRates: [String: Decimal] = [:]
+
+    func change(from source: String, to target: String) -> Decimal? {
+        guard let current = convert(1, from: source, to: target),
+              let previousFrom = source == "RUB" ? Decimal(1) : previousRates[source],
+              let previousTo = target == "RUB" ? Decimal(1) : previousRates[target], previousTo != 0 else { return nil }
+        return current - previousFrom / previousTo
+    }
+
     private static let endpoint = URL(string: "https://www.cbr-xml-daily.ru/daily_json.js")!
     private static let cacheKey = "finance.exchange_rates"
 
@@ -82,6 +91,10 @@ final class ExchangeRates: ObservableObject {
             }
             guard !rates.isEmpty else { return }
 
+            previousRates = payload.Valute.compactMapValues { entry in
+                guard let previous = entry.Previous, entry.Nominal > 0 else { return nil }
+                return Decimal(previous) / Decimal(entry.Nominal)
+            }
             roublesPerUnit = rates
             publishedOn = ISO8601DateFormatter().date(from: payload.Date) ?? Date()
             cache(rates: rates, date: publishedOn)
@@ -103,6 +116,7 @@ final class ExchangeRates: ObservableObject {
         struct Entry: Decodable {
             let Nominal: Int
             let Value: Double
+            let Previous: Double?
         }
         let Date: String
         let Valute: [String: Entry]

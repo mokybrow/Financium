@@ -1,49 +1,144 @@
 import SwiftUI
+import UIKit
 
 struct MoneyView: View {
     @EnvironmentObject private var store: FinanceStore
     @EnvironmentObject private var rates: ExchangeRates
+    @EnvironmentObject private var profile: ProfileStore
+    /// The wallet card animation is fully hand-driven — no `matchedGeometryEffect`
+    /// (too fragile with a scroll view and transitions). One `FIAccountCard`
+    /// lives in a full-screen layer and its position is interpolated between the
+    /// stack slot and the detail spot.
+    @State private var cardProgress: CGFloat = 0   // 0 = in the stack, 1 = detail
+    @State private var detailCardVisible = false
+    @State private var transactionsReady = false
+    @State private var draggingCard = false
+    @State private var detailCardY: CGFloat?
+    // Presentation samples are read only when a finger takes over. They must
+    // not invalidate the entire home view on every animation frame.
+    @State private var flightPosition = WalletFlightPosition()
+    @State private var openingInterrupted = false
+    @State private var dragStartTranslation: CGFloat = 0
+    @State private var cardDrag: CGFloat = 0        // interactive dismiss
+    @State private var cardFrames: [String: CGRect] = [:]
+    @State private var closingCard = false
+    @State private var selectedCardIndex = 0
+    @State private var openedY: CGFloat = 0
+    @State private var slotY: CGFloat = 0           // global minY of the opened slot
+    @State private var contentTopY: CGFloat = 100   // global Y just below the nav bar
+    @State private var showList = false             // the detail list, faded separately
+    @State private var cardsAway = false            // the *other* cards, cleared out of the way
+    private var walletSpring: Animation { .timingCurve(0.25, 0.1, 0.25, 1, duration: 0.58) }
+    private var openingStack: Animation { .timingCurve(0.25, 0.1, 0.25, 1, duration: 0.82) }
+    // Start together, settle in stack order: rear, selected, foreground.
+    private var rearReturn: Animation { .timingCurve(0.25, 0.1, 0.25, 1, duration: 0.46) }
+    private var selectedReturn: Animation { .timingCurve(0.25, 0.1, 0.25, 1, duration: 0.64) }
+    private var foregroundReturn: Animation { .timingCurve(0.32, 0.05, 0.25, 1, duration: 0.88) }
+    /// Where the card sits once open — just below the navigation bar.
+    private var detailY: CGFloat { openedY }
     @State private var sheet: MoneySheet?
     @State private var activityKind: ActivityKind?
     @State private var accountActivity: FinanceAccount?
     /// Waiting on a confirmation. Deleting is one tap in a menu that opens on
     /// a long press, and none of it can be undone.
     @State private var pendingAccountDeletion: FinanceAccount?
+    @State private var pendingBudgetDeletion: FinanceBudget?
+    @State private var pendingGoalDeletion: FinanceGoal?
     /// The plain delete was refused because the account still has
     /// transactions — asking whether to take them with it.
     @State private var accountDeletionNeedsCascade: FinanceAccount?
 
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
-                    FinancePeriodRow(showsCurrency: true)
-                    activitySection
-                    accountsSection
+            ZStack {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        FinanceDashboardHeader()
+                            .opacity(accountActivity == nil ? 1 : 0)
+                            .transaction { $0.animation = nil }
+                            .accessibilityHidden(accountActivity != nil)
+                        accountsSection.padding(.horizontal, 20)
+                        plansSection
+                            // Inherit the active phase so plans and returning cards move together.
+                            .offset(y: cardsAway ? 1100 : 0)
+                    }
+                    .padding(.bottom, 20)
                 }
-                .fiCardInsets()
-                .padding(.top, 4)
-                .padding(.bottom, 28)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .scrollEdgeEffectHidden(true, for: .top)
+                .scrollDisabled(accountActivity != nil)
+                .allowsHitTesting(accountActivity == nil)
+                .refreshable {
+                    await rates.refresh()
+                    // A pull is a request for the truth now, so it does not
+                    // settle for an answer that was already on its way.
+                    await store.refresh(force: true)
+                }
+
+                if let account = accountActivity, showList {
+                    AccountActivityView(
+                        account: account, overlay: true,
+                        cardVisible: detailCardVisible && !draggingCard,
+                        transactionsHidden: draggingCard || !transactionsReady,
+                        onCardFrame: { position in
+                            guard !draggingCard && !closingCard else { return }
+                            detailCardY = position
+                            // Use the actual slot below the system toolbar.
+                            if !detailCardVisible && !openingInterrupted { openedY = position }
+                        },
+                        onCardDrag: { value in
+                            guard !closingCard, value > 0 else { return }
+                            if !draggingCard { openedY = detailCardY ?? openedY }
+                            draggingCard = true
+                            cardDrag = value
+                        },
+                        onCardEnd: { distance, predicted in
+                            guard draggingCard else { return }
+                            if distance > 90 || predicted > 180 { closeCard() }
+                            else {
+                                withAnimation(walletSpring) { cardDrag = 0 } completion: {
+                                    draggingCard = false
+                                }
+                            }
+                        },
+                        onClose: { closeCard() }
+                    )
+                        .zIndex(1)
+                        .transition(.identity)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .overlay(alignment: .top) {
+                // Probe pinned to the top of the content area — its global Y is
+                // where the nav bar ends, i.e. where the opened card should sit.
+                Color.clear
+                    .frame(height: 1)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { contentTopY = $0 }
+            }
+            .overlay { walletCardLayer }
             .fiPageBackground()
-            .navigationTitle(Text("money.title"))
-            .toolbarTitleDisplayMode(.inlineLarge)
+            .navigationTitle(showList ? Text("") : Text("app.title"))
+            .toolbarTitleDisplayMode(showList ? .inline : .inlineLarge)
+            .toolbar(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { addMenu }
-                ToolbarItem(placement: .topBarTrailing) { ProfileToolbarButton() }
-            }
-            .refreshable {
-                await rates.refresh()
-                // A pull is a request for the truth now, so it does not settle
-                // for an answer that was already on its way.
-                await store.refresh(force: true)
+                if !showList {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink { HomeStatisticsView() } label: {
+                            Image(systemName: "chart.pie")
+                        }.tint(.primary).accessibilityLabel(Text("home.statistics"))
+                    }
+                    ToolbarItem(placement: .bottomBar) {
+                        Button { profile.isPresented = true } label: {
+                            Image(systemName: "gear")
+                        }
+                        .tint(.primary)
+                        .accessibilityLabel(Text("home.settings"))
+                    }
+                    ToolbarItem(placement: .bottomBar) { Spacer() }
+                    ToolbarItem(placement: .bottomBar) { addMenu }
+                }
             }
             .navigationDestination(item: $activityKind) { kind in
                 AccountActivityView(kind: kind)
-            }
-            .navigationDestination(item: $accountActivity) { account in
-                AccountActivityView(account: account)
             }
             // One sheet, chosen by case. Stacked `.sheet` modifiers on the same
             // view fight over the presentation and only the last one reliably
@@ -56,9 +151,13 @@ struct MoneyView: View {
                     AccountEditorView(account: account)
                 case .correction(let account):
                     BalanceCorrectionView(account: account)
+                case .budget(let budget): BudgetEditorView(budget: budget)
+                case .goal(let goal): GoalEditorView(goal: goal)
                 }
             }
             .fiErrorAlert($store.errorMessage)
+            .fiConfirmDelete($pendingBudgetDeletion) { budget in Task { await store.deleteBudget(budget) } }
+            .fiConfirmDelete($pendingGoalDeletion) { goal in Task { await store.deleteGoal(goal) } }
             .fiConfirmDelete($pendingAccountDeletion) { account in
                 Task {
                     if await store.deleteAccount(account) == .hasTransactions {
@@ -93,6 +192,7 @@ struct MoneyView: View {
                 presentPendingQuickAdd()
             }
         }
+
     }
 
     /// Opens the editor a widget asked for, once there is something to open it
@@ -113,48 +213,123 @@ struct MoneyView: View {
     }
 
 
-    private var accountsSection: some View {
-        VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
-            FISectionHeader("money.accounts")
+    /// Every other card clears straight down off the screen while a card is open.
+    private func cardsSlideAway(_ index: Int) -> CGFloat {
+        guard cardsAway else { return 0 }
+        return 1100
+    }
 
+    private var accountsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
             if store.accounts.isEmpty {
-                // Three different nothings, and they must not look alike.
-                //
-                // "No accounts yet" is an answer and is only true once the
-                // backend has said so. A failed load is not that answer — it is
-                // a fault, and saying "no accounts" would tell someone their
-                // money is gone. Anything else is still in flight, and stays
-                // blank until it settles.
-                if store.hasLoaded {
-                    accountsNotice(
-                        title: Text("money.accounts.empty"),
-                        detail: Text("money.accounts.empty.subtitle")
-                    ) {
-                        EmptyView()
+                if let failure = store.loadFailure {
+                    accountsNotice(title: Text("money.accounts.failed"), detail: Text(failure)) {
+                        Button("common.retry") { Task { await store.refresh(force: true) } }
                     }
-                } else if let failure = store.loadFailure {
-                    accountsNotice(
-                        title: Text("money.accounts.failed"),
-                        detail: Text(verbatim: failure)
-                    ) {
-                        Button("common.retry") {
-                            Task { await store.refresh() }
-                        }
-                        .buttonStyle(.bordered)
-                        .padding(.top, 4)
-                    }
-                } else {
-                    Color.clear.frame(height: placeholderHeight)
-                }
+                } else if store.hasLoaded {
+                    Button { sheet = .account(nil) } label: {
+                        VStack {
+                            HStack { Text("account.name.placeholder"); Spacer(); Text("account.currency") }.font(.title3.bold()).foregroundStyle(.white)
+                            Spacer()
+                            Image(systemName: "plus").font(.title2).frame(width: 48, height: 48).background(.white.opacity(0.5), in: Circle())
+                            Spacer()
+                        }.padding(12).frame(height: FIHomeStyle.cardHeight)
+                            .background(Color.gray.opacity(0.65), in: RoundedRectangle(cornerRadius: FIHomeStyle.radius))
+                    }.buttonStyle(.plain).accessibilityLabel(Text("money.accounts.add"))
+                } else { ProgressView().frame(maxWidth: .infinity).frame(height: 225) }
             } else {
-                FICard {
+                VStack(spacing: -(FIHomeStyle.cardHeight - FIHomeStyle.cardPeek)) {
                     ForEach(Array(store.accounts.enumerated()), id: \.element.id) { index, account in
-                        if index > 0 { FIRowSeparator() }
+                        // Keep the source view and its layout identity throughout the flight.
                         accountRow(account)
+                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                                if accountActivity == nil { cardFrames[account.id] = $0 }
+                            }
+                            .zIndex(Double(index))
+                            .opacity(accountActivity != nil && index >= selectedCardIndex ? 0 : 1)
+                            .offset(y: accountActivity?.id == account.id ? 0 : cardsSlideAway(index))
+                            .animation(closingCard ? rearReturn : openingStack, value: cardsAway)
                     }
                 }
             }
         }
+    }
+
+    /// Budgets and goals share one list on the home screen — both are "a target
+    /// and how far along it is".
+    private enum PlanItem: Identifiable {
+        case budget(FinanceBudget)
+        case goal(FinanceGoal)
+        var id: String {
+            switch self {
+            case .budget(let budget): "budget.\(budget.id)"
+            case .goal(let goal): "goal.\(goal.id)"
+            }
+        }
+    }
+
+    private var planItems: [PlanItem] {
+        store.budgets.map(PlanItem.budget) + store.goals.map(PlanItem.goal)
+    }
+
+    private var plansSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("home.plans").font(.headline).padding(.horizontal, 20)
+            if planItems.isEmpty {
+                VStack(spacing: 14) {
+                    Image("AppIconPreview").resizable().scaledToFit()
+                        .frame(width: 80, height: 80).clipShape(RoundedRectangle(cornerRadius: 20))
+                    Text("plans.empty.title").font(.title3.bold())
+                    Text("plans.empty.hint").font(.subheadline).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity).padding(.horizontal, 40).padding(.vertical, 40)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 12) {
+                        ForEach(planItems) { item in planRow(item) }
+                    }.scrollTargetLayout()
+                }
+                .contentMargins(.horizontal, 20, for: .scrollContent)
+                .scrollTargetBehavior(.viewAligned)
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func planRow(_ item: PlanItem) -> some View {
+        switch item {
+        case .budget(let budget):
+            NavigationLink { FinancePlanDetailView(budget: budget, month: store.period.anchorMonth) } label: {
+                planTile(title: budget.title.isEmpty ? FinanceCategoryStore.displayName(for: budget.category) : budget.title,
+                         amount: budget.limit, current: budget.spent.decimalValue, target: budget.limit.decimalValue,
+                         coverJSON: budget.coverJSON, shared: FinancePlanCollaboration.decode(budget.collaborationJSON)?.isShared == true, kind: "budget.title")
+            }
+        case .goal(let goal):
+            NavigationLink { FinancePlanDetailView(goal: goal) } label: {
+                planTile(title: goal.title, amount: goal.target, current: goal.saved.decimalValue,
+                         target: goal.target.decimalValue, coverJSON: goal.coverJSON, shared: FinancePlanCollaboration.decode(goal.collaborationJSON)?.isShared == true, kind: "goals.title")
+            }
+        }
+    }
+
+    private func planTile(title: String, amount: FinanceMoney, current: Decimal, target: Decimal,
+                          coverJSON: String, shared: Bool, kind: LocalizedStringKey) -> some View {
+        let progress = target > 0 ? NSDecimalNumber(decimal: current / target).doubleValue : 0
+        return FIPlanCoverTile(title: title, amount: amount.abbreviated, progress: progress,
+                               cover: FinancePlanCover.decode(coverJSON), shared: shared)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("\(Text(kind)): \(title)"))
+            .accessibilityHint(shared ? Text("plan.shared") : Text(""))
+            .accessibilityValue(Text(current.formatted() + " / " + amount.formatted))
+    }
+
+    private func remainingText(_ amount: Decimal, code: String) -> String {
+        String(
+            format: NSLocalizedString("plans.remaining", comment: "How much is left of a budget or goal"),
+            FinanceMoney(decimal: max(0, amount), currencyCode: code).formatted
+        )
     }
 
     private var placeholderHeight: CGFloat { 200 }
@@ -190,63 +365,153 @@ struct MoneyView: View {
         .padding(.horizontal, FITheme.Metrics.cardInset)
     }
 
-    private func accountRow(_ account: FinanceAccount) -> some View {
-        Button {
-            accountActivity = account
-        } label: {
-            FIListRow(title: Text(verbatim: account.name), subtitle: Text(verbatim: account.balance.formatted)) {
-                HStack(spacing: 12) {
-                    // Two people, when there are two people. Ahead of the
-                    // account's own glyph because it says something about who
-                    // the money belongs to rather than what kind of account it
-                    // is, and that is the more surprising fact of the two.
-                    if store.isShared(account) {
-                        Image(systemName: "person.2.fill")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .accessibilityLabel(Text("money.account.shared"))
+    private func openCard(_ account: FinanceAccount) {
+        guard accountActivity == nil, let frame = cardFrames[account.id] else { return }
+        selectedCardIndex = store.accounts.firstIndex { $0.id == account.id } ?? 0
+        slotY = frame.minY
+        openedY = contentTopY + 8
+        cardProgress = 0
+        cardDrag = 0
+        detailCardVisible = false
+        transactionsReady = false
+        draggingCard = false
+        detailCardY = nil
+        flightPosition.y = frame.minY
+        openingInterrupted = false
+        dragStartTranslation = 0
+        closingCard = false
+        accountActivity = account
+        // The overlay starts its animation on appear, after the source position
+        // has been rendered. Both endpoints stay fixed until the flight ends.
+    }
+
+    private func closeCard() {
+        guard accountActivity != nil, !closingCard else { return }
+        if !draggingCard { openedY = detailCardY ?? openedY }
+        closingCard = true
+        // All cards start together. Foreground cards are drawn above the flying
+        // card in the overlay, so correct stacking does not require waiting.
+        withAnimation(foregroundReturn, completionCriteria: .logicallyComplete) {
+            showList = false
+            cardsAway = false
+            cardProgress = 0
+            cardDrag = 0
+        } completion: {
+            var handoff = Transaction()
+            handoff.disablesAnimations = true
+            withTransaction(handoff) {
+                accountActivity = nil
+                closingCard = false
+            }
+        }
+    }
+
+    /// The full-screen layer that carries the one live card between the stack
+    /// and the detail.
+    @ViewBuilder
+    private var walletCardLayer: some View {
+        if let account = accountActivity {
+            let live = store.accounts.first(where: { $0.id == account.id }) ?? account
+            GeometryReader { geo in
+                let width = geo.size.width - 2 * FITheme.Metrics.screenInset
+                let y = slotY + (detailY - slotY) * cardProgress + cardDrag - geo.frame(in: .global).minY
+                FIAccountCard(account: live, shared: store.isShared(live), showsBalance: true)
+                    .frame(width: width, height: FIHomeStyle.cardHeight)
+                    .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: -3)
+                    .modifier(WalletCardPosition(
+                        x: geo.size.width / 2,
+                        y: y + FIHomeStyle.cardHeight / 2,
+                        onPosition: { centerY in
+                            if !draggingCard && !closingCard {
+                                flightPosition.y = centerY + geo.frame(in: .global).minY - FIHomeStyle.cardHeight / 2
+                            }
+                        }
+                    ))
+                    .animation(closingCard ? selectedReturn : walletSpring, value: cardProgress)
+                    .opacity(detailCardVisible && !draggingCard && !closingCard ? 0 : 1)
+                    .allowsHitTesting(!detailCardVisible)
+                    .highPriorityGesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                guard !closingCard else { return }
+                                if !draggingCard {
+                                    // Freeze the rendered position, not the animation's
+                                    // destination, before handing movement to the finger.
+                                    var freeze = Transaction()
+                                    freeze.disablesAnimations = true
+                                    withTransaction(freeze) {
+                                        openingInterrupted = true
+                                        draggingCard = true
+                                        openedY = flightPosition.y ?? slotY
+                                        cardProgress = 1
+                                        dragStartTranslation = value.translation.height
+                                        cardDrag = 0
+                                    }
+                                }
+                                cardDrag = value.translation.height - dragStartTranslation
+                            }
+                            .onEnded { value in
+                                if value.translation.height > 90 || value.predictedEndTranslation.height > 180 {
+                                    closeCard()
+                                } else {
+                                    withAnimation(walletSpring) {
+                                        openedY = contentTopY + 8
+                                        cardDrag = 0
+                                    } completion: {
+                                        guard !closingCard else { return }
+                                        draggingCard = false
+                                        detailCardVisible = true
+                                    }
+                                }
+                            }
+                    )
+                // Later cards cover the selected card in both directions, just
+                // as they do in the stack. Their original slots stay hidden.
+                ForEach(Array(store.accounts.enumerated()), id: \.element.id) { index, foreground in
+                    if index > selectedCardIndex, let frame = cardFrames[foreground.id] {
+                        FIAccountCard(account: foreground, shared: store.isShared(foreground))
+                            .frame(width: width, height: FIHomeStyle.cardHeight)
+                            .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: -3)
+                            .position(
+                                x: geo.size.width / 2,
+                                y: frame.minY - geo.frame(in: .global).minY
+                                    + FIHomeStyle.cardHeight / 2 + (cardsAway ? 1100 : 0)
+                            )
+                            .animation(closingCard ? foregroundReturn : openingStack, value: cardsAway)
+                            .allowsHitTesting(false)
                     }
-                    accountGlyph(account)
-                        .foregroundStyle(FITheme.Palette.accent)
-                    FIChevron()
+                }
+            }
+            .ignoresSafeArea()
+            .transition(.identity)
+            .allowsHitTesting(!closingCard)
+            .onAppear {
+                withAnimation(openingStack) { cardsAway = true }
+                withAnimation(walletSpring, completionCriteria: .logicallyComplete) {
+                    showList = true
+                    cardProgress = 1
+                } completion: {
+                    guard accountActivity?.id == account.id, !closingCard else { return }
+                    transactionsReady = true
+                    if !openingInterrupted { detailCardVisible = true }
                 }
             }
         }
-        .buttonStyle(.plain)
+    }
+
+    private func accountRow(_ account: FinanceAccount) -> some View {
+        WalletCardInteraction(open: { openCard(account) }) {
+            // Always drawn with the balance so the card the wallet lifts into
+            // the detail is the exact same view — no content crossfade mid
+            // animation. Covered cards only show their name row anyway.
+            FIAccountCard(
+                account: account,
+                shared: store.isShared(account),
+                showsBalance: true
+            )
+            .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: -3)
+        }
         .id(account.id)
-        .fiRowContextMenu {
-            Button {
-                sheet = .account(account)
-            } label: {
-                Label("money.account.edit", systemImage: "pencil")
-            }
-            Button {
-                sheet = .correction(account)
-            } label: {
-                Label("money.account.correct", systemImage: "plusminus")
-            }
-
-            // The owner can revoke an existing invite and every participant's
-            // access without opening the account first. A participant cannot
-            // close somebody else's share; their corresponding action is to
-            // leave it.
-            if store.isOwner(of: account), store.hasShareInvite(account) {
-                FIDestructiveMenuButton(
-                    titleKey: "money.account.make_private",
-                    systemImage: "person.2.slash"
-                ) {
-                    Task { await store.makeAccountPrivate(account) }
-                }
-            } else if !store.isOwner(of: account) {
-                FIDestructiveMenuButton(titleKey: "money.account.leave", systemImage: "person.fill.xmark") {
-                    Task { await store.stopSharingAccount(account, memberID: store.currentUserID) }
-                }
-            }
-
-            FIDestructiveMenuButton(titleKey: "money.account.delete") {
-                pendingAccountDeletion = account
-            }
-        }
     }
 
     /// The mark at the trailing edge of an account row.
@@ -410,25 +675,20 @@ struct MoneyView: View {
     }
 
     private var addMenu: some View {
-        FIToolbarAddButton {
-            // Plus and minus rather than arrows: the menu names three kinds of
-            // money, and a sign says which direction it goes without needing a
-            // convention explained. The transfer keeps the two-way arrow it
-            // already wears on every transfer row.
-            Button { sheet = .transaction(.income) } label: {
-                Label("money.add.incoming", systemImage: "plus")
-            }
-            Button { sheet = .transaction(.expense) } label: {
-                Label("money.add.expense", systemImage: "minus")
-            }
-            Button { sheet = .transaction(.transfer) } label: {
-                Label("money.add.transfer", systemImage: "arrow.left.arrow.right")
-            }
+        Menu {
+            Button { sheet = .account(nil) } label: { Label("money.accounts.add", systemImage: "creditcard") }
+            Button { sheet = .budget(nil) } label: { Label("budget.add", systemImage: "chart.pie") }
+            Button { sheet = .goal(nil) } label: { Label("goals.add", systemImage: "target") }
             Divider()
-            Button { sheet = .account(nil) } label: {
-                Label("money.accounts.add", systemImage: "creditcard")
-            }
+            Button { sheet = .transaction(.income) } label: { Label("money.add.incoming", systemImage: "plus") }
+            Button { sheet = .transaction(.expense) } label: { Label("money.add.expense", systemImage: "minus") }
+            Button { sheet = .transaction(.transfer) } label: { Label("money.add.transfer", systemImage: "arrow.left.arrow.right") }
+                .disabled(store.accounts.count < 2)
+        } label: {
+            Image(systemName: "plus")
         }
+        .tint(.primary)
+        .accessibilityLabel(Text("common.add"))
     }
 }
 
@@ -441,12 +701,16 @@ enum MoneySheet: Identifiable {
     case transaction(TransactionEditorKind)
     case account(FinanceAccount?)
     case correction(FinanceAccount)
+    case budget(FinanceBudget?)
+    case goal(FinanceGoal?)
 
     var id: String {
         switch self {
         case .transaction(let kind): "transaction.\(kind.id)"
         case .account(let account): "account.\(account?.id ?? "new")"
         case .correction(let account): "correction.\(account.id)"
+        case .budget(let budget): "budget.\(budget?.id ?? "new")"
+        case .goal(let goal): "goal.\(goal?.id ?? "new")"
         }
     }
 }
@@ -499,10 +763,16 @@ private enum ActivityAccountFilter: String, CaseIterable, Identifiable {
 }
 
 struct AccountActivityView: View {
+    @EnvironmentObject private var categories: FinanceCategoryStore
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: FinanceStore
     private let kind: ActivityKind?
     private let account: FinanceAccount?
 
+    @State private var editingAccount = false
+    @State private var correctingAccount = false
+    @State private var deletingAccount: FinanceAccount?
+    @State private var cascadeAccount: FinanceAccount?
     @State private var sort: ActivitySort = .dateDescending
     @State private var accountFilter: ActivityAccountFilter = .all
     /// Seeded from the Money screen's currency picker on appear, so tapping a
@@ -514,14 +784,45 @@ struct AccountActivityView: View {
     @State private var addKind: TransactionEditorKind?
     /// Days the reader has folded away. Keyed by start-of-day.
     @State private var collapsedDays: Set<Date> = []
+    /// The wallet's expanded state: this renders only the list and its
+    /// controls; `MoneyView` owns and animates the card itself.
+    private var isOverlay = false
+    private var onClose: (() -> Void)?
+    private var cardVisible = true
+    private var transactionsHidden = false
+    private var onCardFrame: ((CGFloat) -> Void)?
+    private var onCardDrag: ((CGFloat) -> Void)?
+    private var onCardEnd: ((CGFloat, CGFloat) -> Void)?
+
     init(kind: ActivityKind) {
         self.kind = kind
         self.account = nil
     }
 
-    init(account: FinanceAccount) {
+    init(account: FinanceAccount, overlay: Bool = false,
+         cardVisible: Bool = true, transactionsHidden: Bool = false,
+         onCardFrame: ((CGFloat) -> Void)? = nil,
+         onCardDrag: ((CGFloat) -> Void)? = nil,
+         onCardEnd: ((CGFloat, CGFloat) -> Void)? = nil,
+         onClose: (() -> Void)? = nil) {
         self.kind = nil
         self.account = account
+        self.isOverlay = overlay
+        self.onClose = onClose
+        self.cardVisible = cardVisible
+        self.transactionsHidden = transactionsHidden
+        self.onCardFrame = onCardFrame
+        self.onCardDrag = onCardDrag
+        self.onCardEnd = onCardEnd
+    }
+
+    private func close() {
+        if let onClose { onClose() } else { dismiss() }
+    }
+
+    private var liveAccount: FinanceAccount? {
+        guard let account else { return nil }
+        return store.accounts.first { $0.id == account.id } ?? account
     }
 
     private var transactions: [FinanceTransaction] {
@@ -555,6 +856,7 @@ struct AccountActivityView: View {
     }
 
     private var dayGroups: [DayGroup] {
+        // Grouping by day only makes sense in date order.
         guard sort == .dateDescending || sort == .dateAscending else { return [] }
         let calendar = Calendar.current
         let grouped = Dictionary(grouping: transactions) {
@@ -567,62 +869,8 @@ struct AccountActivityView: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
-                if dayGroups.isEmpty {
-                    if !transactions.isEmpty {
-                        FICard {
-                            ForEach(Array(transactions.enumerated()), id: \.element.id) { index, transaction in
-                                if index > 0 { FIRowSeparator() }
-                                row(transaction)
-                            }
-                        }
-                    }
-                } else {
-                    ForEach(dayGroups) { group in
-                        daySection(group)
-                    }
-                }
-            }
-            .fiCardInsets()
-            .padding(.top, 12)
-            .padding(.bottom, 28)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .fiPageBackground()
-        .overlay {
-            if transactions.isEmpty {
-                FIEmptyState(title: "activity.empty", subtitle: "activity.empty.subtitle")
-            }
-        }
-        .navigationTitle(account.map { Text(verbatim: $0.name) } ?? Text(kind?.titleKey ?? "activity.title"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                if let account {
-                    // Left of "+": sharing is not adding money, but it is the
-                    // other thing this page's owner can do to the account
-                    // itself, and the two read as a pair in that order.
-                    if store.isOwner(of: account) {
-                        shareControl(for: account)
-                    }
-
-                    FIToolbarAddButton {
-                        Button { addKind = .income } label: { Label("money.add.incoming", systemImage: "plus") }
-                        Button { addKind = .expense } label: { Label("money.add.expense", systemImage: "minus") }
-                        if store.accounts.count > 1 {
-                            Button { addKind = .transfer } label: {
-                                Label("money.add.transfer", systemImage: "arrow.left.arrow.right")
-                            }
-                        }
-                    }
-                    .accessibilityIdentifier("account.\(account.id).add")
-                }
-                sortMenu
-                if account == nil {
-                    filterMenu
-                }
-            }
+        Group {
+            if isOverlay { overlayBody } else { pageBody }
         }
         .onAppear {
             // Only when that currency actually has transactions here: seeding a
@@ -633,6 +881,28 @@ struct AccountActivityView: View {
                 currencyFilter = store.effectiveDisplayCurrency
             }
         }
+        .sheet(isPresented: $editingAccount) { AccountEditorView(account: liveAccount) }
+        .sheet(isPresented: $correctingAccount) { if let account { BalanceCorrectionView(account: account) } }
+        .fiConfirmDelete($deletingAccount) { account in
+            Task {
+                switch await store.deleteAccount(account) {
+                case .deleted: close()
+                case .hasTransactions: cascadeAccount = account
+                case .failed: break
+                }
+            }
+        }
+        .alert(Text("money.account.delete.has_transactions.title"), isPresented: Binding(
+            get: { cascadeAccount != nil }, set: { if !$0 { cascadeAccount = nil } }
+        )) {
+            Button("money.account.delete.force", role: .destructive) {
+                if let account = cascadeAccount {
+                    Task { if await store.deleteAccount(account, cascade: true) == .deleted { close() } }
+                }
+            }
+            Button("common.cancel", role: .cancel) {}
+        } message: { Text("money.account.delete.has_transactions.message") }
+        .fiErrorAlert($store.errorMessage)
         .sheet(item: $editingTransaction) { TransactionEditorView(transaction: $0) }
         .sheet(item: $addKind) { kind in
             TransactionEditorView(kind: kind, accountID: account?.id ?? "")
@@ -640,6 +910,150 @@ struct AccountActivityView: View {
         .fiConfirmDelete($pendingTransactionDeletion) { transaction in
             Task { await store.deleteTransaction(transaction) }
         }
+    }
+
+    // MARK: - Pushed page (combined lists, and account fallback)
+
+    private var pageBody: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
+                if let initial = account, let live = store.accounts.first(where: { $0.id == initial.id }) {
+                    FIAccountCard(account: live, shared: store.isShared(live), add: { addKind = .expense })
+                }
+                listBody
+            }
+            .fiCardInsets()
+            .padding(.top, 12)
+            .padding(.bottom, 28)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .fiPageBackground()
+        .overlay {
+            if transactions.isEmpty && account == nil {
+                FIEmptyState(title: "activity.empty", subtitle: "activity.empty.subtitle")
+            }
+        }
+        .navigationTitle(account.map { Text(verbatim: $0.name) } ?? Text(kind?.titleKey ?? "activity.title"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if let account { accountMenu(account) }
+                if account == nil {
+                    sortMenu
+                    filterMenu
+                }
+            }
+        }
+    }
+
+    // MARK: - Wallet detail — card and transactions share native scrolling.
+    // MoneyView carries the card only during opening and interactive dismissal.
+
+    private var overlayBody: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: FITheme.Metrics.sectionSpacing) {
+                if let liveAccount {
+                    FIAccountCard(account: liveAccount, shared: store.isShared(liveAccount))
+                        .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: -3)
+                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { onCardFrame?($0) }
+                        .opacity(cardVisible ? 1 : 0)
+                        .simultaneousGesture(DragGesture(minimumDistance: 6)
+                            .onChanged { value in
+                                if value.translation.height > abs(value.translation.width) {
+                                    onCardDrag?(value.translation.height)
+                                }
+                            }
+                            .onEnded { onCardEnd?($0.translation.height, $0.predictedEndTranslation.height) })
+                }
+                listBody
+                    .allowsHitTesting(!transactionsHidden)
+            }
+            .fiCardInsets()
+            .padding(.top, 8)
+            .padding(.bottom, 40)
+        }
+        .scrollDisabled(transactionsHidden)
+        .overlay {
+            if transactions.isEmpty {
+                // Centred in the empty space under the card.
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: FIHomeStyle.cardHeight + 8)
+                    ContentUnavailableView {
+                        Label("activity.empty", systemImage: "list.bullet.rectangle")
+                    } description: {
+                        Text("activity.empty.subtitle")
+                    }
+                    .frame(maxHeight: .infinity)
+                }
+                .allowsHitTesting(false)
+                .modifier(TransactionReveal(visible: !transactionsHidden, index: 0))
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if transactions.isEmpty && !transactionsHidden {
+                // A hand-drawn arrow curling toward the "+" in the toolbar.
+                FIWalletHintArrow()
+                    .frame(width: 124, height: 150)
+                    .padding(.trailing, 38)
+                    .padding(.bottom, 2)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { close() } label: { Image(systemName: "xmark") }
+                    .tint(.primary)
+                    .accessibilityLabel(Text("common.close"))
+            }
+            if let account {
+                ToolbarItem(placement: .topBarTrailing) {
+                    accountMenu(account)
+                }
+                ToolbarItem(placement: .bottomBar) { Spacer() }
+                ToolbarItem(placement: .bottomBar) {
+                    Menu {
+                        Button { addKind = .income } label: {
+                            Label("money.add.incoming", systemImage: "plus")
+                        }
+                        Button { addKind = .expense } label: {
+                            Label("money.add.expense", systemImage: "minus")
+                        }
+                        Button { addKind = .transfer } label: {
+                            Label("money.add.transfer", systemImage: "arrow.left.arrow.right")
+                        }
+                        .disabled(store.accounts.count < 2)
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .tint(.primary)
+                    .accessibilityLabel(Text("common.add"))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func accountMenu(_ account: FinanceAccount) -> some View {
+        Menu {
+            Button { editingAccount = true } label: { Label("common.edit", systemImage: "pencil") }
+            Button { correctingAccount = true } label: { Label("money.account.correct", systemImage: "plusminus") }
+            if store.isOwner(of: account) {
+                shareControl(for: account)
+                if store.hasShareInvite(account) {
+                    Button { Task { await store.makeAccountPrivate(account) } } label: { Label("money.account.make_private", systemImage: "lock") }
+                }
+            } else {
+                Button { Task { await store.stopSharingAccount(account, memberID: store.currentUserID) } } label: { Label("money.account.leave", systemImage: "person.badge.minus") }
+            }
+            Divider()
+            Button("common.delete", role: .destructive) { deletingAccount = account }
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+        .tint(.primary)
     }
 
     /// The toolbar's share control.
@@ -655,6 +1069,26 @@ struct AccountActivityView: View {
                 ? "money.account.share.again"
                 : "money.account.share"
         )
+    }
+
+    @ViewBuilder
+    private var listBody: some View {
+        if dayGroups.isEmpty {
+            if !transactions.isEmpty {
+                FICard {
+                    ForEach(Array(transactions.enumerated()), id: \.element.id) { index, transaction in
+                        if index > 0 { FIRowSeparator() }
+                        row(transaction)
+                    }
+                }
+                .modifier(TransactionReveal(visible: !isOverlay || !transactionsHidden, index: 0))
+            }
+        } else {
+            ForEach(Array(dayGroups.enumerated()), id: \.element.id) { index, group in
+                daySection(group)
+                    .modifier(TransactionReveal(visible: !isOverlay || !transactionsHidden, index: index))
+            }
+        }
     }
 
     @ViewBuilder
@@ -762,7 +1196,11 @@ struct AccountActivityView: View {
         Button { editingTransaction = transaction } label: {
             FIListRow(
                 title: Text(verbatim: title(for: transaction)),
-                subtitle: Text(verbatim: subtitle(for: transaction))
+                subtitle: Text(verbatim: subtitle(for: transaction)),
+                icon: transaction.kind == .transfer ? "arrow.left.arrow.right" : categories.symbol(
+                    for: transaction.category, kind: transaction.kind == .income ? .income : .expense
+                ),
+                iconColor: FITheme.Palette.accent
             ) {
                 HStack(spacing: 10) {
                     Text(verbatim: amountText(for: transaction))
@@ -890,6 +1328,11 @@ struct AccountActivityView: View {
     /// the subtitle it is a word, in the reader's language, next to the other
     /// facts about the row.
     private func subtitle(for transaction: FinanceTransaction) -> String {
+        if account != nil, transaction.kind != .transfer {
+            // The day is the group header now, so the row just names the
+            // category.
+            return FinanceCategoryStore.displayName(for: transaction.category)
+        }
         let day = transaction.hasOccurredAt ? transaction.occurredAt.date.formatted(.dateTime.day().month(.abbreviated)) : ""
         let accountName = account == nil ? account(for: transaction)?.name ?? "" : ""
         let marker = transaction.kind == .transfer
@@ -919,5 +1362,186 @@ struct AccountActivityView: View {
         case .valueDescending: return lhs.amount.minorUnits > rhs.amount.minorUnits
         case .valueAscending: return lhs.amount.minorUnits < rhs.amount.minorUnits
         }
+    }
+}
+
+/// Non-observable presentation cache: storing a sample does not redraw views.
+private final class WalletFlightPosition {
+    var y: CGFloat?
+}
+
+/// Reports the interpolated flight position rather than GeometryReader's target
+/// layout. A touch can take over the animation without snapping to its endpoint.
+private struct WalletCardPosition: AnimatableModifier {
+    var x: CGFloat
+    var y: CGFloat
+    let onPosition: (CGFloat) -> Void
+
+    var animatableData: CGFloat {
+        get { y }
+        set { y = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content.position(x: x, y: y)
+            .onChange(of: y, initial: true) { _, value in onPosition(value) }
+    }
+}
+
+/// Reveal day groups in reading order; interruption hides them immediately.
+/// A casual, hand-drawn arrow that curls once and points down toward the "+"
+/// in the toolbar — shown on an account with no transactions yet.
+struct FIWalletHintArrow: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var draw: CGFloat = 0
+
+    var body: some View {
+        ArrowShape()
+            .trim(from: 0, to: draw)
+            .stroke(style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
+            .foregroundStyle(.secondary)
+            .onAppear {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.55)) { draw = 1 }
+            }
+            .accessibilityHidden(true)
+    }
+
+    private struct ArrowShape: Shape {
+        func path(in r: CGRect) -> Path {
+            // Draw inside a square so the loop stays round.
+            let s = min(r.width, r.height)
+            let ox = (r.width - s) / 2
+            let oy = r.height - s
+            func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+                CGPoint(x: ox + x * s, y: oy + y * s)
+            }
+
+            var p = Path()
+            // Continuous tangents through the loop and a short, balanced tip.
+            p.move(to: pt(0.08, 0.06))
+            p.addCurve(to: pt(0.44, 0.45), control1: pt(0.02, 0.29), control2: pt(0.26, 0.49))
+            p.addCurve(to: pt(0.59, 0.29), control1: pt(0.55, 0.43), control2: pt(0.62, 0.38))
+            p.addCurve(to: pt(0.44, 0.20), control1: pt(0.56, 0.20), control2: pt(0.48, 0.17))
+            p.addCurve(to: pt(0.49, 0.48), control1: pt(0.34, 0.27), control2: pt(0.37, 0.38))
+            let tip = pt(0.88, 0.98)
+            p.addCurve(to: tip, control1: pt(0.73, 0.68), control2: pt(0.88, 0.80))
+            p.move(to: pt(0.81, 0.86))
+            p.addLine(to: tip)
+            p.addLine(to: pt(0.95, 0.86))
+            return p
+        }
+    }
+}
+
+private struct TransactionReveal: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let visible: Bool
+    let index: Int
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(visible ? 1 : 0)
+            .offset(y: visible || reduceMotion ? 0 : 8)
+            .animation(
+                visible ? .easeOut(duration: 0.30).delay(reduceMotion ? 0 : Double(min(index, 5)) * 0.045) : nil,
+                value: visible
+            )
+            .accessibilityHidden(!visible)
+    }
+}
+
+/// Touch observation leaves gesture recognition to the enclosing scroll view.
+private struct WalletCardInteraction<Content: View>: View {
+    let open: () -> Void
+    @ViewBuilder let content: () -> Content
+    @State private var lifted = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        content()
+            .contentShape(Rectangle())
+            .offset(y: lifted ? -12 : 0)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.36), value: lifted)
+            .overlay {
+                WalletCardTouchSurface(onTap: open, onHold: { lifted = $0 })
+                    .accessibilityHidden(true)
+            }
+            .onDisappear { lifted = false }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { open() }
+    }
+}
+
+private struct WalletCardTouchSurface: UIViewRepresentable {
+    let onTap: () -> Void
+    let onHold: (Bool) -> Void
+
+    func makeUIView(context: Context) -> WalletCardTouchView { WalletCardTouchView() }
+
+    func updateUIView(_ view: WalletCardTouchView, context: Context) {
+        view.onTap = onTap
+        view.onHold = onHold
+    }
+
+    static func dismantleUIView(_ view: WalletCardTouchView, coordinator: ()) {
+        view.cancelPress()
+    }
+}
+
+/// Observe ordinary touches, without installing a recognizer that competes
+/// with UIScrollView. Its pan cancels these touches as scrolling begins.
+private final class WalletCardTouchView: UIView {
+    var onTap: () -> Void = {}
+    var onHold: (Bool) -> Void = { _ in }
+    private var holdTask: Task<Void, Never>?
+    private var origin: CGPoint?
+    private var held = false
+    private var moved = false
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesBegan(touches, with: event)
+        guard let touch = touches.first else { return }
+        cancelPress()
+        origin = touch.location(in: window)
+        held = false
+        moved = false
+        holdTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .milliseconds(150)) }
+            catch { return }
+            guard let self, !Task.isCancelled, self.origin != nil, !self.moved else { return }
+            self.held = true
+            self.onHold(true)
+        }
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesMoved(touches, with: event)
+        guard let origin, let touch = touches.first else { return }
+        let point = touch.location(in: window)
+        if abs(point.x - origin.x) > 12 || abs(point.y - origin.y) > 12 {
+            moved = true
+            holdTask?.cancel()
+            onHold(false)
+        }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesEnded(touches, with: event)
+        let tapped = origin != nil && !held && !moved
+        cancelPress()
+        if tapped { onTap() }
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesCancelled(touches, with: event)
+        cancelPress()
+    }
+
+    func cancelPress() {
+        holdTask?.cancel()
+        holdTask = nil
+        origin = nil
+        if held { onHold(false) }
+        held = false
     }
 }

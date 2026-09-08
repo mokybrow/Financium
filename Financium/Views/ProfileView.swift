@@ -15,10 +15,12 @@ struct ProfileView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.requestReview) private var requestReview
 
+    @AppStorage("finance.secondaryCurrency") private var secondaryCurrency = "USD"
     @State private var showNameSheet = false
     @State private var showDeleteAccount = false
     @State private var showSignOut = false
     @State private var monthlyRemind = true
+    @State private var updatesOn = false
 
     private static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
     private static let supportEmail = "mikhailpanin@icloud.com"
@@ -40,47 +42,23 @@ struct ProfileView: View {
                     header
 
                     FISection("profile.section.general") {
-                        NavigationLink {
-                            CurrencyPickerView(selected: currencyCode, onSelect: updateCurrency)
-                        } label: {
-                            FIListRow(
-                                title: Text("profile.main_currency"),
-                                icon: "banknote",
-                                accessory: .valueChevron(Text(verbatim: currencyCode))
-                            )
+                        FIMenuRow(title: Text("profile.main_currency"), value: Text(currencyCode), icon: "creditcard") {
+                            ForEach(FinanceCurrencies.popular, id: \.self) { code in Button(code) { updateCurrency(code) } }
                         }
-                        .buttonStyle(.plain)
-
                         FIRowSeparator()
-
+                        FIMenuRow(title: Text("home.secondary_currency"), value: Text(secondaryCurrency), icon: "banknote") {
+                            ForEach(FinanceCurrencies.popular, id: \.self) { code in Button(code) { secondaryCurrency = code } }
+                        }
+                        FIRowSeparator()
                         NavigationLink { CategoriesView() } label: {
                             FIListRow("profile.categories", icon: "square.grid.2x2", accessory: .chevron)
                         }
                         .buttonStyle(.plain)
                     }
 
-                    FISection("profile.section.app") {
-                        NavigationLink { AppIconPickerView() } label: {
-                            FIListRow("profile.app_icon", icon: "app.badge", accessory: .chevron)
-                        }
-                        .buttonStyle(.plain)
-
-                        FIRowSeparator()
-
-                        FIListRow(
-                            title: Text("profile.sync"),
-                            icon: "arrow.triangle.2.circlepath",
-                            accessory: .value(Text(syncStatusKey))
-                        )
-                    }
-
-                    FISection("profile.notifications") {
-                        FIToggleRow("profile.notifications.monthly", isOn: $monthlyRemind)
-                    }
-
                     FISection("profile.section.legal") {
                         // Privacy policy — kept in the list but not wired up yet.
-                        FIListRow("profile.privacy", icon: "hand.raised", accessory: .chevron)
+                        FIListRow("profile.privacy", icon: "checkmark.shield", accessory: .chevron)
 
                         FIRowSeparator()
 
@@ -102,6 +80,7 @@ struct ProfileView: View {
                             FIListRow("profile.support.share", icon: "square.and.arrow.up", accessory: .chevron)
                         }
                         .buttonStyle(.plain)
+                        .tint(.primary)
 
                         FIRowSeparator()
 
@@ -109,29 +88,26 @@ struct ProfileView: View {
                             FIListRow("profile.support.rate", icon: "star", accessory: .chevron)
                         }
                         .buttonStyle(.plain)
-                    }
-
-                    FISection("profile.section.management") {
-                        FIListRow(
-                            "profile.account.delete",
-                            titleColor: FITheme.Palette.destructive,
-                            icon: "trash",
-                            iconColor: FITheme.Palette.destructive
-                        )
-                        .contentShape(Rectangle())
-                        .onTapGesture { showDeleteAccount = true }
 
                         FIRowSeparator()
 
-                        FIListRow(
-                            "profile.logout",
-                            titleColor: FITheme.Palette.destructive,
-                            icon: "rectangle.portrait.and.arrow.right",
-                            iconColor: FITheme.Palette.destructive
-                        )
-                        .contentShape(Rectangle())
-                        .onTapGesture { showSignOut = true }
+                        Button(role: .destructive) { showDeleteAccount = true } label: {
+                            FIListRow("profile.account.delete", titleColor: FITheme.Palette.destructive, icon: "person.crop.circle.badge.xmark", iconColor: FITheme.Palette.destructive)
+                        }
+                        .buttonStyle(.plain)
                     }
+
+                    FISection("profile.notifications") {
+                        FIToggleRow("profile.notifications.reminders", icon: "bell", isOn: $monthlyRemind)
+                        FIRowSeparator()
+                        FIToggleRow("profile.notifications.updates", icon: "newspaper", isOn: $updatesOn)
+                    }
+
+                    Button { showSignOut = true } label: {
+                        Label("profile.logout", systemImage: "rectangle.portrait.and.arrow.right")
+                            .frame(maxWidth: .infinity).padding(.vertical, 14)
+                            .foregroundStyle(.white).background(.black, in: Capsule())
+                    }.buttonStyle(.plain)
 
                     Text(verbatim: versionFootnote)
                         .font(FITheme.Typography.footnote)
@@ -145,7 +121,7 @@ struct ProfileView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .fiPageBackground()
-            .fiSheetChrome("profile.title", onClose: { dismiss() })
+            .fiSheetChrome("home.settings", onClose: { dismiss() })
             .alert(Text("profile.account.delete.confirm"), isPresented: $showDeleteAccount) {
                 Button("profile.account.delete", role: .destructive) { deleteAccount() }
                 Button("common.cancel", role: .cancel) {}
@@ -162,9 +138,13 @@ struct ProfileView: View {
                 Text("profile.logout.message")
             }
             .sheet(isPresented: $showNameSheet) { ProfileNameSheet() }
-            .onAppear { monthlyRemind = store.settings.monthlyRemindersEnabled }
+            .onAppear {
+                monthlyRemind = store.settings.monthlyRemindersEnabled
+                updatesOn = store.settings.promoPushEnabled
+            }
             .onChange(of: store.settings) { _, settings in
                 monthlyRemind = settings.monthlyRemindersEnabled
+                updatesOn = settings.promoPushEnabled
             }
             .onChange(of: monthlyRemind) { _, isOn in
                 guard isOn else { pushReminderSetting(); return }
@@ -173,6 +153,7 @@ struct ProfileView: View {
                     else { monthlyRemind = false }
                 }
             }
+            .onChange(of: updatesOn) { _, _ in pushReminderSetting() }
         }
     }
 
@@ -192,8 +173,8 @@ struct ProfileView: View {
             Text(verbatim: displayName)
                 .font(.headline)
 
-            Button { showNameSheet = true } label: {
-                Text("profile.name.edit")
+            NavigationLink { ProfileDetailsView() } label: {
+                Label("profile.edit.action", systemImage: "pencil")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 16)
@@ -251,17 +232,18 @@ struct ProfileView: View {
         Task {
             _ = await store.updateSettings(
                 currency: code, monthlyReminders: monthlyRemind,
-                promoEmail: false, promoPush: false
+                promoEmail: false, promoPush: updatesOn
             )
         }
     }
 
     private func pushReminderSetting() {
-        guard monthlyRemind != store.settings.monthlyRemindersEnabled else { return }
+        guard monthlyRemind != store.settings.monthlyRemindersEnabled
+            || updatesOn != store.settings.promoPushEnabled else { return }
         Task {
             _ = await store.updateSettings(
                 currency: currencyCode, monthlyReminders: monthlyRemind,
-                promoEmail: false, promoPush: false
+                promoEmail: false, promoPush: updatesOn
             )
         }
     }

@@ -24,6 +24,9 @@ nonisolated extension FinanceAccount: LegacyFinanceRecord {
             .message(7, \.storedUpdatedAt),
             .string(8, \.ownerUserID),
             .int32(9, \.memberCount),
+            .string(10, \.colorID),
+            .string(11, \.accountType),
+            .int32(12, \.annualRateBasisPoints),
         ]
     }
 }
@@ -60,6 +63,9 @@ nonisolated extension FinanceBudget: LegacyFinanceRecord {
             .string(9, \.title),
             .string(10, \.paymentDate),
             .enumeration(11, \.recurrence),
+            .string(12, \.accountID),
+            .string(13, \.coverJSON),
+            .string(14, \.collaborationJSON),
         ]
     }
 }
@@ -75,6 +81,8 @@ nonisolated extension FinanceGoal: LegacyFinanceRecord {
             .message(6, \.storedSaved),
             .message(7, \.storedCreatedAt),
             .message(8, \.storedUpdatedAt),
+            .string(9, \.coverJSON),
+            .string(10, \.collaborationJSON),
         ]
     }
 }

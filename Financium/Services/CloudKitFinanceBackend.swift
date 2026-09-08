@@ -33,18 +33,18 @@ actor CloudKitFinanceBackend: FinanceBackend {
 
     // MARK: Accounts
 
-    func createAccount(name: String, symbol: String, opening: Decimal, currency: String) async throws {
-        try await synced { try await local.createAccount(name: name, symbol: symbol, opening: opening, currency: currency) }
+    func createAccount(name: String, symbol: String, opening: Decimal, currency: String, appearance: FinanceAccountAppearance?) async throws {
+        try await synced { try await local.createAccount(name: name, symbol: symbol, opening: opening, currency: currency, appearance: appearance) }
     }
 
     func updateAccount(
         id: String, name: String, symbol: String,
-        balance: Decimal?, currency: String, isArchived: Bool
+        balance: Decimal?, currency: String, isArchived: Bool, appearance: FinanceAccountAppearance?
     ) async throws {
         try await synced {
             try await local.updateAccount(
                 id: id, name: name, symbol: symbol,
-                balance: balance, currency: currency, isArchived: isArchived
+                balance: balance, currency: currency, isArchived: isArchived, appearance: appearance
             )
         }
     }
@@ -98,13 +98,13 @@ actor CloudKitFinanceBackend: FinanceBackend {
     func upsertBudget(
         id: String, monthKey: String, title: String, category: String,
         limit: Decimal, currency: String,
-        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence
+        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence, accountID: String, coverJSON: String? = nil
     ) async throws {
         try await synced {
             try await local.upsertBudget(
                 id: id, monthKey: monthKey, title: title, category: category,
                 limit: limit, currency: currency,
-                reminder: reminder, paymentDate: paymentDate, recurrence: recurrence
+                reminder: reminder, paymentDate: paymentDate, recurrence: recurrence, accountID: accountID, coverJSON: coverJSON
             )
         }
     }
@@ -117,12 +117,12 @@ actor CloudKitFinanceBackend: FinanceBackend {
 
     func upsertGoal(
         id: String, title: String, accountID: String,
-        category: String, target: Decimal, currency: String
+        category: String, target: Decimal, currency: String, coverJSON: String? = nil
     ) async throws {
         try await synced {
             try await local.upsertGoal(
                 id: id, title: title, accountID: accountID,
-                category: category, target: target, currency: currency
+                category: category, target: target, currency: currency, coverJSON: coverJSON
             )
         }
     }

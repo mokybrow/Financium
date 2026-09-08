@@ -32,10 +32,10 @@ nonisolated struct FinanceSnapshot: Sendable {
 nonisolated protocol FinanceBackend: Sendable {
     func load(period: FinancePeriod, monthKey: String) async throws -> FinanceSnapshot
 
-    func createAccount(name: String, symbol: String, opening: Decimal, currency: String) async throws
+    func createAccount(name: String, symbol: String, opening: Decimal, currency: String, appearance: FinanceAccountAppearance?) async throws
     func updateAccount(
         id: String, name: String, symbol: String,
-        balance: Decimal?, currency: String, isArchived: Bool
+        balance: Decimal?, currency: String, isArchived: Bool, appearance: FinanceAccountAppearance?
     ) async throws
     /// `cascade` also removes every transaction touching the account instead of
     /// refusing the delete — for an account whose history nobody needs kept,
@@ -65,13 +65,13 @@ nonisolated protocol FinanceBackend: Sendable {
     func upsertBudget(
         id: String, monthKey: String, title: String, category: String,
         limit: Decimal, currency: String,
-        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence
+        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence, accountID: String, coverJSON: String?
     ) async throws
     func deleteBudget(id: String) async throws
 
     func upsertGoal(
         id: String, title: String, accountID: String,
-        category: String, target: Decimal, currency: String
+        category: String, target: Decimal, currency: String, coverJSON: String?
     ) async throws
     func deleteGoal(id: String) async throws
 
@@ -267,7 +267,7 @@ actor LocalFinanceBackend: FinanceBackend {
 
     // MARK: Accounts
 
-    func createAccount(name: String, symbol: String, opening: Decimal, currency: String) async throws {
+    func createAccount(name: String, symbol: String, opening: Decimal, currency: String, appearance: FinanceAccountAppearance?) async throws {
         try await ensureLoaded()
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, FinanceLedger.isISOCurrency(currency.uppercased()) else {
@@ -279,13 +279,18 @@ actor LocalFinanceBackend: FinanceBackend {
         account.name = trimmed
         account.symbolName = symbol.isEmpty ? "creditcard.fill" : symbol
         account.balance = FinanceMoney(decimal: opening, currencyCode: currency)
+        if let appearance {
+            account.colorID = appearance.colorID
+            account.accountType = appearance.accountType
+            account.annualRateBasisPoints = appearance.annualRateBasisPoints
+        }
         accounts.append(account)
         try persist()
     }
 
     func updateAccount(
         id: String, name: String, symbol: String,
-        balance: Decimal?, currency: String, isArchived: Bool
+        balance: Decimal?, currency: String, isArchived: Bool, appearance: FinanceAccountAppearance?
     ) async throws {
         try await ensureLoaded()
         guard let index = accounts.firstIndex(where: { $0.id == id }) else {
@@ -297,6 +302,11 @@ actor LocalFinanceBackend: FinanceBackend {
         accounts[index].name = trimmed
         accounts[index].symbolName = symbol.isEmpty ? "creditcard.fill" : symbol
         accounts[index].isArchived = isArchived
+        if let appearance {
+            accounts[index].colorID = appearance.colorID
+            accounts[index].accountType = appearance.accountType
+            accounts[index].annualRateBasisPoints = appearance.annualRateBasisPoints
+        }
         // An unset balance means "leave the money alone", matching the service:
         // a rename must not be able to reset a balance to zero.
         if let balance {
@@ -406,7 +416,7 @@ actor LocalFinanceBackend: FinanceBackend {
     func upsertBudget(
         id: String, monthKey: String, title: String, category: String,
         limit: Decimal, currency: String,
-        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence
+        reminder: Bool, paymentDate: Date, recurrence: FinanceBudgetRecurrence, accountID: String, coverJSON: String? = nil
     ) async throws {
         try await ensureLoaded()
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -416,9 +426,14 @@ actor LocalFinanceBackend: FinanceBackend {
 
         // Budgets are independent by id, even within the same category and
         // month. Each compares that category's spend against its own limit.
-        var budget = FinanceBudget()
+        var budget = budgets.first(where: { $0.budget.id == id })?.budget ?? FinanceBudget()
         budget.id = id.isEmpty ? UUID().uuidString : id
+        if let coverJSON { budget.coverJSON = coverJSON }
         budget.title = trimmedTitle
+        guard accountID.isEmpty || accounts.contains(where: { $0.id == accountID }) else {
+            throw FinanceLedger.Failure.notFound
+        }
+        budget.accountID = accountID
         budget.category = category
         budget.limit = FinanceMoney(decimal: limit, currencyCode: currency)
         budget.reminderEnabled = reminder
@@ -426,6 +441,7 @@ actor LocalFinanceBackend: FinanceBackend {
             budget.paymentDate = Self.dateKey(paymentDate)
             budget.recurrence = recurrence
         } else {
+            budget.paymentDate = ""
             budget.recurrence = .once
         }
 
@@ -447,23 +463,24 @@ actor LocalFinanceBackend: FinanceBackend {
 
     func upsertGoal(
         id: String, title: String, accountID: String,
-        category: String, target: Decimal, currency: String
+        category: String, target: Decimal, currency: String, coverJSON: String? = nil
     ) async throws {
         try await ensureLoaded()
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty, target > 0 else { throw FinanceLedger.Failure.invalidArgument }
-        guard let account = accounts.first(where: { $0.id == accountID }) else {
-            throw FinanceLedger.Failure.notFound
-        }
+        let account = accounts.first(where: { $0.id == accountID })
+        guard accountID.isEmpty || account != nil else { throw FinanceLedger.Failure.notFound }
+        guard FinanceLedger.isISOCurrency(currency) else { throw FinanceLedger.Failure.invalidArgument }
 
-        var goal = FinanceGoal()
+        var goal = goals.first(where: { $0.id == id }) ?? FinanceGoal()
         goal.id = id.isEmpty ? UUID().uuidString : id
+        if let coverJSON { goal.coverJSON = coverJSON }
         goal.title = trimmedTitle
         goal.accountID = accountID
         goal.category = category
-        // The account decides the currency, as it does on the service: a goal is
-        // denominated in the account it is saved into.
-        goal.target = FinanceMoney(decimal: target, currencyCode: account.balance.currencyCode)
+        // A linked account determines the currency. An all-account goal keeps
+        // the explicitly selected currency and sums only matching accounts.
+        goal.target = FinanceMoney(decimal: target, currencyCode: account?.balance.currencyCode ?? currency)
 
         if let index = goals.firstIndex(where: { $0.id == goal.id }) {
             goals[index] = goal

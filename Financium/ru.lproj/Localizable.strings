@@ -72,7 +72,7 @@
 "money.add.expense" = "Расход";
 "money.add.transfer" = "Перевод";
 "money.account.edit" = "Изменить счёт";
-"money.account.correct" = "Скорректировать остаток";
+"money.account.correct" = "Скорректировать";
 
 /* Коррекция остатка */
 "correction.title" = "Коррекция остатка";
@@ -167,9 +167,9 @@
 "categories.title" = "Категории";
 "categories.custom" = "Ваши категории";
 "categories.custom.hint" = "Добавленные категории появятся рядом со встроенными при записи операций и настройке бюджетов.";
-"categories.expense" = "Встроенные расходы";
-"categories.income" = "Встроенные поступления";
-"categories.add" = "Добавить категорию";
+"categories.expense" = "Расходы";
+"categories.income" = "Поступления";
+"categories.add" = "Добавить";
 "categories.name.placeholder" = "Название категории";
 "categories.kind" = "Тип";
 "categories.kind.expense" = "Расход";
@@ -178,7 +178,10 @@
 "categories.duplicate" = "Категория с таким названием уже есть.";
 "categories.delete" = "Удалить категорию";
 "categories.delete.confirm" = "Удалить эту категорию?";
-"categories.delete.message" = "У операций, уже записанных в неё, категория останется. Убирается только подсказка.";
+"categories.delete.selected" = "Удалить выбранные категории?";
+"categories.delete.message" = "Они перестанут предлагаться при записи операций и бюджетов. Операции и бюджеты, где они уже указаны, не изменятся.";
+"categories.restore_builtins" = "Вернуть встроенные категории";
+"categories.in_use" = "Используется в операциях";
 
 /* Built-in category names */
 "category.groceries" = "Продукты";
@@ -226,7 +229,7 @@
 "goals.name.placeholder" = "Название";
 "goals.current_savings" = "Уже накоплено";
 "goals.target.placeholder" = "Цель";
-"goals.hint" = "Укажите счёт, на котором будут учитываться поступления в счёт цели. Валютой цели станет валюта этого счёта.";
+"goals.hint" = "Выберите счёт или все счета. Прогресс равен их текущему остатку в валюте цели; расходы и переводы также меняют эту сумму.";
 "goals.delete" = "Удалить цель";
 
 /* Profile */
@@ -281,10 +284,11 @@
 "profile.notifications.monthly.hint" = "Напоминание за день до каждого запланированного платежа.";
 "reminder.body" = "Завтра платёж на %@.";
 "profile.notifications.monthly" = "Ежемесячное напоминание";
+"profile.notifications.reminders" = "Напоминания";
+"profile.notifications.updates" = "Обновления";
 "profile.notifications.promo_email" = "Промо на почту";
 "profile.notifications.promo_push" = "Промо пуши";
 "profile.appearance" = "Оформление";
-"profile.app_icon" = "Иконка приложения";
 "profile.logout" = "Выйти";
 "profile.copyright" = "Financium 2026, все права защищены. Разработал Михаил Панин";
 
@@ -295,14 +299,6 @@
 "email.code.hint" = "Введите код из письма, которое мы только что отправили.";
 
 /* App icon */
-"app_icon.title" = "Иконка приложения";
-"app_icon.empty" = "Альтернативных иконок пока нет";
-"app_icon.empty.subtitle" = "Иконки появятся здесь, когда их добавят в приложение";
-"app_icon.unsupported" = "Это устройство не поддерживает альтернативные иконки.";
-"app_icon.dollar_wallet" = "Финансиум";
-"app_icon.dollar_wallet_alt" = "Кошелёк с купюрой";
-"app_icon.big_lether_wallet" = "Кардхолдер";
-"app_icon.lether_wallet" = "Маленький кардхолдер";
 
 /* Auth */
 "auth.greeting" = "Деньги под контролем";
@@ -320,12 +316,12 @@
 "profile.logout.message" = "Чтобы продолжить пользоваться приложением, потребуется войти снова.";
 
 /* Shared accounts */
-"money.account.share" = "Совместный счёт";
+"money.account.share" = "Поделиться";
 "money.account.shared" = "Совместный счёт";
 "money.account.shared.manage" = "Доступ к счёту";
 "money.account.leave" = "Покинуть счёт";
-"money.account.make_private" = "Сделать приватным";
-"money.account.share.again" = "Отправить ссылку снова";
+"money.account.make_private" = "Закрыть";
+"money.account.share.again" = "Поделиться";
 "share.invite.message" = "Вас приглашают присоединиться к счёту «%@»";
 "shared.title" = "Совместный счёт";
 "shared.members.private" = "Счёт видите только вы";
@@ -376,3 +372,260 @@
 
 "error.icloud.configuration" = "iCloud отклонил запрос. Нужно проверить настройки CloudKit для этой сборки. Обратитесь к разработчику.";
 "error.icloud.missing_record" = "Счёт не найден в iCloud. Дождитесь синхронизации и попробуйте ещё раз.";
+
+"home.morning" = "Доброе утро";
+"home.day" = "Добрый день";
+"home.evening" = "Добрый вечер";
+"home.night" = "Доброй ночи";
+"home.settings" = "Настройки";
+"home.current_balance" = "Текущий баланс";
+"home.plans" = "Бюджет и Цели";
+"home.plans.empty" = "Начните добавлять цели и бюджеты";
+"home.cards.toggle" = "Развернуть или свернуть счета";
+"home.collapse" = "Свернуть шапку";
+"home.analytics" = "Показать статистику";
+"home.statistics" = "Статистика";
+"home.cards.collapse" = "Свернуть в стопку";
+"plans.remaining" = "ещё %@";
+"home.secondary_currency" = "Доп. валюта";
+"home.rate.cached" = "Последний доступный курс";
+"home.rate.unavailable" = "Курс недоступен";
+"home.flow" = "Доходы и расходы";
+"home.expenses" = "Расходы по категориям";
+"home.incomes" = "Доходы по категориям";
+"home.expected" = "Ожидаемый доход за месяц";
+"home.no_deposits" = "Вкладов пока нет";
+"home.expected.note" = "Оценка по текущему остатку и годовой ставке, без капитализации и автоматического начисления.";
+"home.account.type" = "Тип";
+"home.account.color" = "Цвет";
+"home.account.rate" = "Годовой процент %";
+"home.type.card" = "Карта";
+"home.type.cash" = "Наличные";
+"home.type.deposit" = "Вклад";
+"home.color.red" = "Красный";
+"home.color.yellow" = "Жёлтый";
+"home.color.green" = "Зелёный";
+"home.color.brown" = "Коричневый";
+"home.color.blue" = "Синий";
+"home.color.purple" = "Фиолетовый";
+"home.color.pink" = "Розовый";
+"home.color.graphite" = "Графитовый";
+"home.color.black" = "Чёрный";
+"home.color.white" = "Белый";
+"home.more" = "Дополнительно";
+"home.all_accounts" = "Все счета";
+"home.profile.hint" = "Вы можете настроить фото профиля или аватар. Кадрирование фотографии регулируйте двумя пальцами на фотографии.";
+
+"activity.empty.add" = "Добавить операцию";
+
+"categories.icon" = "Значок";
+"category.icon.tag" = "Метка";
+"category.icon.cart" = "Покупки";
+"category.icon.fork.knife" = "Еда";
+"category.icon.cup.and.saucer" = "Кофе";
+"category.icon.tshirt" = "Одежда";
+"category.icon.house" = "Дом";
+"category.icon.car" = "Автомобиль";
+"category.icon.bus" = "Автобус";
+"category.icon.airplane" = "Самолёт";
+"category.icon.heart" = "Сердце";
+"category.icon.cross.case" = "Здоровье";
+"category.icon.book" = "Книга";
+"category.icon.graduationcap" = "Образование";
+"category.icon.gift" = "Подарок";
+"category.icon.pawprint" = "Животные";
+"category.icon.gamecontroller" = "Игры";
+"category.icon.film" = "Кино";
+"category.icon.music.note" = "Музыка";
+"category.icon.phone" = "Телефон";
+"category.icon.wifi" = "Интернет";
+"category.icon.bolt" = "Энергия";
+"category.icon.leaf" = "Природа";
+"category.icon.sportscourt" = "Спорт";
+"category.icon.briefcase" = "Работа";
+"category.icon.banknote" = "Деньги";
+"category.icon.creditcard" = "Карта";
+"category.icon.chart.line.uptrend.xyaxis" = "Инвестиции";
+"category.icon.building.columns" = "Банк";
+
+"profile.edit.action" = "Править";
+
+"common.back" = "Назад";
+
+"home.rate.official" = "Официальный курс";
+
+"home.chart.hint" = "Коснитесь графика или проведите по нему, чтобы увидеть точные значения.";
+
+"home.chart.date" = "Дата";
+
+"home.chart.amount" = "Сумма";
+
+"home.chart.kind" = "Тип операции";
+
+"home.forecast.title" = "Прогноз дохода и остатка";
+
+"home.forecast.period" = "Период прогноза";
+
+"home.forecast.one" = "1 месяц";
+
+"home.forecast.three" = "3 месяца";
+
+"home.forecast.six" = "6 месяцев";
+
+"home.forecast.empty" = "В этой валюте пока нет счетов.";
+
+"home.forecast.note" = "Сценарий с сегодняшнего дня: доход — проценты вкладов; остаток — сумма всех счетов выбранной валюты плюс эти проценты. Ставки и суммы неизменны, расчёт по дням (365/366 в году). Без капитализации, будущих операций и налогов; фактические выплаты зависят от условий вклада.";
+
+"home.forecast.income" = "Процентный доход";
+
+"home.forecast.balance" = "Остаток с процентами";
+
+"home.forecast.metric" = "Показатель прогноза";
+
+"home.chart.total" = "Всего";
+
+"home.month.previous" = "Предыдущий месяц";
+
+"home.month.next" = "Следующий месяц";
+
+"home.hello" = "Привет,";
+
+"analytics.all" = "Всё";
+
+"analytics.income" = "Доходы";
+
+"analytics.expense" = "Расходы";
+
+"analytics.savings" = "Накопления";
+
+"analytics.net" = "Разница доходов и расходов за выбранный период";
+
+"analytics.income.period" = "Доходы за период";
+
+"analytics.expense.period" = "Расходы за период";
+
+"home.forecast.no_data" = "Пока нет данных";
+
+"home.forecast.from_today" = "Прогноз с сегодняшнего дня";
+
+"home.forecast.touch_hint" = "Проведите по графику, чтобы выбрать дату.";
+
+"home.forecast.calculation" = "Как считается прогноз";
+
+"app.title" = "Финансиум";
+
+"plans.empty.title" = "Начните планировать";
+
+"plans.empty.hint" = "Нажмите +, чтобы добавить бюджеты и цели";
+
+"cover.title" = "Обложка";
+
+"cover.preview.title" = "Название";
+
+"cover.preview.hint" = "Предпросмотр с заполнением на 50%. На главной заполнение отражает фактический прогресс.";
+
+"cover.appearance" = "Оформление";
+
+"cover.font" = "Шрифт";
+
+"cover.color" = "Цвет прогресса";
+
+"cover.emoji" = "Эмодзи";
+
+"cover.photo" = "Выбрать фото";
+
+"cover.photo.remove" = "Удалить фото";
+
+"cover.photo.error" = "Не удалось загрузить фото. Попробуйте другое изображение.";
+
+"cover.font.rounded" = "Скруглённый";
+
+"cover.font.heavy" = "Жирный";
+
+"cover.font.serif" = "С засечками";
+
+"cover.font.mono" = "Моноширинный";
+
+"cover.color.blue" = "Голубой";
+
+"cover.color.pink" = "Розовый";
+
+"cover.color.orange" = "Оранжевый";
+
+"cover.color.mint" = "Мятный";
+
+"cover.color.purple" = "Сиреневый";
+
+"cover.color.yellow" = "Жёлтый";
+
+"plan.shared" = "Общий план";
+
+"plan.progress" = "Прогресс";
+
+"plan.dynamics" = "Динамика";
+
+"plan.spent" = "Потрачено";
+
+"plan.saved" = "Накоплено";
+
+"plan.limit" = "Лимит";
+
+"plan.target" = "Цель";
+
+"plan.remaining" = "Осталось";
+
+"plan.over_budget" = "Превышение лимита";
+
+"plan.last30" = "Последние 30 дней";
+
+"plan.history.empty" = "Пока нет операций для графика";
+
+"plan.history.estimate" = "История восстановлена по текущему остатку и операциям. Ручные корректировки остатка могут влиять на расчёт.";
+
+"cover.color.red" = "Красный";
+
+"cover.background" = "Фон обложки";
+
+"cover.background.color" = "Цвет фона";
+
+"cover.background.gradient" = "Градиент";
+
+"cover.background.end" = "Второй цвет";
+
+"cover.color.white" = "Белый";
+
+"cover.color.black" = "Графитовый";
+
+"cover.color.custom" = "Сохранённый цвет";
+
+"cover.backgrounds" = "Фоны";
+"cover.backgrounds.gradients" = "Градиенты";
+"cover.unsplash.section" = "Фото с Unsplash";
+"cover.unsplash.search" = "Фото, категории и темы";
+"cover.unsplash.failed" = "Не удалось загрузить фото";
+"cover.unsplash.editorial" = "Подборка";
+"cover.unsplash.cat.wallpapers" = "Обои";
+"cover.unsplash.cat.nature" = "Природа";
+"cover.unsplash.cat.textures" = "Текстуры";
+"cover.unsplash.cat.abstract" = "Абстракция";
+"cover.unsplash.cat.minimal" = "Минимализм";
+"cover.unsplash.cat.city" = "Город";
+"cover.unsplash.cat.space" = "Космос";
+"cover.credit.by" = "Фото:";
+"cover.credit.on" = "·";
+"cover.font.section.title" = "Название";
+"cover.font.section.amount" = "Сумма";
+"cover.font.weight" = "Насыщенность";
+"cover.font.style" = "Начертание";
+"cover.font.italic" = "Курсив";
+"cover.weight.light" = "Тонкий";
+"cover.weight.regular" = "Обычный";
+"cover.weight.medium" = "Средний";
+"cover.weight.semibold" = "Полужирный";
+"cover.weight.bold" = "Жирный";
+"cover.weight.heavy" = "Плотный";
+"cover.weight.black" = "Чёрный";
+"cover.design.default" = "Стандартное";
+"cover.design.rounded" = "Скруглённое";
+"cover.design.serif" = "С засечками";
+"cover.design.mono" = "Моноширинное";

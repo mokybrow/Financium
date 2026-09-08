@@ -14,7 +14,22 @@ extension Color {
     }
 }
 
-/// The person, as a photo, an emoji, or a monogram on a coloured disc.
+/// Shared lettering for both the avatar and the profile editor preview.
+struct FIMonogram: View {
+    let text: String
+    let style: ProfileStore.MonogramStyle
+    let size: CGFloat
+
+    var body: some View {
+        Text(verbatim: text)
+            .font(style.font(size: size * 0.42))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+    }
+}
+
+/// The person, as a photo or a monogram on a coloured disc.
 struct FIAvatar: View {
     let monogram: String
     let colorHex: String
@@ -29,15 +44,10 @@ struct FIAvatar: View {
                 Image(uiImage: photo)
                     .resizable()
                     .scaledToFill()
-            } else if let emoji, !emoji.isEmpty {
-                (Color(hex: colorHex) ?? FITheme.Palette.controlFill)
-                    .overlay { Text(verbatim: emoji).font(.system(size: size * 0.5)) }
             } else {
                 (Color(hex: colorHex) ?? FITheme.Palette.controlFill)
                     .overlay {
-                        Text(verbatim: monogram)
-                            .font(monogramStyle.font(size: size * 0.42))
-                            .foregroundStyle(.white)
+                        FIMonogram(text: monogram, style: monogramStyle, size: size)
                     }
             }
         }

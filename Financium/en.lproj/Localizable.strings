@@ -72,7 +72,7 @@
 "money.add.expense" = "Expense";
 "money.add.transfer" = "Transfer";
 "money.account.edit" = "Edit account";
-"money.account.correct" = "Correct balance";
+"money.account.correct" = "Correct";
 
 /* Balance correction */
 "correction.title" = "Correct Balance";
@@ -167,9 +167,9 @@
 "categories.title" = "Categories";
 "categories.custom" = "Your Categories";
 "categories.custom.hint" = "Categories you add appear alongside the built-in ones when recording money and setting budgets.";
-"categories.expense" = "Built-in Expenses";
-"categories.income" = "Built-in Income";
-"categories.add" = "Add Category";
+"categories.expense" = "Expenses";
+"categories.income" = "Income";
+"categories.add" = "Add";
 "categories.name.placeholder" = "Category name";
 "categories.kind" = "Type";
 "categories.kind.expense" = "Expense";
@@ -178,7 +178,10 @@
 "categories.duplicate" = "A category with this name already exists.";
 "categories.delete" = "Delete category";
 "categories.delete.confirm" = "Delete this category?";
-"categories.delete.message" = "Transactions already filed under it keep the category. Only the suggestion is removed.";
+"categories.delete.selected" = "Delete the selected categories?";
+"categories.delete.message" = "They stop being suggested when recording money and setting budgets. Anything already filed under them is unchanged.";
+"categories.restore_builtins" = "Restore built-in categories";
+"categories.in_use" = "Used by transactions";
 
 /* Built-in category names */
 "category.groceries" = "Groceries";
@@ -226,7 +229,7 @@
 "goals.name.placeholder" = "Name";
 "goals.current_savings" = "Current savings";
 "goals.target.placeholder" = "Goal";
-"goals.hint" = "Specify the account where incoming funds will be tracked towards achieving the goal. The currency will be the account's base currency.";
+"goals.hint" = "Choose one account or all accounts. Progress follows their current balance in the goal currency; expenses and transfers also change this amount.";
 "goals.delete" = "Delete goal";
 
 /* Profile */
@@ -281,10 +284,11 @@
 "profile.notifications.monthly.hint" = "A reminder the day before each budgeted payment.";
 "reminder.body" = "Payment of %@ is due tomorrow.";
 "profile.notifications.monthly" = "Monthly Remind";
+"profile.notifications.reminders" = "Reminders";
+"profile.notifications.updates" = "Updates";
 "profile.notifications.promo_email" = "Promo Email";
 "profile.notifications.promo_push" = "Promo Push";
 "profile.appearance" = "Appearance";
-"profile.app_icon" = "App Icon";
 "profile.logout" = "Log out";
 "profile.copyright" = "Financium 2026, all rights reserved. Developed by Mikhail Panin";
 
@@ -295,14 +299,6 @@
 "email.code.hint" = "Enter the code from the email we just sent.";
 
 /* App icon */
-"app_icon.title" = "App Icon";
-"app_icon.empty" = "No alternate icons yet";
-"app_icon.empty.subtitle" = "Alternate icons will show up here once they are added to the app";
-"app_icon.unsupported" = "This device does not support alternate app icons.";
-"app_icon.dollar_wallet" = "Financium";
-"app_icon.dollar_wallet_alt" = "Wallet With Dollar";
-"app_icon.big_lether_wallet" = "Card Holder";
-"app_icon.lether_wallet" = "Small Card Holder";
 
 /* Auth */
 "auth.greeting" = "Money, Sorted";
@@ -320,12 +316,12 @@
 "profile.logout.message" = "You will need to sign in again to keep using the app.";
 
 /* Shared accounts */
-"money.account.share" = "Share account";
+"money.account.share" = "Share";
 "money.account.shared" = "Shared account";
 "money.account.shared.manage" = "Sharing";
 "money.account.leave" = "Leave account";
-"money.account.make_private" = "Make private";
-"money.account.share.again" = "Share the link again";
+"money.account.make_private" = "Close";
+"money.account.share.again" = "Share";
 "share.invite.message" = "You're invited to join the account “%@”";
 "shared.title" = "Shared account";
 "shared.members.private" = "Only you can see this account";
@@ -376,3 +372,260 @@
 
 "error.icloud.configuration" = "iCloud rejected the request. The app’s CloudKit configuration needs to be checked. Please contact the developer.";
 "error.icloud.missing_record" = "The account could not be found in iCloud. Wait for synchronization and try again.";
+
+"home.morning" = "Good morning";
+"home.day" = "Good afternoon";
+"home.evening" = "Good evening";
+"home.night" = "Good night";
+"home.settings" = "Settings";
+"home.current_balance" = "Current balance";
+"home.plans" = "Budgets and goals";
+"home.plans.empty" = "Start adding goals and budgets";
+"home.cards.toggle" = "Expand or stack accounts";
+"home.collapse" = "Collapse header";
+"home.analytics" = "Show statistics";
+"home.statistics" = "Statistics";
+"home.cards.collapse" = "Collapse into a stack";
+"plans.remaining" = "%@ left";
+"home.secondary_currency" = "Additional currency";
+"home.rate.cached" = "Last published rate";
+"home.rate.unavailable" = "Rate unavailable";
+"home.flow" = "Income and expenses";
+"home.expenses" = "Expenses by category";
+"home.incomes" = "Income by category";
+"home.expected" = "Expected monthly income";
+"home.no_deposits" = "No deposits yet";
+"home.expected.note" = "Estimate at the current balance and annual rate, without capitalization or automatic interest deposits.";
+"home.account.type" = "Type";
+"home.account.color" = "Color";
+"home.account.rate" = "Annual interest %";
+"home.type.card" = "Card";
+"home.type.cash" = "Cash";
+"home.type.deposit" = "Deposit";
+"home.color.red" = "Red";
+"home.color.yellow" = "Yellow";
+"home.color.green" = "Green";
+"home.color.brown" = "Brown";
+"home.color.blue" = "Blue";
+"home.color.purple" = "Purple";
+"home.color.pink" = "Pink";
+"home.color.graphite" = "Graphite";
+"home.color.black" = "Black";
+"home.color.white" = "White";
+"home.more" = "More options";
+"home.all_accounts" = "All accounts";
+"home.profile.hint" = "Choose a profile photo or an avatar. Pinch and drag the photo while editing to adjust its crop.";
+
+"activity.empty.add" = "Add transaction";
+
+"categories.icon" = "Icon";
+"category.icon.tag" = "Tag";
+"category.icon.cart" = "Shopping";
+"category.icon.fork.knife" = "Food";
+"category.icon.cup.and.saucer" = "Coffee";
+"category.icon.tshirt" = "Clothing";
+"category.icon.house" = "Home";
+"category.icon.car" = "Car";
+"category.icon.bus" = "Bus";
+"category.icon.airplane" = "Airplane";
+"category.icon.heart" = "Heart";
+"category.icon.cross.case" = "Health";
+"category.icon.book" = "Book";
+"category.icon.graduationcap" = "Education";
+"category.icon.gift" = "Gift";
+"category.icon.pawprint" = "Pets";
+"category.icon.gamecontroller" = "Games";
+"category.icon.film" = "Movies";
+"category.icon.music.note" = "Music";
+"category.icon.phone" = "Phone";
+"category.icon.wifi" = "Internet";
+"category.icon.bolt" = "Energy";
+"category.icon.leaf" = "Nature";
+"category.icon.sportscourt" = "Sports";
+"category.icon.briefcase" = "Work";
+"category.icon.banknote" = "Money";
+"category.icon.creditcard" = "Card";
+"category.icon.chart.line.uptrend.xyaxis" = "Investments";
+"category.icon.building.columns" = "Bank";
+
+"profile.edit.action" = "Edit";
+
+"common.back" = "Back";
+
+"home.rate.official" = "Official rate";
+
+"home.chart.hint" = "Touch or drag across a chart to see exact values.";
+
+"home.chart.date" = "Date";
+
+"home.chart.amount" = "Amount";
+
+"home.chart.kind" = "Transaction type";
+
+"home.forecast.title" = "Income and balance forecast";
+
+"home.forecast.period" = "Forecast period";
+
+"home.forecast.one" = "1 month";
+
+"home.forecast.three" = "3 months";
+
+"home.forecast.six" = "6 months";
+
+"home.forecast.empty" = "No accounts in this currency yet.";
+
+"home.forecast.note" = "Scenario from today: income is deposit interest; balance is the total of all accounts in the selected currency plus that interest. Assumes unchanged rates and balances, using actual days (365/366 per year). Excludes compounding, future transactions and taxes; actual payouts depend on deposit terms.";
+
+"home.forecast.income" = "Interest income";
+
+"home.forecast.balance" = "Balance with interest";
+
+"home.forecast.metric" = "Forecast metric";
+
+"home.chart.total" = "Total";
+
+"home.month.previous" = "Previous month";
+
+"home.month.next" = "Next month";
+
+"home.hello" = "Hello,";
+
+"analytics.all" = "All";
+
+"analytics.income" = "Income";
+
+"analytics.expense" = "Expenses";
+
+"analytics.savings" = "Savings";
+
+"analytics.net" = "Income minus expenses for the selected period";
+
+"analytics.income.period" = "Income for the period";
+
+"analytics.expense.period" = "Expenses for the period";
+
+"home.forecast.no_data" = "No data yet";
+
+"home.forecast.from_today" = "Forecast starting today";
+
+"home.forecast.touch_hint" = "Slide along the chart to select a date.";
+
+"home.forecast.calculation" = "How the forecast is calculated";
+
+"app.title" = "Financium";
+
+"plans.empty.title" = "Start planning";
+
+"plans.empty.hint" = "Tap + to add budgets and goals";
+
+"cover.title" = "Cover";
+
+"cover.preview.title" = "Title";
+
+"cover.preview.hint" = "Preview at 50% completion. The home screen shows actual progress.";
+
+"cover.appearance" = "Appearance";
+
+"cover.font" = "Font";
+
+"cover.color" = "Progress color";
+
+"cover.emoji" = "Emoji";
+
+"cover.photo" = "Choose photo";
+
+"cover.photo.remove" = "Remove photo";
+
+"cover.photo.error" = "Could not load this photo. Try another image.";
+
+"cover.font.rounded" = "Rounded";
+
+"cover.font.heavy" = "Heavy";
+
+"cover.font.serif" = "Serif";
+
+"cover.font.mono" = "Monospaced";
+
+"cover.color.blue" = "Blue";
+
+"cover.color.pink" = "Pink";
+
+"cover.color.orange" = "Orange";
+
+"cover.color.mint" = "Mint";
+
+"cover.color.purple" = "Purple";
+
+"cover.color.yellow" = "Yellow";
+
+"plan.shared" = "Shared plan";
+
+"plan.progress" = "Progress";
+
+"plan.dynamics" = "Activity";
+
+"plan.spent" = "Spent";
+
+"plan.saved" = "Saved";
+
+"plan.limit" = "Limit";
+
+"plan.target" = "Target";
+
+"plan.remaining" = "Remaining";
+
+"plan.over_budget" = "Over budget";
+
+"plan.last30" = "Last 30 days";
+
+"plan.history.empty" = "No transactions to chart yet";
+
+"plan.history.estimate" = "History is reconstructed from the current balance and transactions. Manual balance adjustments may affect the estimate.";
+
+"cover.color.red" = "Red";
+
+"cover.background" = "Cover background";
+
+"cover.background.color" = "Background color";
+
+"cover.background.gradient" = "Gradient";
+
+"cover.background.end" = "Second color";
+
+"cover.color.white" = "White";
+
+"cover.color.black" = "Graphite";
+
+"cover.color.custom" = "Saved color";
+
+"cover.backgrounds" = "Backgrounds";
+"cover.backgrounds.gradients" = "Gradients";
+"cover.unsplash.section" = "Unsplash photos";
+"cover.unsplash.search" = "Photos, Categories and Themes";
+"cover.unsplash.failed" = "Couldn't load photos";
+"cover.unsplash.editorial" = "Editorial";
+"cover.unsplash.cat.wallpapers" = "Wallpapers";
+"cover.unsplash.cat.nature" = "Nature";
+"cover.unsplash.cat.textures" = "Textures";
+"cover.unsplash.cat.abstract" = "Abstract";
+"cover.unsplash.cat.minimal" = "Minimal";
+"cover.unsplash.cat.city" = "City";
+"cover.unsplash.cat.space" = "Space";
+"cover.credit.by" = "Photo by";
+"cover.credit.on" = "on";
+"cover.font.section.title" = "Title";
+"cover.font.section.amount" = "Amount";
+"cover.font.weight" = "Weight";
+"cover.font.style" = "Style";
+"cover.font.italic" = "Italic";
+"cover.weight.light" = "Light";
+"cover.weight.regular" = "Regular";
+"cover.weight.medium" = "Medium";
+"cover.weight.semibold" = "Semibold";
+"cover.weight.bold" = "Bold";
+"cover.weight.heavy" = "Heavy";
+"cover.weight.black" = "Black";
+"cover.design.default" = "Default";
+"cover.design.rounded" = "Rounded";
+"cover.design.serif" = "Serif";
+"cover.design.mono" = "Monospaced";

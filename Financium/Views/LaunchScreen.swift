@@ -10,14 +10,13 @@ import SwiftUI
 /// Still, deliberately. It is on for well under a second, and an entrance
 /// animation would be competing with the app arriving behind it.
 struct LaunchScreen: View {
-    private let icon = AppIconOption.current
 
     var body: some View {
         ZStack {
             FITheme.Palette.pageBackground
                 .ignoresSafeArea()
 
-            Image(icon.previewImageName)
+            Image("AppIconPreview")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 112, height: 112)

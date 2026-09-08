@@ -158,11 +158,15 @@ nonisolated struct FinanceAccount: Codable, Hashable, Sendable {
     var hasUpdatedAt: Bool { storedUpdatedAt != nil }
     var ownerUserID: String = ""
     var memberCount: Int32 = 0
+    var colorID: String = ""
+    var accountType: String = ""
+    var annualRateBasisPoints: Int32 = 0
     var legacyUnknownFields = Data()
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
+        case colorID, accountType, annualRateBasisPoints
         case id, name, symbolName, storedBalance, isArchived, storedCreatedAt, storedUpdatedAt, ownerUserID, memberCount, legacyUnknownFields
     }
 
@@ -177,6 +181,9 @@ nonisolated struct FinanceAccount: Codable, Hashable, Sendable {
         storedUpdatedAt = try values.decodeIfPresent(FinanceTimestamp.self, forKey: .storedUpdatedAt)
         ownerUserID = try values.decodeIfPresent(String.self, forKey: .ownerUserID) ?? ""
         memberCount = try values.decodeIfPresent(Int32.self, forKey: .memberCount) ?? 0
+        colorID = try values.decodeIfPresent(String.self, forKey: .colorID) ?? ""
+        accountType = try values.decodeIfPresent(String.self, forKey: .accountType) ?? ""
+        annualRateBasisPoints = try values.decodeIfPresent(Int32.self, forKey: .annualRateBasisPoints) ?? 0
         legacyUnknownFields = try values.decodeIfPresent(Data.self, forKey: .legacyUnknownFields) ?? Data()
     }
 }
@@ -276,11 +283,16 @@ nonisolated struct FinanceBudget: Codable, Hashable, Sendable {
     var title: String = ""
     var paymentDate: String = ""
     var recurrence: FinanceBudgetRecurrence = .unspecified
+    var accountID: String = ""
+    var coverJSON: String = ""
+    var collaborationJSON: String = ""
     var legacyUnknownFields = Data()
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
+        case coverJSON, collaborationJSON
+        case accountID
         case id, category, storedLimit, storedSpent, reminderEnabled, storedCreatedAt, storedUpdatedAt, title, paymentDate, recurrence, legacyUnknownFields
     }
 
@@ -296,6 +308,9 @@ nonisolated struct FinanceBudget: Codable, Hashable, Sendable {
         title = try values.decodeIfPresent(String.self, forKey: .title) ?? ""
         paymentDate = try values.decodeIfPresent(String.self, forKey: .paymentDate) ?? ""
         recurrence = try values.decodeIfPresent(FinanceBudgetRecurrence.self, forKey: .recurrence) ?? .unspecified
+        accountID = try values.decodeIfPresent(String.self, forKey: .accountID) ?? ""
+        collaborationJSON = try values.decodeIfPresent(String.self, forKey: .collaborationJSON) ?? ""
+        coverJSON = try values.decodeIfPresent(String.self, forKey: .coverJSON) ?? ""
         legacyUnknownFields = try values.decodeIfPresent(Data.self, forKey: .legacyUnknownFields) ?? Data()
     }
 }
@@ -329,11 +344,14 @@ nonisolated struct FinanceGoal: Codable, Hashable, Sendable {
         set { storedUpdatedAt = newValue }
     }
     var hasUpdatedAt: Bool { storedUpdatedAt != nil }
+    var coverJSON: String = ""
+    var collaborationJSON: String = ""
     var legacyUnknownFields = Data()
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
+        case coverJSON, collaborationJSON
         case id, title, accountID, category, storedTarget, storedSaved, storedCreatedAt, storedUpdatedAt, legacyUnknownFields
     }
 
@@ -347,6 +365,8 @@ nonisolated struct FinanceGoal: Codable, Hashable, Sendable {
         storedSaved = try values.decodeIfPresent(FinanceMoney.self, forKey: .storedSaved)
         storedCreatedAt = try values.decodeIfPresent(FinanceTimestamp.self, forKey: .storedCreatedAt)
         storedUpdatedAt = try values.decodeIfPresent(FinanceTimestamp.self, forKey: .storedUpdatedAt)
+        collaborationJSON = try values.decodeIfPresent(String.self, forKey: .collaborationJSON) ?? ""
+        coverJSON = try values.decodeIfPresent(String.self, forKey: .coverJSON) ?? ""
         legacyUnknownFields = try values.decodeIfPresent(Data.self, forKey: .legacyUnknownFields) ?? Data()
     }
 }
@@ -432,4 +452,10 @@ nonisolated struct FinanceCurrencyTotal: Equatable, Sendable {
     var balance = FinanceMoney()
     var spent = FinanceMoney()
     var earned = FinanceMoney()
+}
+
+nonisolated struct FinanceAccountAppearance: Sendable {
+    var colorID: String
+    var accountType: String
+    var annualRateBasisPoints: Int32
 }

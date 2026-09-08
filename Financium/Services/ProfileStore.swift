@@ -144,9 +144,11 @@ final class ProfileStore: ObservableObject {
     }
 
     /// A monogram fallback when there is no photo.
-    var monogram: String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "?" : String(trimmed.first!).uppercased()
+    var monogram: String { Self.monogram(for: name) }
+
+    static func monogram(for name: String) -> String {
+        let initials = name.split(whereSeparator: { $0.isWhitespace }).prefix(2).compactMap(\.first)
+        return initials.isEmpty ? "?" : String(initials).uppercased()
     }
 
     // MARK: - CloudKit

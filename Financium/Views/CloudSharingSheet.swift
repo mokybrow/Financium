@@ -38,13 +38,15 @@ struct AccountShareLinkButton: View {
             item: AccountShareItem(accountID: accountID, existingShare: existingShare),
             preview: SharePreview(
                 accountName,
-                image: Image(AppIconOption.current.previewImageName),
-                icon: Image(AppIconOption.current.previewImageName)
+                image: Image("AppIconPreview"),
+                icon: Image("AppIconPreview")
             )
         ) {
-            Image(systemName: "square.and.arrow.up")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.primary)
+            Label {
+                Text(accessibilityLabel)
+            } icon: {
+                Image(systemName: "square.and.arrow.up")
+            }
         }
         .tint(.primary)
         .accessibilityLabel(Text(accessibilityLabel))

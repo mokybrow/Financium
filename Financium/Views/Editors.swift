@@ -39,9 +39,9 @@ private extension View {
     /// from a view a sheet is covering — so the sheet just sat there saying
     /// nothing while the write had been refused.
     func financeEditorSheet(error: Binding<String?>) -> some View {
-        fiPageBackground()
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
+        presentationBackground(.ultraThinMaterial)
+            .presentationDetents([.height(380), .large])
+            .presentationDragIndicator(.hidden)
             .fiErrorAlert(error)
     }
 }
@@ -57,6 +57,8 @@ struct TransactionEditorView: View {
     /// Preselected account for a brand-new transaction — set when the editor is
     /// opened from inside one account's activity list.
     private let initialAccountID: String
+    private let initialCategory: String
+    private let initialDestinationID: String
 
     @State private var accountID = ""
     @State private var destinationID = ""
@@ -67,15 +69,19 @@ struct TransactionEditorView: View {
     @State private var occurredAt = Date()
     @State private var saving = false
 
-    init(kind: TransactionEditorKind, accountID: String = "") {
+    init(kind: TransactionEditorKind, accountID: String = "", category: String = "", destinationAccountID: String = "") {
         self.kind = kind
         self.transaction = nil
         self.initialAccountID = accountID
+        self.initialCategory = category
+        self.initialDestinationID = destinationAccountID
     }
 
     init(transaction: FinanceTransaction) {
         self.transaction = transaction
         self.initialAccountID = ""
+        self.initialCategory = ""
+        self.initialDestinationID = ""
         switch transaction.kind {
         case .income: self.kind = .income
         case .transfer: self.kind = .transfer
@@ -88,19 +94,19 @@ struct TransactionEditorView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
                     FICard {
-                        if transaction != nil {
-                            FITextFieldRow("transaction.name", text: $title)
-                            FIRowSeparator()
-                        }
+                        FITextFieldRow("transaction.name", text: $title)
+                        FIRowSeparator()
+
+                        // The date sits right under the name, not folded away —
+                        // it is edited about as often as the amount.
+                        FIDateRow("transaction.date", date: $occurredAt)
+                        FIRowSeparator()
 
                         if kind == .transfer {
                             transferRows
                         } else {
                             standardRows
                         }
-
-                        FIRowSeparator()
-                        FIDateRow("transaction.date", date: $occurredAt)
 
                         FIRowSeparator()
                         FIAmountRow(text: $amount, placeholder: amountPlaceholder)
@@ -126,7 +132,7 @@ struct TransactionEditorView: View {
                 .padding(.bottom, 16)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .fiPageBackground()
+            .background(.clear)
             .fiSheetChrome(
                 title: Text(titleKey),
                 confirm: .confirm(isEnabled: isValid && !saving) { save() },
@@ -153,9 +159,23 @@ struct TransactionEditorView: View {
 
     @ViewBuilder
     private var standardRows: some View {
-        FIMenuRow(title: Text("transaction.category"), value: Text(verbatim: categoryLabel)) {
-            categoryButtons
-        }
+        Menu {
+            Picker("transaction.category", selection: Binding(get: { storedCategory }, set: { category = $0 })) {
+                ForEach(categoryOptions, id: \.self) { option in
+                    Label(FinanceCategoryStore.displayName(for: option), systemImage: categories.symbol(
+                        for: option, kind: kind == .income ? .income : .expense
+                    )).tag(option)
+                }
+            }
+        } label: {
+            FIListRow(title: Text("transaction.category")) {
+                HStack(spacing: 8) {
+                    Image(systemName: categories.symbol(for: storedCategory, kind: kind == .income ? .income : .expense))
+                    Text(verbatim: categoryLabel)
+                    Image(systemName: "chevron.up.chevron.down").font(.caption2)
+                }.foregroundStyle(.secondary)
+            }
+        }.tint(.primary)
 
         FIRowSeparator()
 
@@ -214,7 +234,7 @@ struct TransactionEditorView: View {
                 if option == category {
                     Label(name, systemImage: "checkmark")
                 } else {
-                    Text(verbatim: name)
+                    Label(name, systemImage: categories.symbol(for: option, kind: kind == .income ? .income : .expense))
                 }
             }
         }
@@ -281,10 +301,13 @@ struct TransactionEditorView: View {
         // it, and defaulting to the first expense category is what named every
         // transfer after a grocery run.
         if kind == .transfer, destinationID.isEmpty {
-            destinationID = store.accounts.first { $0.id != accountID }?.id ?? ""
+            if !initialDestinationID.isEmpty, store.accounts.contains(where: { $0.id == initialDestinationID }) {
+                destinationID = initialDestinationID
+                if accountID == destinationID { accountID = store.accounts.first { $0.id != destinationID }?.id ?? "" }
+            } else { destinationID = store.accounts.first { $0.id != accountID }?.id ?? "" }
         }
         if category.isEmpty {
-            category = categoryOptions.first ?? ""
+            category = initialCategory.isEmpty ? (categoryOptions.first ?? "") : initialCategory
         }
     }
 
@@ -446,6 +469,9 @@ struct AccountEditorView: View {
 
     @State private var name = ""
     @State private var symbol = "creditcard.fill"
+    @State private var colorID = "red"
+    @State private var accountType = "card"
+    @State private var annualRate = ""
     @State private var currency = "RUB"
     @State private var balance = ""
     @State private var saving = false
@@ -453,6 +479,36 @@ struct AccountEditorView: View {
 
     init(account: FinanceAccount? = nil) {
         self.account = account
+    }
+
+    /// Original-rendering swatches preserve colour in native menu items.
+    private var colorRow: some View {
+        Menu {
+            Picker("home.account.color", selection: $colorID) {
+                ForEach(FIHomeStyle.colors, id: \.self) { color in
+                    Label {
+                        Text(LocalizedStringKey("home.color." + color))
+                    } icon: {
+                        Image(uiImage: FIHomeStyle.colorSwatches[color] ?? UIImage()).renderingMode(.original)
+                    }.tag(color)
+                }
+            }
+        } label: {
+            FIListRow(title: Text("home.account.color")) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(FIHomeStyle.cardColor(colorID))
+                        .frame(width: 18, height: 18)
+                        .overlay(Circle().strokeBorder(.black.opacity(0.15), lineWidth: 1))
+                    Text(LocalizedStringKey("home.color." + colorID))
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .tint(.primary)
     }
 
     var body: some View {
@@ -464,39 +520,33 @@ struct AccountEditorView: View {
 
                     FIRowSeparator()
 
-                    FIMenuRow(title: Text("account.symbol"), value: Text(FinanceAccountIcon.titleKey(for: symbol))) {
-                        Section {
-                            iconButtons(FinanceAccountIcon.kinds)
-                        }
-                        Section("account.icon.currencies") {
-                            iconButtons(FinanceAccountIcon.currencies)
+                    FIMenuRow(title: Text("account.currency"), value: Text(currency)) {
+                        ForEach(FinanceCurrencies.popular, id: \.self) { code in
+                            Button(code) { currency = code }
                         }
                     }
-
                     FIRowSeparator()
-
-                    NavigationLink {
-                        CurrencyPickerView(selected: currency) { currency = $0 }
-                    } label: {
-                        FIListRow(
-                            title: Text("account.currency"),
-                            accessory: .valueChevron(Text(verbatim: currency))
-                        )
+                    FIMenuRow(title: Text("home.account.type"), value: Text(LocalizedStringKey("home.type." + accountType))) {
+                        ForEach(["card", "cash", "deposit"], id: \.self) { type in
+                            Button(LocalizedStringKey("home.type." + type)) { accountType = type }
+                        }
                     }
-                    .buttonStyle(.plain)
-
                     FIRowSeparator()
+                    colorRow
+                    if accountType == "deposit" {
+                        FIRowSeparator()
+                        FIAmountRow(text: $annualRate, placeholder: "home.account.rate")
+                    }
 
-                    FIAmountRow(text: $balance, placeholder: balancePlaceholder)
                 }
                 .fiCardInsets()
                 .padding(.bottom, 16)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .fiPageBackground()
+            .background(.clear)
             .fiSheetChrome(
                 title: Text(account == nil ? "money.accounts.add" : "account.edit"),
-                confirm: .confirm(isEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty && !saving) { save() },
+                confirm: .confirm(isEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty && validRate && !saving) { save() },
                 onClose: { dismiss() }
             )
         }
@@ -538,14 +588,26 @@ struct AccountEditorView: View {
             currency = store.mainCurrencyCode
             return
         }
+        colorID = account.colorID.isEmpty ? "red" : account.colorID
+        accountType = account.accountType.isEmpty ? (account.symbolName == "banknote.fill" ? "cash" : "card") : account.accountType
+        annualRate = financeAmountText(Decimal(account.annualRateBasisPoints) / 100)
         name = account.name
         symbol = account.symbolName.isEmpty ? "creditcard.fill" : account.symbolName
         currency = account.balance.currencyCode.isEmpty ? "RUB" : account.balance.currencyCode
         balance = financeAmountText(account.balance.decimalValue)
     }
 
+    private var validRate: Bool {
+        guard accountType == "deposit" else { return true }
+        guard let rate = financeDecimal(from: annualRate) else { return false }
+        return rate >= 0 && rate <= 100
+    }
+
     private func save() {
+        guard validRate else { return }
         saving = true
+        let appearance = FinanceAccountAppearance(colorID: colorID, accountType: accountType, annualRateBasisPoints: accountType == "deposit" ? NSDecimalNumber(decimal: (financeDecimal(from: annualRate) ?? 0) * 100).int32Value : 0)
+        symbol = accountType == "cash" ? "banknote.fill" : (accountType == "deposit" ? "building.columns.fill" : "creditcard.fill")
         // On a new account an empty field means zero: most accounts start empty
         // and typing a 0 for that is busywork. On an existing one it means
         // "leave the money alone" — clearing the field to change the currency
@@ -568,14 +630,14 @@ struct AccountEditorView: View {
                     symbol: symbol,
                     balance: untouched ? nil : value,
                     currency: currency,
-                    isArchived: account.isArchived
+                    isArchived: account.isArchived, appearance: appearance
                 )
             } else {
                 saved = await store.createAccount(
                     name: name.trimmingCharacters(in: .whitespaces),
                     symbol: symbol,
                     opening: value,
-                    currency: currency
+                    currency: currency, appearance: appearance
                 )
             }
             saving = false
@@ -664,7 +726,7 @@ struct BalanceCorrectionView: View {
             .fiCardInsets()
             .padding(.top, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .fiPageBackground()
+            .background(.clear)
             .fiSheetChrome(
                 title: Text("correction.title"),
                 confirm: .confirm(isEnabled: delta != nil && !saving) { save() },
@@ -727,6 +789,7 @@ struct BudgetEditorView: View {
     @Environment(\.dismiss) private var dismiss
     var budget: FinanceBudget?
 
+    @State private var accountID = ""
     @State private var title = ""
     @State private var category = ""
     @State private var limit = ""
@@ -734,23 +797,38 @@ struct BudgetEditorView: View {
     @State private var paymentDate = Date()
     @State private var recurrence: FinanceBudgetRecurrence = .monthly
     @State private var saving = false
+    @State private var cover = FinancePlanCover.newPlan()
+    @State private var loadingCover = false
+    @State private var prefilled = false
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
+                    FIPlanCoverComposer(cover: $cover,
+                        title: title.isEmpty ? NSLocalizedString("cover.preview.title", comment: "") : title,
+                        amount: FinanceMoney(decimal: financeDecimal(from: limit) ?? 0, currencyCode: store.accounts.first(where: { $0.id == accountID })?.balance.currencyCode ?? budget?.limit.currencyCode ?? store.mainCurrencyCode).formatted,
+                        loading: $loadingCover)
+
                     FICard {
                         FITextFieldRow("budget.name.placeholder", text: $title)
                             .textInputAutocapitalization(.sentences)
 
                         FIRowSeparator()
 
+                        FIMenuRow(title: Text("transaction.account"), value: Text(store.accounts.first(where: { $0.id == accountID })?.name ?? NSLocalizedString("home.all_accounts", comment: "All accounts"))) {
+                            Button("home.all_accounts") { accountID = "" }
+                            ForEach(store.accounts) { account in Button(account.name) { accountID = account.id } }
+                        }
+                        FIRowSeparator()
                         FIMenuRow(title: Text("transaction.category"), value: Text(verbatim: categoryLabel)) {
                             categoryButtons
                         }
 
                         FIRowSeparator()
 
+                        FIAmountRow(text: $limit, placeholder: "budget.limit.placeholder")
+                        FIRowSeparator()
                         FIToggleRow("budget.remind", isOn: $reminder)
 
                         // The date and how often it comes round are only
@@ -779,8 +857,8 @@ struct BudgetEditorView: View {
 
                         FIRowSeparator()
 
-                        FIAmountRow(text: $limit, placeholder: "budget.limit.placeholder")
                     }
+
 
                     FIFootnote("budget.hint")
                 }
@@ -788,14 +866,17 @@ struct BudgetEditorView: View {
                 .padding(.bottom, 16)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .fiPageBackground()
+            .background(.clear)
             .fiSheetChrome(
                 title: Text(budget == nil ? "budget.add" : "budget.edit"),
-                confirm: .confirm(isEnabled: isValid && !saving) { save() },
+                confirm: .confirm(isEnabled: isValid && !saving && !loadingCover) { save() },
                 onClose: { dismiss() }
             )
         }
-        .financeEditorSheet(error: $store.errorMessage)
+        .presentationBackground(Color(uiColor: .systemGroupedBackground))
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+        .fiErrorAlert($store.errorMessage)
         .onAppear(perform: prefill)
         .overlay {
             if saving {
@@ -869,10 +950,14 @@ struct BudgetEditorView: View {
     }
 
     private func prefill() {
+        guard !prefilled else { return }
+        prefilled = true
         guard let budget else {
             if category.isEmpty { category = categoryOptions.first ?? "" }
             return
         }
+        cover = FinancePlanCover.decode(budget.coverJSON)
+        accountID = budget.accountID
         title = budget.title.isEmpty ? FinanceCategoryStore.displayName(for: budget.category) : budget.title
         category = FinanceCategoryStore.canonical(budget.category)
         limit = financeAmountText(budget.limit.decimalValue)
@@ -884,7 +969,10 @@ struct BudgetEditorView: View {
     }
 
     private func save() {
-        guard isValid, !saving, let value = financeDecimal(from: limit) else { return }
+        guard isValid, !saving, !loadingCover, let value = financeDecimal(from: limit) else { return }
+        let coverJSON: String
+        do { coverJSON = try cover.encoded() }
+        catch { store.errorMessage = error.localizedDescription; return }
         saving = true
 
         Task {
@@ -895,7 +983,7 @@ struct BudgetEditorView: View {
                 limit: value,
                 reminder: reminder,
                 paymentDate: paymentDate,
-                recurrence: recurrence
+                recurrence: recurrence, accountID: accountID, coverJSON: coverJSON
             )
             saving = false
             if saved { dismiss() }
@@ -916,12 +1004,20 @@ struct GoalEditorView: View {
     @State private var category = ""
     @State private var target = ""
     @State private var saving = false
+    @State private var cover = FinancePlanCover.newPlan()
+    @State private var loadingCover = false
+    @State private var prefilled = false
 
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: FITheme.Metrics.headerSpacing) {
+                    FIPlanCoverComposer(cover: $cover,
+                        title: title.isEmpty ? NSLocalizedString("cover.preview.title", comment: "") : title,
+                        amount: FinanceMoney(decimal: financeDecimal(from: target) ?? 0, currencyCode: currency).formatted,
+                        loading: $loadingCover)
+
                     FICard {
                         FITextFieldRow("goals.name.placeholder", text: $title)
                             .textInputAutocapitalization(.sentences)
@@ -929,6 +1025,7 @@ struct GoalEditorView: View {
                         FIRowSeparator()
 
                         FIMenuRow(title: Text("transaction.account"), value: Text(verbatim: accountLabel)) {
+                            Button("home.all_accounts") { accountID = "" }
                             ForEach(store.accounts) { account in
                                 Button {
                                     accountID = account.id
@@ -944,20 +1041,6 @@ struct GoalEditorView: View {
 
                         FIRowSeparator()
 
-                        FIMenuRow(title: Text("transaction.category"), value: Text(verbatim: categoryLabel)) {
-                            categoryButtons
-                        }
-
-                        if let account = selectedAccount {
-                            FIRowSeparator()
-                            FIListRow(
-                                title: Text("goals.current_savings"),
-                                accessory: .value(Text(verbatim: account.balance.formatted))
-                            )
-                        }
-
-                        FIRowSeparator()
-
                         FIAmountRow(text: $target, placeholder: "goals.target.placeholder")
                     }
 
@@ -967,14 +1050,17 @@ struct GoalEditorView: View {
                 .padding(.bottom, 16)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .fiPageBackground()
+            .background(.clear)
             .fiSheetChrome(
                 title: Text(goal == nil ? "goals.add" : "goals.edit"),
-                confirm: .confirm(isEnabled: isValid && !saving) { save() },
+                confirm: .confirm(isEnabled: isValid && !saving && !loadingCover) { save() },
                 onClose: { dismiss() }
             )
         }
-        .financeEditorSheet(error: $store.errorMessage)
+        .presentationBackground(Color(uiColor: .systemGroupedBackground))
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+        .fiErrorAlert($store.errorMessage)
         .onAppear(perform: prefill)
         .overlay {
             if saving {
@@ -988,16 +1074,14 @@ struct GoalEditorView: View {
     }
 
     private var accountLabel: String {
-        selectedAccount?.name ?? ""
+        selectedAccount?.name ?? NSLocalizedString("home.all_accounts", comment: "")
     }
 
-    /// A goal is saved into one account, so it is denominated in that account's
-    /// currency — which is also what the backend stores, whatever this sends.
-    /// Asking the user for it separately would only create a second copy of a
-    /// fact that already has an owner.
+    /// One account supplies its currency. With all accounts, keep the goal's
+    /// existing currency (or the main currency for a new goal).
     private var currency: String {
         let code = selectedAccount?.balance.currencyCode ?? ""
-        return code.isEmpty ? store.mainCurrencyCode : code
+        return code.isEmpty ? (goal?.target.currencyCode ?? store.mainCurrencyCode) : code
     }
 
     private var categoryOptions: [String] {
@@ -1040,10 +1124,12 @@ struct GoalEditorView: View {
 
     private var isValid: Bool {
         guard let value = financeDecimal(from: target), value > 0 else { return false }
-        return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && selectedAccount != nil
+        return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (accountID.isEmpty || selectedAccount != nil)
     }
 
     private func prefill() {
+        guard !prefilled else { return }
+        prefilled = true
         guard let goal else {
             // Prefer an account already in the user's main currency, so the
             // default goal is denominated the way the rest of the app is.
@@ -1054,6 +1140,7 @@ struct GoalEditorView: View {
             if category.isEmpty { category = categoryOptions.first ?? "" }
             return
         }
+        cover = FinancePlanCover.decode(goal.coverJSON)
         title = goal.title
         accountID = goal.accountID
         category = FinanceCategoryStore.canonical(goal.category)
@@ -1061,7 +1148,10 @@ struct GoalEditorView: View {
     }
 
     private func save() {
-        guard let value = financeDecimal(from: target) else { return }
+        guard isValid, !saving, !loadingCover, let value = financeDecimal(from: target) else { return }
+        let coverJSON: String
+        do { coverJSON = try cover.encoded() }
+        catch { store.errorMessage = error.localizedDescription; return }
         saving = true
 
         Task {
@@ -1071,7 +1161,7 @@ struct GoalEditorView: View {
                 accountID: accountID,
                 category: storedCategory,
                 target: value,
-                currency: currency
+                currency: currency, coverJSON: coverJSON
             )
             saving = false
             if stored { dismiss() }

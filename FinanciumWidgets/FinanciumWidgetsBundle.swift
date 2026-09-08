@@ -7,5 +7,8 @@ struct FinanciumWidgetsBundle: WidgetBundle {
         FinanciumQuickAddWidget()
         FinanciumSummaryWidget()
         FinanciumBudgetWidget()
+        FinanciumMonthlyWidget(metric: .difference)
+        FinanciumMonthlyWidget(metric: .income)
+        FinanciumMonthlyWidget(metric: .expense)
     }
 }

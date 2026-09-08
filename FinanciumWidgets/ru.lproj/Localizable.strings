@@ -3,7 +3,7 @@
 "widget.quick_add.expense" = "Расход";
 "widget.quick_add.income" = "Доход";
 "widget.summary.title" = "Итоги";
-"widget.summary.description" = "Баланс, траты и поступления за период.";
+"widget.summary.description" = "Разница, доходы и расходы текущего месяца и общий баланс.";
 "widget.summary.total" = "Всего";
 "widget.summary.spent" = "Потрачено";
 "widget.summary.earned" = "Получено";
@@ -15,3 +15,13 @@
 "unit.thousand" = "тыс.";
 "unit.million" = "млн";
 "unit.billion" = "млрд";
+
+"widget.month" = "Этот месяц";
+"widget.refresh" = "Откройте Financium для обновления";
+"widget.lock.difference" = "Разница за месяц";
+"widget.lock.income" = "Доход за месяц";
+"widget.lock.expense" = "Расход за месяц";
+"widget.lock.description" = "Итоги текущего месяца. Нажмите, чтобы открыть финансы.";
+"widget.budget.left" = "Осталось";
+"widget.budget.over" = "Перерасход";
+"widget.preview.budget" = "Продукты";

@@ -32,16 +32,15 @@ private struct FinanceProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (FinanceEntry) -> Void) {
-        completion(FinanceEntry(date: .now, snapshot: FinanceWidgetStore.load() ?? .placeholder))
+        completion(FinanceEntry(date: .now, snapshot: FinanceWidgetStore.load() ?? (context.isPreview ? .placeholder : .empty)))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<FinanceEntry>) -> Void) {
         let entry = FinanceEntry(date: .now, snapshot: FinanceWidgetStore.load() ?? .empty)
-        // The app reloads these itself the moment the figures change, so this
-        // is only a floor: it keeps a tile from sitting on yesterday's total if
-        // the app has not been opened.
+        // Only the app can produce fresh data. Re-reading never recalculates
+        // totals; at a month boundary the view asks the user to open the app.
         let next = Calendar.current.date(byAdding: .hour, value: 1, to: .now) ?? .now.addingTimeInterval(3600)
-        completion(Timeline(entries: [entry], policy: .after(next)))
+        completion(Timeline(entries: [entry], policy: .after(min(next, Calendar.current.dateInterval(of: .month, for: .now)?.end ?? next))))
     }
 }
 
@@ -55,13 +54,14 @@ extension FinanceWidgetSnapshot {
         budgets: [
             Budget(
                 id: "placeholder",
-                title: "Мобильный интернет",
+                title: NSLocalizedString("widget.preview.budget", comment: "Preview budget"),
                 spentMinor: 252_000,
                 limitMinor: 240_000,
                 currencyCode: "RUB"
             )
         ],
-        updatedAt: .now
+        updatedAt: .now,
+        monthStart: .now
     )
 }
 
@@ -73,7 +73,7 @@ extension FinanceWidgetSnapshot {
 private extension View {
     func financeWidgetChrome() -> some View {
         containerBackground(for: .widget) {
-            Color(uiColor: .systemBackground)
+            LinearGradient(colors: [Color(uiColor: .systemBackground), FIWidgetPalette.accent.opacity(0.07)], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 }
@@ -100,7 +100,7 @@ struct FinanciumQuickAddWidget: Widget {
 
 private struct QuickAddWidgetView: View {
     var body: some View {
-        HStack(spacing: 18) {
+        VStack(spacing: 10) {
             action(
                 title: Text("widget.quick_add.expense"),
                 systemImage: "minus",
@@ -120,11 +120,11 @@ private struct QuickAddWidgetView: View {
 
     private func action(title: Text, systemImage: String, tint: Color, url: URL?) -> some View {
         Link(destination: url ?? URL(string: "financium://new")!) {
-            VStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Image(systemName: systemImage)
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 36, height: 36)
                     .background(tint, in: Circle())
 
                 title
@@ -135,7 +135,9 @@ private struct QuickAddWidgetView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .background(tint.opacity(0.09), in: RoundedRectangle(cornerRadius: 16))
             .contentShape(Rectangle())
         }
     }
@@ -143,157 +145,169 @@ private struct QuickAddWidgetView: View {
 
 // MARK: - Summary
 
-/// The month in one picture: what is left, and where it went.
-///
-/// This was four labelled figures in a two-by-two grid — a table, and a table
-/// makes the reader do the comparing. Four numbers of equal size say that all
-/// four matter equally, which is not true: the balance is what the app is
-/// opened for, and spending against income is a relationship rather than two
-/// separate facts.
-///
-/// So: the balance leads, at a size that can be read across a room. Under it a
-/// single bar splits the month into what came in and what went out, which is
-/// the one shape that answers "how is this month going" without arithmetic —
-/// a bar leaning red is a month spending more than it earns, and that is
-/// visible before any of the figures are read. The two amounts label their own
-/// halves, and the difference sits with the balance because it is the same
-/// question asked over a shorter period.
 struct FinanciumSummaryWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: FinanceWidgetStore.kind, provider: FinanceProvider()) { entry in
             SummaryWidgetView(snapshot: entry.snapshot)
                 .financeWidgetChrome()
+                .widgetURL(URL(string: "financium://money?period=month"))
         }
         .configurationDisplayName(Text("widget.summary.title"))
         .description(Text("widget.summary.description"))
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
 private struct SummaryWidgetView: View {
+    @Environment(\.widgetFamily) private var family
     let snapshot: FinanceWidgetSnapshot
 
-    /// How much of the bar belongs to spending.
-    ///
-    /// Measured against the larger of the two, so the bar is always full and
-    /// the split is the comparison. Against their sum, a month with no income
-    /// would show spending at 100% and a month with no spending would show it
-    /// at 0% — the same bar for two opposite situations.
-    private var spentShare: Double {
-        let spent = Double(snapshot.spentMinor)
-        let earned = Double(snapshot.earnedMinor)
-        let scale = max(spent, earned)
-        guard scale > 0 else { return 0 }
-        return min(max(spent / scale, 0), 1)
-    }
-
-    private var earnedShare: Double {
-        let spent = Double(snapshot.spentMinor)
-        let earned = Double(snapshot.earnedMinor)
-        let scale = max(spent, earned)
-        guard scale > 0 else { return 0 }
-        return min(max(earned / scale, 0), 1)
-    }
-
-    private var isBehind: Bool { snapshot.differenceMinor < 0 }
-
     var body: some View {
-        Link(destination: URL(string: "financium://money")!) {
-            VStack(alignment: .leading, spacing: 14) {
-                header
-                bars
+        if !snapshot.isCurrentMonth {
+            Label("widget.refresh", systemImage: "arrow.clockwise")
+                .font(.callout)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label("widget.month", systemImage: "chart.bar.xaxis")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    if family == .systemMedium {
+                        Text(snapshot.updatedAt, format: .dateTime.month(.wide))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                if family == .systemMedium {
+                    HStack(alignment: .top, spacing: 20) {
+                        headline
+                        VStack(spacing: 12) {
+                            metric("widget.summary.earned", value: snapshot.earnedMinor, icon: "arrow.down.left", tint: FIWidgetPalette.positive)
+                            metric("widget.summary.spent", value: snapshot.spentMinor, icon: "arrow.up.right", tint: FIWidgetPalette.destructive)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                } else {
+                    headline
+                }
+                Spacer(minLength: 0)
+                HStack {
+                    Text("widget.summary.total").foregroundStyle(.secondary)
+                    Spacer(minLength: 4)
+                    Text(FinanceWidgetFormat.compact(snapshot.totalBalanceMinor, currencyCode: snapshot.currencyCode))
+                        .monospacedDigit().privacySensitive()
+                }
+                .font(.caption).lineLimit(1).minimumScaleFactor(0.75)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("widget.summary.total")
-                    .font(.system(size: 10, weight: .semibold))
-                    .textCase(.uppercase)
-                    .kerning(0.3)
-                    .foregroundStyle(.secondary)
-
-                Text(verbatim: FinanceWidgetFormat.compact(
-                    snapshot.totalBalanceMinor,
-                    currencyCode: snapshot.currencyCode
-                ))
-                .font(.system(size: 26, weight: .bold).monospacedDigit())
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            }
-
-            Spacer(minLength: 12)
-
-            // The month's net, as a badge rather than a fourth column: it is a
-            // verdict on the two figures below, not a third one beside them.
-            Text(verbatim: FinanceWidgetFormat.compactSigned(snapshot.differenceMinor))
-                .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                .foregroundStyle(isBehind ? FIWidgetPalette.destructive : FIWidgetPalette.positive)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    (isBehind ? FIWidgetPalette.destructive : FIWidgetPalette.positive).opacity(0.12),
-                    in: Capsule()
-                )
+    private var headline: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("widget.summary.difference").font(.caption).foregroundStyle(.secondary)
+            Text(FinanceWidgetFormat.compactSigned(snapshot.differenceMinor, currencyCode: snapshot.currencyCode))
+                .font(.system(.title2, design: .rounded, weight: .bold).monospacedDigit())
+                .foregroundStyle(snapshot.differenceMinor < 0 ? FIWidgetPalette.destructive : FIWidgetPalette.positive)
+                .lineLimit(1).minimumScaleFactor(0.65).privacySensitive()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var bars: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            flow(
-                title: Text("widget.summary.earned"),
-                value: FinanceWidgetFormat.compact(snapshot.earnedMinor, currencyCode: ""),
-                share: earnedShare,
-                tint: FIWidgetPalette.positive
-            )
+    private func metric(_ key: LocalizedStringKey, value: Int64, icon: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Label(key, systemImage: icon).font(.caption2).foregroundStyle(tint)
+            Text(FinanceWidgetFormat.compact(value, currencyCode: snapshot.currencyCode))
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .lineLimit(1).minimumScaleFactor(0.7).privacySensitive()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
 
-            flow(
-                title: Text("widget.summary.spent"),
-                value: FinanceWidgetFormat.compact(snapshot.spentMinor, currencyCode: ""),
-                share: spentShare,
-                tint: FIWidgetPalette.destructive
-            )
+// Each indicator is a separate gallery item, so adding all three needs no configuration.
+enum MonthlyMetric: String {
+    case difference, income, expense
+    var title: LocalizedStringKey {
+        switch self {
+        case .difference: "widget.lock.difference"
+        case .income: "widget.lock.income"
+        case .expense: "widget.lock.expense"
         }
     }
+    var icon: String {
+        switch self {
+        case .difference: "plus.forwardslash.minus"
+        case .income: "arrow.down.left"
+        case .expense: "arrow.up.right"
+        }
+    }
+    func value(_ snapshot: FinanceWidgetSnapshot) -> Int64 {
+        switch self {
+        case .difference: snapshot.differenceMinor
+        case .income: snapshot.earnedMinor
+        case .expense: snapshot.spentMinor
+        }
+    }
+}
 
-    private func flow(title: Text, value: String, share: Double, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
-                title
-                    .font(.system(size: 10, weight: .semibold))
-                    .textCase(.uppercase)
-                    .kerning(0.3)
-                    .foregroundStyle(.secondary)
+struct FinanciumMonthlyWidget: Widget {
+    let metric: MonthlyMetric
+    init() { metric = .difference }
+    init(metric: MonthlyMetric) { self.metric = metric }
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "FinanciumMonthly." + metric.rawValue, provider: FinanceProvider()) { entry in
+            MonthlyAccessoryView(snapshot: entry.snapshot, metric: metric)
+                .containerBackground(for: .widget) { Color.clear }
+                .widgetURL(URL(string: "financium://money?period=month"))
+        }
+        .configurationDisplayName(Text(metric.title))
+        .description(Text("widget.lock.description"))
+        .supportedFamilies([.accessoryInline, .accessoryCircular, .accessoryRectangular])
+    }
+}
 
-                Spacer(minLength: 8)
-
-                Text(verbatim: value)
-                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-            }
-
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.primary.opacity(0.08))
-
-                    Capsule()
-                        .fill(tint)
-                        .frame(width: max(proxy.size.width * share, share > 0 ? 6 : 0))
+private struct MonthlyAccessoryView: View {
+    @Environment(\.widgetFamily) private var family
+    let snapshot: FinanceWidgetSnapshot
+    let metric: MonthlyMetric
+    private var value: String {
+        guard snapshot.isCurrentMonth else { return "—" }
+        return metric == .difference
+            ? FinanceWidgetFormat.compactSigned(metric.value(snapshot), currencyCode: snapshot.currencyCode)
+            : FinanceWidgetFormat.compact(metric.value(snapshot), currencyCode: snapshot.currencyCode)
+    }
+    var body: some View {
+        Group {
+            switch family {
+            case .accessoryInline:
+                Text("\(Image(systemName: metric.icon)) \(Text(metric.title)) \(value)")
+            case .accessoryCircular:
+                ZStack {
+                    AccessoryWidgetBackground()
+                    VStack(spacing: 2) {
+                        Image(systemName: metric.icon).font(.caption).widgetAccentable()
+                        Text(snapshot.isCurrentMonth
+                             ? (metric == .difference
+                                ? FinanceWidgetFormat.compactSigned(metric.value(snapshot))
+                                : FinanceWidgetFormat.compact(metric.value(snapshot), currencyCode: ""))
+                             : "—")
+                            .font(.caption2.bold().monospacedDigit())
+                            .lineLimit(1).minimumScaleFactor(0.75)
+                        Text(snapshot.currencyCode).font(.system(size: 8, weight: .medium))
+                    }.padding(4)
+                }
+            default:
+                VStack(alignment: .leading, spacing: 2) {
+                    Label(metric.title, systemImage: metric.icon).font(.caption.weight(.semibold)).widgetAccentable()
+                    Text(value).font(.title3.bold().monospacedDigit()).lineLimit(1).minimumScaleFactor(0.65)
+                    Text(snapshot.isCurrentMonth ? "widget.month" : "widget.refresh").font(.caption2).foregroundStyle(.secondary)
                 }
             }
-            .frame(height: 6)
         }
+        .privacySensitive()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(metric.title))
+        .accessibilityValue(Text(value))
     }
 }
 
@@ -312,13 +326,13 @@ private struct BudgetProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: BudgetWidgetConfigurationIntent, in context: Context) async -> BudgetEntry {
-        BudgetEntry(date: .now, budget: resolve(configuration) ?? FinanceWidgetSnapshot.placeholder.budgets.first)
+        BudgetEntry(date: .now, budget: resolve(configuration) ?? (context.isPreview ? FinanceWidgetSnapshot.placeholder.budgets.first : nil))
     }
 
     func timeline(for configuration: BudgetWidgetConfigurationIntent, in context: Context) async -> Timeline<BudgetEntry> {
         let entry = BudgetEntry(date: .now, budget: resolve(configuration))
         let next = Calendar.current.date(byAdding: .hour, value: 1, to: .now) ?? .now.addingTimeInterval(3600)
-        return Timeline(entries: [entry], policy: .after(next))
+        return Timeline(entries: [entry], policy: .after(min(next, Calendar.current.dateInterval(of: .month, for: .now)?.end ?? next)))
     }
 
     /// The chosen budget, or the most-spent one.
@@ -357,7 +371,7 @@ private struct BudgetWidgetView: View {
     let budget: FinanceWidgetSnapshot.Budget?
 
     var body: some View {
-        Link(destination: URL(string: "financium://budgets")!) {
+        Link(destination: URL(string: "financium://budgets?period=month")!) {
             if let budget {
                 content(budget)
             } else {
@@ -372,53 +386,26 @@ private struct BudgetWidgetView: View {
     }
 
     private func content(_ budget: FinanceWidgetSnapshot.Budget) -> some View {
-        VStack(spacing: 6) {
-            // Two lines at a readable size, and a floor under the shrinking.
-            //
-            // It was one point smaller with `minimumScaleFactor(0.7)`, so
-            // "Мобильный интернет" came out at eight points — legible in a
-            // screenshot, not on a Home Screen. Wrapping is the right answer to
-            // a long name; shrinking is what you do when there is nowhere to
-            // wrap to, and here there is. The reserved height keeps the ring in
-            // the same place whether the name takes one line or two.
-            Text(verbatim: budget.title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.9)
-                .frame(height: 34)
-
-            ZStack {
-                Circle()
-                    .stroke(Color.primary.opacity(0.12), lineWidth: 8)
-
-                Circle()
-                    // Capped at a full turn so an overspent budget reads as a
-                    // closed ring rather than winding round to look like a
-                    // small one. The percentage in the middle is what says how
-                    // far past it went.
-                    .trim(from: 0, to: min(budget.progress, 1))
-                    .stroke(ringTint(budget), style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-
-                Text(verbatim: "\(budget.percent)%")
-                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-            }
-            .frame(width: 60, height: 60)
-
-            Text(verbatim: FinanceWidgetFormat.compact(budget.spentMinor, currencyCode: budget.currencyCode))
-                .font(.system(size: 17, weight: .semibold).monospacedDigit())
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "gauge.with.dots.needle.50percent").foregroundStyle(ringTint(budget)).widgetAccentable()
+                Spacer()
+                Text("\(budget.percent)%").monospacedDigit().foregroundStyle(ringTint(budget))
+            }.font(.caption.weight(.semibold))
+            Text(budget.title).font(.subheadline.weight(.semibold)).lineLimit(2)
+            Spacer(minLength: 0)
+            Text(budget.isOverspent ? "widget.budget.over" : "widget.budget.left")
+                .font(.caption2).foregroundStyle(.secondary)
+            Text(FinanceWidgetFormat.compact(budget.remainingMinor, currencyCode: budget.currencyCode))
+                .font(.system(.title3, design: .rounded, weight: .bold).monospacedDigit())
+                .lineLimit(1).minimumScaleFactor(0.7).privacySensitive()
+            ProgressView(value: min(max(budget.progress, 0), 1)).tint(ringTint(budget))
+                .accessibilityLabel(Text("widget.budget.title"))
+                .accessibilityValue(Text("\(budget.percent)%"))
+            Text(FinanceWidgetFormat.compact(budget.limitMinor, currencyCode: budget.currencyCode))
+                .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     private func ringTint(_ budget: FinanceWidgetSnapshot.Budget) -> Color {
@@ -444,4 +431,30 @@ private struct BudgetWidgetView: View {
     FinanciumBudgetWidget()
 } timeline: {
     BudgetEntry(date: .now, budget: FinanceWidgetSnapshot.placeholder.budgets.first)
+}
+
+#Preview("Monthly net · Lock Screen", as: .accessoryRectangular) {
+    FinanciumMonthlyWidget(metric: .difference)
+} timeline: {
+    FinanceEntry(date: .now, snapshot: .placeholder)
+    FinanceEntry(date: .now, snapshot: .empty)
+}
+
+#Preview("Income · Lock Screen", as: .accessoryCircular) {
+    FinanciumMonthlyWidget(metric: .income)
+} timeline: {
+    FinanceEntry(date: .now, snapshot: .placeholder)
+}
+
+#Preview("Expense · Lock Screen", as: .accessoryInline) {
+    FinanciumMonthlyWidget(metric: .expense)
+} timeline: {
+    FinanceEntry(date: .now, snapshot: .placeholder)
+}
+
+#Preview("Monthly net · Small", as: .systemSmall) {
+    FinanciumSummaryWidget()
+} timeline: {
+    FinanceEntry(date: .now, snapshot: .placeholder)
+    FinanceEntry(date: .now, snapshot: .empty)
 }

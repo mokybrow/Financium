@@ -14,7 +14,7 @@ struct AuthView: View {
             Spacer(minLength: 0)
 
             VStack(spacing: 18) {
-                Image(AppIconOption.current.previewImageName)
+                Image("AppIconPreview")
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 120, height: 120)
