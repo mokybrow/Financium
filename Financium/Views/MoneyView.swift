@@ -304,7 +304,8 @@ struct MoneyView: View {
             NavigationLink { FinancePlanDetailView(budget: budget, month: store.period.anchorMonth) } label: {
                 planTile(title: budget.title.isEmpty ? FinanceCategoryStore.displayName(for: budget.category) : budget.title,
                          amount: budget.limit, current: budget.spent.decimalValue, target: budget.limit.decimalValue,
-                         coverJSON: budget.coverJSON, shared: FinancePlanCollaboration.decode(budget.collaborationJSON)?.isShared == true, kind: "budget.title")
+                         coverJSON: budget.coverJSON, shared: FinancePlanCollaboration.decode(budget.collaborationJSON)?.isShared == true, kind: "budget.title",
+                         progress: budget.remainingProgress)
             }
         case .goal(let goal):
             NavigationLink { FinancePlanDetailView(goal: goal) } label: {
@@ -315,9 +316,9 @@ struct MoneyView: View {
     }
 
     private func planTile(title: String, amount: FinanceMoney, current: Decimal, target: Decimal,
-                          coverJSON: String, shared: Bool, kind: LocalizedStringKey) -> some View {
-        let progress = target > 0 ? NSDecimalNumber(decimal: current / target).doubleValue : 0
-        return FIPlanCoverTile(title: title, amount: amount.abbreviated, progress: progress,
+                          coverJSON: String, shared: Bool, kind: LocalizedStringKey, progress: Double? = nil) -> some View {
+        let fill = progress ?? (target > 0 ? NSDecimalNumber(decimal: current / target).doubleValue : 0)
+        return FIPlanCoverTile(title: title, amount: amount.abbreviated, progress: fill,
                                cover: FinancePlanCover.decode(coverJSON), shared: shared)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("\(Text(kind)): \(title)"))

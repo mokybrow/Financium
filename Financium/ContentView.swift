@@ -21,6 +21,15 @@ struct ContentView: View {
         return !finance.hasLoaded && finance.loadFailure == nil && finance.accounts.isEmpty
     }
 
+    private var planBindingPresentation: Binding<FinancePlanBindingRequest?> {
+        Binding {
+            guard auth.isAuthenticated, !isBooting, !isLoadingFirstContent, !profile.isPresented else { return nil }
+            return finance.pendingPlanBinding
+        } set: { request in
+            if request == nil { finance.dismissPlanBinding() }
+        }
+    }
+
     var body: some View {
         ZStack {
             Group {
@@ -53,6 +62,11 @@ struct ContentView: View {
         }
         .animation(.easeOut(duration: 0.25), value: isLoadingFirstContent)
         .animation(.easeOut(duration: 0.25), value: auth.isAuthenticated)
+        .sheet(item: planBindingPresentation, onDismiss: { finance.presentNextPlanBinding() }) { request in
+            FinancePlanBindingView(key: request.id, currency: request.currency,
+                                   initialAccountID: request.accountID, initialCategory: request.category,
+                                   planTitle: request.title)
+        }
         .fiErrorAlert($finance.shareAcceptanceError)
         .task {
             try? await Task.sleep(for: .seconds(8))

@@ -55,6 +55,21 @@ struct FinanceStorageRegression {
         gradientCover.gradientEnabled = true
         check(FinancePlanCover.decode(try gradientCover.encoded()) == gradientCover)
 
+        // Budget fill represents money remaining, including empty and overspent limits.
+        var drainingBudget = FinanceBudget()
+        var limit = FinanceMoney(); limit.minorUnits = 20_000
+        drainingBudget.limit = limit
+        check(drainingBudget.remainingProgress == 1)
+        var spending = FinanceMoney(); spending.minorUnits = 5_000
+        drainingBudget.spent = spending
+        check(drainingBudget.remainingProgress == 0.75)
+        spending.minorUnits = 20_000; drainingBudget.spent = spending
+        check(drainingBudget.remainingProgress == 0)
+        spending.minorUnits = 25_000; drainingBudget.spent = spending
+        check(drainingBudget.remainingProgress == 0)
+        limit.minorUnits = 0; drainingBudget.limit = limit
+        check(drainingBudget.remainingProgress == 0)
+
         // Participant snapshots replace prior revisions, and only accepted members count.
         func participantAmount(_ units: Int64, currency: String = "RUB") -> FinanceMoney {
             var value = FinanceMoney(); value.minorUnits = units; value.currencyCode = currency; return value
@@ -67,6 +82,21 @@ struct FinanceStorageRegression {
             .init(participantID: "pending", monthKey: "2026-09", amount: participantAmount(900_000), revision: 1),
             .init(participantID: "owner", monthKey: "2026-08", amount: participantAmount(800_000), revision: 2)
         ])
+        // Closing/revoking a participant removes their total; zero replaces prior spending.
+        var revoked = collaboration
+        revoked.acceptedParticipantIDs = []
+        check(!revoked.isShared)
+        check(revoked.total(currency: "RUB", monthKey: "2026-09").minorUnits == 50_000)
+        var corrected = collaboration
+        corrected.contributions.append(.init(participantID: "partner", monthKey: "2026-09", amount: participantAmount(0), revision: 3))
+        check(corrected.total(currency: "RUB", monthKey: "2026-09").minorUnits == 50_000)
+        check(collaboration.othersTotal(currency: "RUB", monthKey: "2026-09", excluding: "owner").minorUnits == 100_000)
+        var persistedPlan = collaboration
+        persistedPlan.planKey = "budget:shared"
+        persistedPlan.zoneName = "plan_shared"
+        persistedPlan.localParticipantID = "owner"
+        let restoredPlan = try JSONDecoder().decode(FinancePlanCollaboration.self, from: JSONEncoder().encode(persistedPlan))
+        check(restoredPlan == persistedPlan)
         check(collaboration.isShared)
         check(collaboration.total(currency: "RUB", monthKey: "2026-09").minorUnits == 150_000)
         check(collaboration.total(currency: "USD", monthKey: "2026-09").minorUnits == 0)

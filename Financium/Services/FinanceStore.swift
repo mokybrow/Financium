@@ -96,6 +96,12 @@ final class FinanceStore: ObservableObject {
 
     /// Saved CloudKit shares ready for the system collaboration UI. Keeping the
     /// actual share, not merely its URL, makes repeat taps fully synchronous.
+    @Published private(set) var pendingPlanBinding: FinancePlanBindingRequest?
+    private var availablePlanBindings: [FinancePlanBindingRequest] = []
+    private var dismissedPlanBindings: Set<String> = []
+
+    @Published private(set) var planShares: [String: CKShare] = [:]
+    @Published private(set) var planStatuses: [String: FinancePlanShareStatus] = [:]
     @Published private(set) var accountShares: [String: CKShare] = [:]
 
 
@@ -142,6 +148,9 @@ final class FinanceStore: ObservableObject {
                 enableCloudSync()
                 guard let coordinator else { throw CKError(.internalError) }
                 try await coordinator.acceptShare(metadata)
+                if metadata.share.recordID.zoneID.zoneName.hasPrefix("plan_") {
+                    dismissedPlanBindings = []
+                }
                 await refresh(force: true)
             } catch {
                 if !Self.wasCancelled(error) {
@@ -430,6 +439,9 @@ final class FinanceStore: ObservableObject {
     private func performRefresh() async {
         isLoading = true
         defer { isLoading = false }
+        // Shared-plan aggregation needs to know who "you" are so your own
+        // published contribution is not double-counted against your live figure.
+        await local.setSelfUserID(currentUserID)
         do {
             // Both read before the await, so a period changed mid-flight cannot
             // file the answer under the wrong window.
@@ -464,11 +476,17 @@ final class FinanceStore: ObservableObject {
                 participantAccountIDs = await coordinator.participantAccountIDs()
                 sharedAccountIDs = await coordinator.sharedAccountIDs()
                 accountShares = await coordinator.cachedShares()
+                planShares = await coordinator.planShares()
+                planStatuses = try await coordinator.planStatuses()
             } else {
                 participantAccountIDs = []
                 sharedAccountIDs = []
                 accountShares = [:]
+                planShares = [:]
+                planStatuses = [:]
             }
+
+            try await updatePlanBindingRequests()
 
             // Rescheduled from whatever was just loaded, so a budget edited on
             // another device — or deleted — cannot leave a reminder behind.
@@ -625,6 +643,8 @@ final class FinanceStore: ObservableObject {
     }
 
     func deleteBudget(_ budget: FinanceBudget) async {
+        let key = "budget:" + budget.id
+        if planStatuses[key] != nil, !(await closeSharedPlan(key: key)) { return }
         _ = await mutation { try await $0.deleteBudget(id: budget.id) }
     }
 
@@ -641,6 +661,8 @@ final class FinanceStore: ObservableObject {
     }
 
     func deleteGoal(_ goal: FinanceGoal) async {
+        let key = "goal:" + goal.id
+        if planStatuses[key] != nil, !(await closeSharedPlan(key: key)) { return }
         _ = await mutation { try await $0.deleteGoal(id: goal.id) }
     }
 
@@ -706,6 +728,80 @@ final class FinanceStore: ObservableObject {
     /// Supplies `CKShareTransferRepresentation` with either a cached share or
     /// a newly prepared one. The framework calls this only after it has opened
     /// the collaboration UI, so CloudKit latency no longer blocks presentation.
+    func preparePlanShare(key: String) async throws -> CKShare {
+        do {
+            await account.refresh()
+            guard account.isAvailable else { throw CKError(.notAuthenticated) }
+            enableCloudSync()
+            guard let coordinator else { throw CKError(.internalError) }
+            let share = try await coordinator.preparePlanShare(key: key)
+            planShares[key] = share
+            // Match account sharing: do not reload the presenting screen while
+            // CKShareTransferRepresentation is preparing the native popover.
+            return share
+        } catch {
+            let cause = FinanceLog.rootCause(error)
+            if !Self.wasCancelled(cause) {
+                FinanceLog.store.error("prepare plan invitation failed: \(FinanceLog.describe(cause), privacy: .public)")
+                if let ck = cause as? CKError {
+                    let summary = String(format: NSLocalizedString("plan.share.failure", comment: "Share error with CloudKit diagnostic code"), Self.message(for: cause), ck.code.rawValue)
+                    shareAcceptanceError = "\(summary)\n\n\(FinanceLog.serverReason(ck))"
+                } else { shareAcceptanceError = Self.message(for: cause) }
+            }
+            throw cause
+        }
+    }
+
+    func closeSharedPlan(key: String) async -> Bool {
+        do {
+            guard let coordinator else { throw CKError(.notAuthenticated) }
+            try await coordinator.closePlan(key: key)
+            await refresh(force: true)
+            return true
+        } catch {
+            if !Self.wasCancelled(error) { errorMessage = Self.message(for: error) }
+            return false
+        }
+    }
+
+    private func updatePlanBindingRequests() async throws {
+        let raw = try await local.rawLedger()
+        var requests: [FinancePlanBindingRequest] = []
+        for (key, status) in planStatuses where status.needsBinding && !status.isOwner {
+            if let budget = raw.budgets.first(where: { "budget:" + $0.budget.id == key })?.budget {
+                requests.append(.init(id: key, title: budget.title.isEmpty ? FinanceCategoryStore.displayName(for: budget.category) : budget.title,
+                                      currency: budget.limit.currencyCode, accountID: budget.accountID, category: budget.category))
+            } else if let goal = raw.goals.first(where: { "goal:" + $0.id == key }) {
+                requests.append(.init(id: key, title: goal.title, currency: goal.target.currencyCode,
+                                      accountID: goal.accountID, category: nil))
+            }
+        }
+        availablePlanBindings = requests.sorted { $0.id < $1.id }
+        presentNextPlanBinding()
+    }
+
+    func presentNextPlanBinding() {
+        guard pendingPlanBinding == nil else { return }
+        pendingPlanBinding = availablePlanBindings.first { !dismissedPlanBindings.contains($0.id) }
+    }
+
+    func dismissPlanBinding() {
+        if let request = pendingPlanBinding { dismissedPlanBindings.insert(request.id) }
+        pendingPlanBinding = nil
+    }
+
+    func bindSharedPlan(key: String, accountID: String, category: String?) async -> Bool {
+        do {
+            try await local.bindSharedPlan(key: key, accountID: accountID, category: category)
+            await coordinator?.reconcile()
+            await refresh(force: true)
+            return true
+        } catch {
+            if !Self.wasCancelled(error) { errorMessage = Self.message(for: error) }
+            return false
+        }
+    }
+
     func prepareShareRecord(forAccountID accountID: String) async throws -> CKShare {
         if let share = accountShares[accountID] { return share }
         guard let coordinator else { throw FinanceLedger.Failure.invalidArgument }
@@ -877,7 +973,8 @@ final class FinanceStore: ObservableObject {
     /// The ledger rules throw `FinanceLedger.Failure`; CloudKit throws
     /// `CKError`. The user is looking at the same screen either way, so both
     /// are mapped to the same sentences.
-    static func message(for error: Error) -> String {
+    static func message(for sourceError: Error) -> String {
+        let error = FinanceLog.rootCause(sourceError)
         if let failure = error as? FinanceLedger.Failure {
             switch failure {
             case .accountHasTransactions:
@@ -899,7 +996,9 @@ final class FinanceStore: ObservableObject {
             return NSLocalizedString("error.forbidden", comment: "Call refused")
         case .quotaExceeded:
             return NSLocalizedString("error.icloud.quota", comment: "iCloud storage full")
-        case .serverRejectedRequest, .badContainer, .missingEntitlement:
+        case .invalidArguments, .constraintViolation:
+            return NSLocalizedString("error.icloud.invalid_request", comment: "CloudKit rejected request arguments")
+        case .serverRejectedRequest, .badContainer, .missingEntitlement, .badDatabase:
             return NSLocalizedString("error.icloud.configuration", comment: "CloudKit configuration failure")
         case .unknownItem, .zoneNotFound:
             return NSLocalizedString("error.icloud.missing_record", comment: "Account not uploaded")

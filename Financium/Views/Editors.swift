@@ -457,6 +457,46 @@ struct FinanceAccountIcon: Identifiable, Hashable {
 
 /// Creates a new account, or edits an existing one.
 ///
+/// Keep the native menu independent of FinanceStore's refresh notifications.
+/// Only its selection binding changes the displayed colour and checkmark.
+private struct AccountColorMenu: View {
+    @Binding var colorID: String
+
+    var body: some View {
+        Menu {
+            Picker("home.account.color", selection: $colorID) {
+                ForEach(FIHomeStyle.colors, id: \.self) { color in
+                    Label {
+                        Text(LocalizedStringKey("home.color." + color))
+                    } icon: {
+                        Image(uiImage: FIHomeStyle.colorSwatches[color] ?? UIImage()).renderingMode(.original)
+                    }.tag(color)
+                }
+            }
+            // The Menu already owns presentation. Keep the picker inline so
+            // automatic styling cannot introduce a second menu presentation.
+            .pickerStyle(.inline)
+        } label: {
+            FIListRow(title: Text("home.account.color")) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(FIHomeStyle.cardColor(colorID))
+                        .frame(width: 18, height: 18)
+                        .overlay(Circle().strokeBorder(.black.opacity(0.15), lineWidth: 1))
+                    Text(LocalizedStringKey("home.color." + colorID))
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .tint(.primary)
+        .menuActionDismissBehavior(.enabled)
+    }
+
+}
+
 /// One sheet for both: the fields are the same, and an account's currency is a
 /// property of that account rather than something fixed at creation — a travel
 /// wallet that was opened in the wrong currency should be fixable without
@@ -481,34 +521,8 @@ struct AccountEditorView: View {
         self.account = account
     }
 
-    /// Original-rendering swatches preserve colour in native menu items.
     private var colorRow: some View {
-        Menu {
-            Picker("home.account.color", selection: $colorID) {
-                ForEach(FIHomeStyle.colors, id: \.self) { color in
-                    Label {
-                        Text(LocalizedStringKey("home.color." + color))
-                    } icon: {
-                        Image(uiImage: FIHomeStyle.colorSwatches[color] ?? UIImage()).renderingMode(.original)
-                    }.tag(color)
-                }
-            }
-        } label: {
-            FIListRow(title: Text("home.account.color")) {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(FIHomeStyle.cardColor(colorID))
-                        .frame(width: 18, height: 18)
-                        .overlay(Circle().strokeBorder(.black.opacity(0.15), lineWidth: 1))
-                    Text(LocalizedStringKey("home.color." + colorID))
-                        .foregroundStyle(.secondary)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .tint(.primary)
+        AccountColorMenu(colorID: $colorID)
     }
 
     var body: some View {

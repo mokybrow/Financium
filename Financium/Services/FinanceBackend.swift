@@ -121,6 +121,9 @@ actor LocalFinanceBackend: FinanceBackend {
     private var goals: [FinanceGoal] = []
     private var settings = FinanceSettings()
     private var loaded = false
+    /// The reader's own iCloud user-record name, for folding shared-plan
+    /// contributions. Empty until an iCloud account is known.
+    private var selfUserID = ""
 
     init(url: URL? = nil) {
         self.url = url ?? Self.defaultURL()
@@ -261,9 +264,62 @@ actor LocalFinanceBackend: FinanceBackend {
             transactions: transactions,
             budgets: budgets,
             goals: goals,
-            settings: settings
+            settings: settings,
+            selfUserID: selfUserID
         )
     }
+
+    func installSharedPlan(budget: FinanceBudget?, month: String, goal: FinanceGoal?) async throws {
+        try await ensureLoaded()
+        if let budget {
+            if let index = budgets.firstIndex(where: { $0.budget.id == budget.id }) {
+                if budgets[index].month == month && budgets[index].budget == budget { return }
+                budgets[index] = (month, budget)
+            }
+            else { budgets.append((month, budget)) }
+        }
+        if let goal {
+            if let index = goals.firstIndex(where: { $0.id == goal.id }) {
+                if goals[index] == goal { return }
+                goals[index] = goal
+            }
+            else { goals.append(goal) }
+        }
+        try persist()
+    }
+
+    func clearSharedPlan(key: String, remove: Bool) async throws {
+        try await ensureLoaded()
+        let id = String(key.dropFirst(key.hasPrefix("budget:") ? 7 : 5))
+        if key.hasPrefix("budget:") {
+            if remove { budgets.removeAll { $0.budget.id == id } }
+            else if let index = budgets.firstIndex(where: { $0.budget.id == id }) { budgets[index].budget.collaborationJSON = "" }
+        } else {
+            if remove { goals.removeAll { $0.id == id } }
+            else if let index = goals.firstIndex(where: { $0.id == id }) { goals[index].collaborationJSON = "" }
+        }
+        try persist()
+    }
+
+    func bindSharedPlan(key: String, accountID: String, category: String?) async throws {
+        try await ensureLoaded()
+        let id = String(key.dropFirst(key.hasPrefix("budget:") ? 7 : 5))
+        let account = accounts.first { $0.id == accountID && !$0.isArchived }
+        if key.hasPrefix("budget:") {
+            guard let index = budgets.firstIndex(where: { $0.budget.id == id }),
+                  let account, account.balance.currencyCode == budgets[index].budget.limit.currencyCode else { throw FinanceLedger.Failure.invalidArgument }
+            budgets[index].budget.accountID = accountID
+            if let category, !category.isEmpty { budgets[index].budget.category = category }
+        } else {
+            guard let index = goals.firstIndex(where: { $0.id == id }),
+                  let account, account.balance.currencyCode == goals[index].target.currencyCode else { throw FinanceLedger.Failure.invalidArgument }
+            goals[index].accountID = accountID
+        }
+        try persist()
+    }
+
+    /// Set by `FinanceStore` once the iCloud account resolves.
+    func setSelfUserID(_ id: String) { selfUserID = id }
 
     // MARK: Accounts
 

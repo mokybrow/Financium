@@ -134,9 +134,7 @@ struct BudgetView: View {
     }
 
     private func progress(_ budget: FinanceBudget) -> Double {
-        let limit = NSDecimalNumber(decimal: budget.limit.decimalValue).doubleValue
-        guard limit > 0 else { return 0 }
-        return NSDecimalNumber(decimal: budget.spent.decimalValue).doubleValue / limit
+        budget.remainingProgress
     }
 }
 

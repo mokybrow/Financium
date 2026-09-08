@@ -1,13 +1,85 @@
 {
-  "fill" : {
-    "automatic-gradient" : "display-p3:1.00000,1.00000,1.00000,1.00000"
-  },
+  "fill-specializations" : [
+    {
+      "value" : {
+        "linear-gradient" : [
+          "extended-gray:0.00000,1.00000",
+          "extended-gray:0.00000,1.00000"
+        ],
+        "orientation" : {
+          "start" : {
+            "x" : 0.5,
+            "y" : 0
+          },
+          "stop" : {
+            "x" : 0.5,
+            "y" : 0.7
+          }
+        }
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "linear-gradient" : [
+          "display-p3:0.18814,0.18814,0.18814,1.00000",
+          "display-p3:0.07828,0.07828,0.07828,1.00000"
+        ],
+        "orientation" : {
+          "start" : {
+            "x" : 0.5,
+            "y" : 0
+          },
+          "stop" : {
+            "x" : 0.5,
+            "y" : 0.7
+          }
+        }
+      }
+    }
+  ],
   "groups" : [
+    {
+      "hidden" : false,
+      "layers" : [
+        {
+          "hidden" : true,
+          "image-name" : "Wallet.png",
+          "name" : "Wallet"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
     {
       "layers" : [
         {
-          "image-name" : "Wallet.png",
-          "name" : "Wallet"
+          "hidden" : true,
+          "image-name" : "Застёжка.png",
+          "name" : "Застёжка"
+        },
+        {
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "Купюра.png",
+          "name" : "Купюра"
+        },
+        {
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "Кошель с застёжкой.png",
+          "name" : "Кошель с застёжкой"
+        },
+        {
+          "hidden" : true,
+          "image-name" : "Основная иконка.png",
+          "name" : "Основная иконка"
         }
       ],
       "shadow" : {

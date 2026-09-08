@@ -23,6 +23,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         return .newData
     }
 
+    func application(_ application: UIApplication, userDidAcceptCloudKitShareWith metadata: CKShare.Metadata) {
+        FinanceStore.receiveShareInvitation(metadata)
+    }
+
     func application(
         _ application: UIApplication,
         configurationForConnecting connectingSceneSession: UISceneSession,

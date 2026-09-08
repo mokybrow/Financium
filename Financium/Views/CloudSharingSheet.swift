@@ -34,13 +34,24 @@ struct AccountShareLinkButton: View {
     let accessibilityLabel: LocalizedStringKey
 
     var body: some View {
-        ShareLink(
+        CloudShareLinkButton(
             item: AccountShareItem(accountID: accountID, existingShare: existingShare),
-            preview: SharePreview(
-                accountName,
-                image: Image("AppIconPreview"),
-                icon: Image("AppIconPreview")
-            )
+            title: accountName,
+            accessibilityLabel: accessibilityLabel
+        )
+    }
+}
+
+/// Both account and plan menus use the same native control and toolbar anchor.
+private struct CloudShareLinkButton<Item: Transferable>: View {
+    let item: Item
+    let title: String
+    let accessibilityLabel: LocalizedStringKey
+
+    var body: some View {
+        ShareLink(
+            item: item,
+            preview: SharePreview(title, image: Image("AppIconPreview"), icon: Image("AppIconPreview"))
         ) {
             Label {
                 Text(accessibilityLabel)
@@ -50,5 +61,37 @@ struct AccountShareLinkButton: View {
         }
         .tint(.primary)
         .accessibilityLabel(Text(accessibilityLabel))
+    }
+}
+
+nonisolated struct PlanShareItem: Transferable, Sendable {
+    let key: String
+    let existingShare: CKShare?
+
+    static var transferRepresentation: some TransferRepresentation {
+        CKShareTransferRepresentation { item in
+            let container = CKContainer.default()
+            let options = CKAllowedSharingOptions(allowedParticipantPermissionOptions: .readWrite,
+                                                  allowedParticipantAccessOptions: .specifiedRecipientsOnly)
+            if let share = item.existingShare { return .existing(share, container: container, allowedSharingOptions: options) }
+            return .prepareShare(container: container, allowedSharingOptions: options) {
+                guard let store = await FinanceStore.current else { throw FinanceLedger.Failure.notFound }
+                return try await store.preparePlanShare(key: item.key)
+            }
+        }
+    }
+}
+
+struct PlanShareLinkButton: View {
+    let key: String
+    let title: String
+    let existingShare: CKShare?
+
+    var body: some View {
+        CloudShareLinkButton(
+            item: PlanShareItem(key: key, existingShare: existingShare),
+            title: title,
+            accessibilityLabel: "plan.share"
+        )
     }
 }

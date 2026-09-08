@@ -102,6 +102,13 @@ nonisolated enum FinanceLedger {
                 goals[index].saved = FinanceMoney(decimal: max(0, balance), currencyCode: currency)
                 continue
             }
+            if FinancePlanCollaboration.decode(goals[index].collaborationJSON)?.zoneName != nil {
+                let currency = goals[index].target.currencyCode
+                let account = byID[goals[index].accountID]
+                let balance = account?.isArchived == false && account?.balance.currencyCode == currency ? account?.balance.minorUnits ?? 0 : 0
+                goals[index].saved = FinanceMoney(minorUnits: max(0, balance), currencyCode: currency)
+                continue
+            }
             guard let account = byID[goals[index].accountID] else { continue }
             let currency = account.balance.currencyCode
             // Clamped at zero: an overdrawn account has saved nothing towards
@@ -195,6 +202,22 @@ nonisolated enum FinanceLedger {
     /// it here rather than each computing a snapshot its own way.
     ///
     /// Counterpart: `GetOverview` + the list endpoints in service.go.
+    /// Folds every *other* participant's published contribution into a shared
+    /// plan's local figure. Non-shared plans (empty `collaborationJSON`) and
+    /// contributions in another currency are left out. The reader's own amount
+    /// stays the live ledger figure — `selfID` is excluded here.
+    static func withRemoteContributions(
+        _ base: FinanceMoney, collaborationJSON: String, monthKey: String, selfID: String
+    ) -> FinanceMoney {
+        guard !collaborationJSON.isEmpty,
+              let collaboration = FinancePlanCollaboration.decode(collaborationJSON) else { return base }
+        let participantID = selfID.isEmpty ? (collaboration.localParticipantID ?? "") : selfID
+        guard !participantID.isEmpty else { return collaboration.total(currency: base.currencyCode, monthKey: monthKey) }
+        let others = collaboration.othersTotal(currency: base.currencyCode, monthKey: monthKey, excluding: participantID)
+        guard others.minorUnits > 0 else { return base }
+        return FinanceMoney(decimal: base.decimalValue + others.decimalValue, currencyCode: base.currencyCode)
+    }
+
     static func snapshot(
         period: FinancePeriod,
         monthKey: String,
@@ -202,7 +225,8 @@ nonisolated enum FinanceLedger {
         transactions: [FinanceTransaction],
         budgets: [(month: String, budget: FinanceBudget)],
         goals: [FinanceGoal],
-        settings: FinanceSettings
+        settings: FinanceSettings,
+        selfUserID: String = ""
     ) -> FinanceSnapshot {
         let interval = period.interval
         let mainCurrency = settings.mainCurrencyCode.isEmpty ? "RUB" : settings.mainCurrencyCode
@@ -232,11 +256,18 @@ nonisolated enum FinanceLedger {
                     ),
                     currencyCode: stored.budget.limit.currencyCode
                 )
+                filled.spent = withRemoteContributions(filled.spent, collaborationJSON: filled.collaborationJSON,
+                                                       monthKey: monthKey, selfID: selfUserID)
                 return filled
             }
 
         var progressed = goals
         applyGoalProgress(to: &progressed, accounts: accounts)
+        for index in progressed.indices {
+            progressed[index].saved = withRemoteContributions(progressed[index].saved,
+                                                              collaborationJSON: progressed[index].collaborationJSON,
+                                                              monthKey: "", selfID: selfUserID)
+        }
         snapshot.goals = progressed
 
         let totals = currencyTotals(

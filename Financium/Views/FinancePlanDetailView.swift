@@ -7,6 +7,8 @@ struct FinancePlanDetailView: View {
     let initialBudget: FinanceBudget?
     let initialGoal: FinanceGoal?
     let month: Date
+    @State private var binding = false
+    @State private var confirmingClose = false
     @State private var editing = false
     @State private var deleting = false
     @State private var confirmingDelete = false
@@ -26,6 +28,14 @@ struct FinancePlanDetailView: View {
 
     private var budget: FinanceBudget? { initialBudget.map { original in store.budgets.first { $0.id == original.id } ?? original } }
     private var goal: FinanceGoal? { initialGoal.map { original in store.goals.first { $0.id == original.id } ?? original } }
+    private var planKey: String { isBudget ? "budget:" + (initialBudget?.id ?? "") : "goal:" + (initialGoal?.id ?? "") }
+    private var shareStatus: FinancePlanShareStatus? { store.planStatuses[planKey] }
+    private var isOwner: Bool {
+        if let shareStatus { return shareStatus.isOwner }
+        guard let collaboration = FinancePlanCollaboration.decode(budget?.collaborationJSON ?? goal?.collaborationJSON ?? "") else { return true }
+        let identity = store.currentUserID.isEmpty ? collaboration.localParticipantID : store.currentUserID
+        return collaboration.ownerID == identity
+    }
     private var isBudget: Bool { initialBudget != nil }
     private var title: String {
         if let budget { return budget.title.isEmpty ? FinanceCategoryStore.displayName(for: budget.category) : budget.title }
@@ -35,8 +45,9 @@ struct FinancePlanDetailView: View {
     private var target: FinanceMoney { budget?.limit ?? goal?.target ?? FinanceMoney() }
     private var accountID: String { budget?.accountID ?? goal?.accountID ?? "" }
     private var cover: FinancePlanCover { FinancePlanCover.decode(budget?.coverJSON ?? goal?.coverJSON ?? "") }
-    private var shared: Bool { FinancePlanCollaboration.decode(budget?.collaborationJSON ?? goal?.collaborationJSON ?? "")?.isShared == true }
+    private var shared: Bool { shareStatus?.isShared == true || FinancePlanCollaboration.decode(budget?.collaborationJSON ?? goal?.collaborationJSON ?? "")?.isShared == true }
     private var progress: Double {
+        if let budget { return budget.remainingProgress }
         guard target.minorUnits > 0 else { return 0 }
         return NSDecimalNumber(decimal: current.decimalValue / target.decimalValue).doubleValue
     }
@@ -60,8 +71,13 @@ struct FinancePlanDetailView: View {
                         Spacer()
                         if shared { Label("plan.shared", systemImage: "person.2.fill").font(.caption) }
                     }
+                    if shareStatus != nil {
+                        Button { binding = true } label: {
+                            Label(shareStatus?.needsBinding == true ? "plan.binding.required" : "plan.binding.title", systemImage: "creditcard")
+                        }.buttonStyle(.bordered)
+                    }
                     progressCard
-                    Text("plan.dynamics").font(.title3.bold())
+                    Text(shared ? "plan.dynamics.personal" : "plan.dynamics").font(.title3.bold())
                     dynamicsCard
                 }.padding(.horizontal, 20).padding(.bottom, 20)
             }
@@ -83,14 +99,41 @@ struct FinancePlanDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("common.edit", systemImage: "pencil") { editing = true }
-                    Divider()
-                    FIDestructiveMenuButton(titleKey: "common.delete") { confirmingDelete = true }
+                    if isOwner {
+                        Button("common.edit", systemImage: "pencil") { editing = true }
+                        PlanShareLinkButton(key: planKey, title: title, existingShare: store.planShares[planKey])
+                    }
+                    if shareStatus != nil {
+                        Button("plan.binding.title", systemImage: "creditcard") { binding = true }
+                        Button("plan.close", systemImage: "lock") { confirmingClose = true }
+                    }
+                    if isOwner {
+                        Divider()
+                        FIDestructiveMenuButton(titleKey: "common.delete") { confirmingDelete = true }
+                    }
                 } label: { Image(systemName: "ellipsis") }
                 .tint(.primary)
                 .disabled(deleting)
             }
 
+        }
+        .sheet(isPresented: $binding) {
+            FinancePlanBindingView(key: planKey, currency: target.currencyCode,
+                                   initialAccountID: accountID, initialCategory: budget?.category, planTitle: title)
+        }
+        .alert("plan.close", isPresented: $confirmingClose) {
+            Button("plan.close", role: .destructive) {
+                deleting = true
+                let guest = !isOwner
+                Task {
+                    let closed = await store.closeSharedPlan(key: planKey)
+                    deleting = false
+                    if closed && guest { dismiss() }
+                }
+            }
+            Button("common.cancel", role: .cancel) {}
+        } message: {
+            Text(isOwner ? "plan.close.owner" : "plan.close.guest")
         }
         .sheet(isPresented: $editing) {
             if let budget { BudgetEditorView(budget: budget) }
@@ -117,6 +160,8 @@ struct FinancePlanDetailView: View {
         FICard {
             VStack(spacing: 14) {
                 ProgressView(value: min(1, max(0, progress))).tint(.blue)
+                    .accessibilityLabel(Text(isBudget ? "plan.remaining" : "plan.saved"))
+                    .accessibilityValue(Text(progress.formatted(.percent.precision(.fractionLength(0)))))
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(isBudget ? "plan.spent" : "plan.saved").font(.caption).foregroundStyle(.secondary)

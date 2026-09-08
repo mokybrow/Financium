@@ -266,6 +266,13 @@ nonisolated struct FinanceBudget: Codable, Hashable, Sendable {
         get { storedSpent ?? FinanceMoney() }
         set { storedSpent = newValue }
     }
+    /// The available share of the limit: spending drains the budget.
+    /// Decimal arithmetic avoids overflow for large stored amounts.
+    var remainingProgress: Double {
+        guard limit.minorUnits > 0 else { return 0 }
+        let used = Decimal(max(0, spent.minorUnits)) / Decimal(limit.minorUnits)
+        return NSDecimalNumber(decimal: max(0, 1 - used)).doubleValue
+    }
     var hasSpent: Bool { storedSpent != nil }
     var reminderEnabled: Bool = false
     var storedCreatedAt: FinanceTimestamp?

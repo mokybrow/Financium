@@ -23,11 +23,13 @@ actor CloudKitSyncCoordinator {
 
     private let local: LocalFinanceBackend
     private let container: CKContainer
+    private let plans: CloudPlanSync
     private let onRemoteChange: @Sendable () async -> Void
 
     private var privateEngine: CKSyncEngine?
     private var sharedEngine: CKSyncEngine?
     private var started = false
+    private var planSyncError: Error?
     private var recordSaveErrors: [CKRecord.ID: CKError] = [:]
 
     private var sidecar: SyncSidecar
@@ -47,6 +49,7 @@ actor CloudKitSyncCoordinator {
     ) {
         self.local = local
         self.container = container
+        self.plans = CloudPlanSync(local: local, container: container)
         self.onRemoteChange = onRemoteChange
         self.backend = CloudKitFinanceBackend(local: local)
 
@@ -95,6 +98,15 @@ actor CloudKitSyncCoordinator {
         engine.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneName: Self.ledgerZoneName))])
 
         await reconcile()
+        #if DEBUG
+        // Keep schema initialization off the launch/invitation critical path.
+        // A detached task also avoids inheriting CKSyncEngine callback context.
+        let plans = self.plans
+        Task.detached {
+            do { try await plans.initializeDevelopmentSchema() }
+            catch { FinanceLog.store.error("Shared plan schema initialization failed: \(FinanceLog.describe(error), privacy: .public)") }
+        }
+        #endif
     }
 
     /// Accounts this device only *participates* in — shared with it by someone
@@ -178,6 +190,8 @@ actor CloudKitSyncCoordinator {
         if !ids.isEmpty {
             _ = try? await container.privateCloudDatabase.modifyRecordZones(saving: [], deleting: ids)
         }
+        do { try await plans.reset() }
+        catch { log.error("plan reset failed: \(FinanceLog.describe(error), privacy: .public)") }
         sidecar = SyncSidecar()
         saveSidecar()
     }
@@ -258,7 +272,44 @@ actor CloudKitSyncCoordinator {
         if let sharedEngine, !sharedSaves.isEmpty || !sharedDeletes.isEmpty {
             sharedEngine.state.add(pendingRecordZoneChanges: sharedSaves + sharedDeletes)
         }
+        do {
+            let pending = try await plans.reconcile()
+            privateEngine.state.add(pendingRecordZoneChanges: pending.owned)
+            sharedEngine?.state.add(pendingRecordZoneChanges: pending.shared)
+            planSyncError = nil
+        } catch { planSyncError = error; log.error("plan sync failed: \(FinanceLog.describe(error), privacy: .public)") }
         saveSidecar()
+    }
+
+    func planShares() async -> [String: CKShare] { await plans.shares() }
+    func planStatuses() async throws -> [String: FinancePlanShareStatus] {
+        if let planSyncError { throw planSyncError }
+        return try await plans.statuses()
+    }
+    func preparePlanShare(key: String) async throws -> CKShare {
+        await start()
+        let share = try await plans.prepare(key: key)
+        await reconcile()
+        // Return to the native sharing presenter without refreshing its source
+        // toolbar. Sync acknowledgements publish the updated plan afterwards.
+        return share
+    }
+    func closePlan(key: String) async throws {
+        if let zone = await plans.zone(for: key) { cancelPlanChanges(zone) }
+        do { try await plans.close(key: key) }
+        catch { await reconcile(); throw error }
+        await reconcile()
+        await onRemoteChange()
+    }
+    private func cancelPlanChanges(_ zone: CKRecordZone.ID) {
+        for engine in [privateEngine, sharedEngine].compactMap({ $0 }) {
+            engine.state.remove(pendingRecordZoneChanges: engine.state.pendingRecordZoneChanges.filter { change in
+                switch change {
+                case .saveRecord(let id), .deleteRecord(let id): return id.zoneID == zone
+                @unknown default: return false
+                }
+            })
+        }
     }
 
     // MARK: - Sharing
@@ -449,15 +500,23 @@ actor CloudKitSyncCoordinator {
             return
         }
 
+        let isPlan = metadata.share.recordID.zoneID.zoneName.hasPrefix("plan_")
+        var acceptedShare = metadata.share
         if metadata.participantStatus != .accepted {
             let results = try await container.accept([metadata])
             guard let result = results[metadata] else { throw CKError(.internalError) }
-            _ = try result.get()
+            acceptedShare = try result.get()
+        } else if isPlan {
+            let record = try await container.sharedCloudDatabase.record(for: metadata.share.recordID)
+            guard let share = record as? CKShare else { throw CKError(.internalError) }
+            acceptedShare = share
         }
+        if isPlan { try await plans.accept(metadata, acceptedShare: acceptedShare) }
         sidecar.sharedZones.insert(metadata.share.recordID.zoneID.zoneName)
         saveSidecar()
         guard let sharedEngine else { throw CKError(.internalError) }
         try await sharedEngine.fetchChanges()
+        if isPlan { try await plans.materialize() }
         await onRemoteChange()
     }
 
@@ -532,6 +591,15 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
             await applyFetched(modifications: changes.modifications, deletions: changes.deletions, isShared: isShared)
 
         case .fetchedDatabaseChanges(let changes):
+            for deletion in changes.deletions where deletion.zoneID.zoneName.hasPrefix("plan_") {
+                cancelPlanChanges(deletion.zoneID)
+                do { try await plans.zoneDeleted(deletion.zoneID) }
+                catch { planSyncError = error; log.error("plan removal failed: \(FinanceLog.describe(error), privacy: .public)") }
+            }
+            if !changes.deletions.isEmpty {
+                Task.detached { [weak self] in await self?.reconcile() }
+                await onRemoteChange()
+            }
             if isShared {
                 for modification in changes.modifications {
                     sidecar.sharedZones.insert(modification.zoneID.zoneName)
@@ -566,8 +634,10 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
         let systemFields = sidecar.systemFields
         let updatedAt = sidecar.updatedAt
 
+        let plans = self.plans
         return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: pending) { recordID in
-            Self.makeRecord(recordID: recordID, raw: raw, systemFields: systemFields, updatedAt: updatedAt)
+            if recordID.zoneID.zoneName.hasPrefix("plan_") { return await plans.record(for: recordID) }
+            return Self.makeRecord(recordID: recordID, raw: raw, systemFields: systemFields, updatedAt: updatedAt)
         }
     }
 
@@ -588,6 +658,8 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
             // CloudKit bookkeeping is reset, so a different account starts its
             // sync from a clean slate (and gets the local ledger pushed up on
             // the next reconcile).
+            do { try await plans.reset() }
+            catch { log.error("plan reset failed: \(FinanceLog.describe(error), privacy: .public)") }
             sidecar = SyncSidecar()
             saveSidecar()
             await onRemoteChange()
@@ -615,6 +687,13 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
 
         for modification in modifications {
             let record = modification.record
+            // Schema samples are infrastructure, never ledger entities or outbox entries.
+            if record.recordID.zoneID.zoneName == CloudPlanSync.schemaZoneName { continue }
+            if record.recordID.zoneID.zoneName.hasPrefix("plan_") {
+                do { try await plans.received(record, guest: isShared) }
+                catch { planSyncError = error; log.error("plan fetch failed: \(FinanceLog.describe(error), privacy: .public)") }
+                continue
+            }
             // Restored sync state may fetch zone records without replaying a
             // database modification. Imported accounts still belong to guests.
             if isShared { sidecar.sharedZones.insert(record.recordID.zoneID.zoneName) }
@@ -654,6 +733,12 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
         }
 
         for deletion in deletions {
+            if deletion.recordID.zoneID.zoneName == CloudPlanSync.schemaZoneName { continue }
+            if deletion.recordID.zoneID.zoneName.hasPrefix("plan_") {
+                do { try await plans.deleted(deletion.recordID) }
+                catch { planSyncError = error; log.error("plan deletion failed: \(FinanceLog.describe(error), privacy: .public)") }
+                continue
+            }
             let name = deletion.recordID.recordName
             sidecar.systemFields[name] = nil
             sidecar.contentHashes[name] = nil
@@ -672,6 +757,9 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
             settings: settings,
             deleted: deleted
         )
+        do { try await plans.materialize() }
+        catch { planSyncError = error; log.error("plan import failed: \(FinanceLog.describe(error), privacy: .public)") }
+        Task.detached { [weak self] in await self?.reconcile() }
         // Account payloads still carry their previous member count. Apply the
         // current CKShare state afterwards so an acceptance update wins.
         for update in sharingUpdates {
@@ -706,6 +794,11 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
 
     private func handleSent(_ sent: CKSyncEngine.Event.SentRecordZoneChanges, engine: CKSyncEngine) async {
         for saved in sent.savedRecords {
+            if saved.recordID.zoneID.zoneName.hasPrefix("plan_") {
+                do { try await plans.saved(saved); planSyncError = nil }
+                catch { planSyncError = error; log.error("plan acknowledgement failed: \(FinanceLog.describe(error), privacy: .public)") }
+                continue
+            }
             recordSaveErrors[saved.recordID] = nil
             sidecar.systemFields[saved.recordID.recordName] = Self.encodeSystemFields(saved)
         }
@@ -716,6 +809,25 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
         var retry: [CKSyncEngine.PendingRecordZoneChange] = []
         for failure in sent.failedRecordSaves {
             let record = failure.record
+            if record.recordID.zoneID.zoneName.hasPrefix("plan_") {
+                do {
+                    if failure.error.code == .serverRecordChanged, let server = failure.error.serverRecord {
+                        try await plans.conflict(server)
+                        retry.append(.saveRecord(record.recordID))
+                    } else if failure.error.code == .zoneNotFound || failure.error.code == .userDeletedZone {
+                        cancelPlanChanges(record.recordID.zoneID)
+                        try await plans.zoneDeleted(record.recordID.zoneID)
+                        await onRemoteChange()
+                    } else if failure.error.code == .unknownItem {
+                        try await plans.missing(record.recordID)
+                        retry.append(.saveRecord(record.recordID))
+                    } else {
+                        planSyncError = failure.error
+                        log.error("plan save failed: \(FinanceLog.describe(failure.error), privacy: .public)")
+                    }
+                } catch { planSyncError = error; log.error("plan conflict failed: \(FinanceLog.describe(error), privacy: .public)") }
+                continue
+            }
             recordSaveErrors[record.recordID] = failure.error
             let name = record.recordID.recordName
             switch failure.error.code {
@@ -753,7 +865,10 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
             }
         }
         if !retry.isEmpty { engine.state.add(pendingRecordZoneChanges: retry) }
+        do { try await plans.materialize() }
+        catch { planSyncError = error }
         saveSidecar()
+        await onRemoteChange()
     }
 
     private func applyServerRecord(_ record: CKRecord) async {
@@ -833,7 +948,7 @@ extension CloudKitSyncCoordinator: CKSyncEngineDelegate {
         for goal in raw.goals {
             out.append(DesiredRecord(
                 recordName: CloudRecordMapping.recordName(goalID: goal.id),
-                zoneID: goal.accountID.isEmpty ? ledgerZone : zone(forAccount: goal.accountID),
+                zoneID: goal.accountID.isEmpty || FinancePlanCollaboration.decode(goal.collaborationJSON)?.zoneName != nil ? ledgerZone : zone(forAccount: goal.accountID),
                 payloadHash: digest(LegacyFinanceCodec.encode(goal))
             ))
         }

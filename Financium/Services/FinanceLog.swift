@@ -41,9 +41,45 @@ nonisolated enum FinanceLog {
     /// `localizedDescription` buries. A cancellation is named as such rather
     /// than reported as a fault, because it usually means the app called the
     /// request off itself.
+    /// Atomic CloudKit batches also return batchRequestFailed for records that
+    /// were merely rolled back. Prefer the actual failing record's error.
+    static func rootCause(_ error: Error, depth: Int = 0) -> Error {
+        guard depth < 8 else { return error }
+        if let ck = error as? CKError, ck.code == .partialFailure,
+           let nested = ck.partialErrorsByItemID, !nested.isEmpty {
+            let causes = nested.values.map { rootCause($0, depth: depth + 1) }
+            return primaryError(in: causes) ?? error
+        }
+        return error
+    }
+
+    static func primaryError(in errors: [Error]) -> Error? {
+        errors.first { ($0 as? CKError)?.code != .batchRequestFailed } ?? errors.first
+    }
+
+    /// Preserve the server's explanation, not just the numeric CloudKit code.
+    /// Inspect only textual error descriptions, never record payloads or share URLs.
+    static func serverReason(_ error: CKError) -> String {
+        let info = (error as NSError).userInfo
+        let keys = [NSLocalizedFailureReasonErrorKey, NSDebugDescriptionErrorKey, NSLocalizedDescriptionKey]
+        var descriptions: [String] = []
+        for key in keys {
+            guard let text = info[key] as? String else { continue }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty && !descriptions.contains(trimmed) { descriptions.append(trimmed) }
+        }
+        return descriptions.isEmpty ? error.localizedDescription : descriptions.joined(separator: "\n")
+    }
+
     static func describe(_ error: Error) -> String {
         if let ck = error as? CKError {
-            var line = "cloudkit \(ck.code.rawValue) (\(ck.code)): \(ck.localizedDescription)"
+            if ck.code == .partialFailure, let nested = ck.partialErrorsByItemID, !nested.isEmpty {
+                let cause = rootCause(error)
+                if (cause as? CKError)?.code != .partialFailure {
+                    return "cloudkit partialFailure: " + describe(cause)
+                }
+            }
+            var line = "cloudkit \(ck.code.rawValue) (\(ck.code)): \(serverReason(ck))"
             if let retry = ck.retryAfterSeconds {
                 line += " — retry after \(retry)s"
             }

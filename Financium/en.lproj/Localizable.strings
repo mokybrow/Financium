@@ -629,3 +629,33 @@
 "cover.design.rounded" = "Rounded";
 "cover.design.serif" = "Serif";
 "cover.design.mono" = "Monospaced";
+
+"plan.share" = "Share";
+
+"plan.close" = "Close";
+
+"plan.close.owner" = "Sharing will end for everyone. The plan will remain private; accounts and transactions will stay unchanged.";
+
+"plan.close.guest" = "You will leave the shared plan. Your contribution will be removed from its total. Your accounts and transactions will stay unchanged.";
+
+"plan.binding.title" = "Your contribution";
+
+"plan.binding.required" = "Choose your account to join";
+
+"plan.binding.account" = "Account";
+
+"plan.binding.category" = "Category";
+
+"plan.binding.choose" = "Choose an account";
+
+"plan.binding.goal.help" = "Only the balance of your selected account is shared. Other participants cannot see your accounts or transactions. Choose a separate personal account to avoid counting the same savings twice.";
+
+"plan.binding.budget.help" = "Expenses in this category from your selected account count toward the common monthly limit. Account details and transaction history remain private.";
+
+"plan.binding.empty" = "First create an account in the currency of this plan.";
+
+"plan.dynamics.personal" = "Your contribution over time";
+
+"plan.share.failure" = "Could not create the invitation. %@ (CloudKit: %ld)";
+
+"error.icloud.invalid_request" = "CloudKit rejected the request parameters. See the server response for details.";
